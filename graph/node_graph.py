@@ -252,7 +252,10 @@ def build_node_graph(node, data, mode, settings, backend, source):
             review = SufficiencyResult.model_validate(
                 backend.sufficiency(data, state["search_results"])
             )
-            # 판정기의 형식 실수(빠진 질문, 모르는 id, 다른 기술 근거 인용)는 실행 실패가 아니다.
+            # 질문에 대응하는 항목이 하나도 없으면 쓸 수 없는 출력이다 → 기존대로 fail-closed.
+            if not any(c.question_id in {q.id for q in data.questions} for c in review.items):
+                raise ValueError("Sufficiency returned no usable item")
+            # 부분적 형식 실수(빠진 질문, 모르는 id, 다른 기술 근거 인용)는 실행 실패가 아니다.
             # 설계서 D.3: 근거 부족은 실행 실패와 구분한다. 정리한 뒤 부족으로 처리하고 계속 진행한다.
             coverage = normalize_coverage(review, data.questions, state["search_results"])
             return {

@@ -70,3 +70,14 @@ def test_normalize_keeps_well_formed_output_unchanged():
     review = MockBackend().sufficiency(data, data.evidence)
     out = normalize_coverage(review, data.questions, data.evidence)
     assert [c.model_dump() for c in out] == [c.model_dump() for c in review.items]
+
+
+class EmptyJudge(MockBackend):
+    def sufficiency(self, data, evidence):
+        return SufficiencyResult(items=[])
+
+
+def test_review_with_no_usable_item_still_fails_closed():
+    state, _ = run(EmptyJudge())
+    assert state["output"].status == "failed"
+    assert any("Sufficiency failed" in e for e in state["output"].validation_errors)
