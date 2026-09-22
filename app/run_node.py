@@ -25,6 +25,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     settings = load_settings()
     data = load_input(args.node, args.case, args.input)
+    data.tech_descriptions = settings.tech_descriptions
     source = make_source(args.mode, args.node, data, settings)
     backend = MockBackend() if args.mode == "mock" else OpenAIBackend(settings)
     graph = build_node_graph(args.node, data, args.mode, settings, backend, source)

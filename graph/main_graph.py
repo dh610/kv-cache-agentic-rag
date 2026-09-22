@@ -88,6 +88,7 @@ def build_main_graph(
             log = ProgressLog(config.get("configurable", {}).get("output_dir"))
             log.emit("node_start", node=name)
             data = inputs[name].model_copy(deep=True)
+            data.tech_descriptions = settings.tech_descriptions
             if mode == "live":
                 data.evidence = []  # Never mix demo fixture excerpts with live search.
             keys = [RESULT_KEYS[n] for n in NODES if RESULT_KEYS[n] in state]

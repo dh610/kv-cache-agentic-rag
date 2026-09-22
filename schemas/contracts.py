@@ -115,6 +115,8 @@ class NodeInput(Contract):
     case_id: str
     description: str
     target_techs: dict[str, str]
+    # Search-planner context only; never matched against claim/assessment.technology.
+    tech_descriptions: dict[str, str] = Field(default_factory=dict)
     domain: str
     questions: list[Question]
     evidence: list[Evidence]
