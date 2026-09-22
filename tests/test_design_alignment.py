@@ -112,7 +112,7 @@ def test_live_search_records_both_intents_and_rewritten_queries():
 
     source = Source()
     state = invoke(source=source, mode="rag")
-    assert len(source.calls) == 6  # unknown mock judgments require the third bounded search
+    assert len(source.calls) == 3 * len(load_input("tech").questions)  # every question retains a bounded search budget
     for q in load_input("tech").questions:
         records = [r for r in state["searches"] if r.question_id == q.id]
         assert [r.intent for r in records] == ["positive", "critical", "followup"]

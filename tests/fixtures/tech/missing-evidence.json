@@ -1,6 +1,6 @@
 {
   "case_id": "tech-missing-evidence",
-  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
+  "description": "기술 조사 질문 전체에 원문 근거가 없는 개발용 입력입니다. 모든 항목에서 확인 불가가 정상입니다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -11,13 +11,37 @@
       "id": "kivi-mechanism",
       "technology": "KIVI",
       "criterion": "mechanism",
-      "text": "KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다."
+      "text": "KIVI의 Key/Value 양자화 방식, 필요한 소프트웨어 구성과 적용 전제를 원문에서 찾는다."
     },
     {
       "id": "itme-mechanism",
       "technology": "ITME",
       "criterion": "mechanism",
-      "text": "KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다."
+      "text": "ITME의 CXL 계층형 메모리와 KV cache 이동 방식, 필요한 하드웨어 구성과 적용 전제를 원문에서 찾는다."
+    },
+    {
+      "id": "kivi-maturity",
+      "technology": "KIVI",
+      "criterion": "maturity",
+      "text": "KIVI의 실험 모델·하드웨어·워크로드·기준선과 구현·재현 근거를 찾고 공개 정보 기반 TRL을 잠정 추정한다."
+    },
+    {
+      "id": "itme-maturity",
+      "technology": "ITME",
+      "criterion": "maturity",
+      "text": "ITME의 실험 모델·하드웨어·워크로드·기준선과 프로토타입 근거를 찾고 공개 정보 기반 TRL을 잠정 추정한다."
+    },
+    {
+      "id": "kivi-limitations",
+      "technology": "KIVI",
+      "criterion": "limitations",
+      "text": "KIVI 원문에서 정확도·품질, 지연, 메모리 및 평가 범위의 제약과 미확인 조건을 찾는다."
+    },
+    {
+      "id": "itme-limitations",
+      "technology": "ITME",
+      "criterion": "limitations",
+      "text": "ITME 원문에서 대역폭·지연, 메모리 계층, 하드웨어 의존성과 평가 범위의 제약을 찾는다."
     }
   ],
   "evidence": [],

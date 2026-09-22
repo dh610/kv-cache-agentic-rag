@@ -39,7 +39,7 @@
 - `ModelBackend`를 직접 구현한 경우 `plan(data, feedback) -> QueryPlan`, `sufficiency(data, evidence) -> SufficiencyResult`도 구현합니다. 출력은 런타임에서 다시 검증합니다.
 - `EvidenceSource.search(Question, attempt)`는 유지. Question.text에 실제 재작성된 질의가 전달됩니다. 어댑터에서 예전 고정 접미사를 또 붙이지 않습니다.
 - 이해관계자 criterion ID: `competitors`, `adopters`, `industry`. 도메인: `cost`, `performance`, `quality`, `operations`, `scalability`. 종합: `consistency`, `implications`. 이전 `reaction/conflict`, `fit`, `recommendation` 입력은 새 fixture를 참고해 바꿉니다.
-- 기술의 `mechanism/maturity/limitations` ID는 유지. maturity는 TRL 1~9/확인 불가를 허용. 김계원님의 기존 프롬프트 개선은 본인 브랜치에서 병합 충돌을 검토해 살립니다.
+- 기술의 `mechanism/maturity/limitations` ID는 유지. maturity는 TRL 1~9/확인 불가를 허용. 김계원님의 PR #4 프롬프트·TRL 평가 사례는 최신 main에서 받아 보존했습니다. TRL 세부 단계는 기술 프롬프트의 실습 가이드 정의를 유지합니다.
 - 질문 한도 기본값은 10개: 두 기술 × 도메인 5항목을 한 번에 처리합니다. 검색 예산은 여전히 질문별 최초 포함 3회이고 수정은 노드당 최대 1회입니다.
 - `sources`는 State에서 누적될 수 있습니다. 소비자는 `merge_evidence`로 고유 ID를 만들고 사용 출처와 인용을 대조합니다.
 - 이전 JSON/캐시/모델 결과를 새 계약에 맞춘 검증 결과로 재사용하지 않습니다. 문서 메타데이터가 바뀌었으므로 기존 FAISS 인덱스는 재생성합니다.
