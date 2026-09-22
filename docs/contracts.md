@@ -16,14 +16,17 @@
 | NodeRun | status, result, evidence, checks, validation_errors, searches, prompt_hash, model, verdict, fix_count, coverage | 공통 런타임이 붙이는 검증/추적 결과 |
 
 `NodeResult`는 모델이 생성하고, `NodeRun.status`는 코드가 결정합니다.
+보고서 PR #10부터 report의 기존 `coverage` criterion은 `overview/market/stakeholder/domain/implications`로 나뉩니다. 보고서 개인 입력과 결과의 criterion도 함께 이관해야 하며, 허용 판정은 `구성 충족/부분 구성/확인 불가`입니다. 상세 절 대응은 [보고서 노드 문서](report-node.md)를 참고하세요. 다른 노드와 공통 JSON 외피는 유지합니다.
 누락된 근거, Judge 미응답, 잘못된 ID, 미지원 주장을 모델의 자기 선언만으로 성공 처리하지 않습니다.
 확인 불가가 아닌 판정은 같은 기술/기준의 supported claim을 근거로 가져야 합니다.
+인정되는 근거는 해당 claim의 인용 ID와 Judge가 실제 확인한 인용 ID의 교집합입니다. claim이 여러 출처를 나열해도 Judge가 확인하지 않은 출처를 assessment에 사용할 수 없습니다. Judge가 claim의 모든 인용을 반복할 필요는 없지만, 최종 판정에 사용한 인용은 확인되어야 합니다.
+기술 노드에서 `trl_estimates`를 제공하면 같은 기술의 `maturity.judgment`와 단계가 일치해야 합니다. `TRL 5`는 `level=5`, `확인 불가`는 `level=null`과 대응합니다. 기존 호출자의 빈 `trl_estimates`는 허용하며, 종합 노드가 추가 근거로 별도 판단한 단계까지 기술 노드와 강제로 일치시키지는 않습니다.
 이 검사는 인용과 전제 연결을 확인하는 것이며 rationale의 모든 의미나 평가 등급의 타당성을 증명하지 않습니다.
 summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니다.
 
 - completed: 실행 계약과 인용 검사를 통과했고 미확인 항목이 없음. mock에서는 연결 확인만 의미합니다.
 - needs_revision: 검색 실패/근거 부족/미확인/인용 검사 실패 등으로 검토 필요.
-- failed: Generator/Judge 호출 또는 출력 파싱에 실패.
+- failed: Generator/Judge 호출 또는 출력 파싱에 실패. 충분성 판정의 부분적 형식 실수(빠진/중복 질문, 모르는 evidence id, 다른 기술 근거 인용)는 해당 질문을 '부족'으로 정리해 계속 진행하고, 사유를 `coverage`에 남깁니다. 잘못된 인용 일부를 제거해도 '충분'으로 승격하지 않습니다. 유효한 질문 항목이 하나도 없는 응답은 failed를 유지합니다(설계서 D.3).
 
 주장 검증 실패 시 해당 주장은 `unverified`에 남기고, 노드 판정은 보수적으로 `확인 불가`로 보류합니다.
 검색 중 발생한 오류는 이후 재시도 성공과 별개로 이력에 남고 검토 상태를 유지합니다.
@@ -38,7 +41,9 @@ summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니�
 
 
 MainState: `target_techs`, `domain`, `limits`, `tech_result`, `market_result`, `stakeholder_result`, `domain_result`, `sources`, `trl_result`, `synthesis`, `gaps`, `supplement_round`, `report_path`; 호환/검증 확장 `report`, `report_check`, `run_status`.
-`sources`는 누적 리듀서이며 사용 전 `merge_evidence`로 중복/충돌을 확인합니다. `gaps`는 코드 규칙으로 계산합니다.
+`sources`는 누적 리듀서이며 사용 전 `merge_evidence`로 중복/충돌을 확인합니다. 같은 ID의 본문·URL·기술·문서·페이지·scope가 다르거나 affiliation/stance의 알려진 값끼리 상충하면 오류입니다. 제목·발행일·기관 같은 서지 메타데이터 차이는 먼저 본 항목을 유지하고 빈 필드만 채워 병합합니다(병렬 노드가 같은 웹 페이지를 각자 가져오면 Tavily 응답이 달라질 수 있음). unknown 관계를 채울 때는 그 판정의 사유도 함께 사용합니다. `gaps`는 코드 규칙으로 계산합니다.
+
+종합 뒤 보완은 사용자 승인으로 기본 1라운드이며 `limits.supplement=0`이면 끕니다. 보완 이전 출처는 sources 이력에 남지만 최종 REFERENCE 및 서지 검사는 현재 노드 결과가 실제 인용한 근거에만 적용합니다. 더 이상 쓰지 않는 이전 근거의 서지 누락 때문에 보완된 최종 결과를 거부하지 않습니다.
 
 RAGSubState의 설계 키: `role`, `questions`, `current_query`, `search_results`, `is_sufficient`, `draft`, `verdict`, `search_count`, `fix_count`, `output`.
 목록 호출을 보존하므로 `search_count`는 질문 ID별 dict입니다. 내부 `queries`는 질문별 positive/critical 질의를 보관하고 `current_query`는 마지막 실행 질의입니다.

@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from runtime.settings import ROOT
+from runtime.validation import tech_trl_errors, verified_evidence_ids
 from schemas.contracts import NodeInput, NodeRun
 
 DATASET = ROOT / "tests/fixtures/tech/trl_eval"
@@ -24,7 +25,7 @@ def load_case(case_id: str, dataset: Path = DATASET) -> tuple[dict, NodeInput]:
 
 def score_case(case: dict, data: NodeInput, run: NodeRun) -> dict:
     """Check a TRL decision and citations; leave semantic review points to a reader."""
-    problems = []
+    problems = tech_trl_errors(run.result)
     if run.node != "tech" or run.mode != "fixture" or run.model.startswith("mock"):
         problems.append("Use a real Generator/Judge tech fixture run, not mock output")
     if {e.id: e for e in run.evidence} != {e.id: e for e in data.evidence}:
@@ -80,15 +81,9 @@ def score_case(case: dict, data: NodeInput, run: NodeRun) -> dict:
             problems.append("TRL assessment cites a different technology")
         if not set(case["required_maturity_evidence_ids"]).issubset(cited):
             problems.append("TRL assessment omits required experiment or prototype evidence")
-        supported = {check.claim_id for check in run.checks if check.label == "supported"}
-        verified_ids = {
-            eid
-            for claim in run.result.claims
-            if claim.id in supported
-            and claim.technology == technology
-            and claim.criterion == "maturity"
-            for eid in claim.evidence_ids
-        }
+        verified_ids = verified_evidence_ids(
+            run.result, run.checks, data.evidence, technology, "maturity"
+        )
         if not cited.issubset(verified_ids):
             problems.append("TRL citations lack a supported maturity claim")
 

@@ -1,6 +1,6 @@
 {
   "case_id": "report-missing-evidence",
-  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
+  "description": "원문 근거와 상위 결과가 모두 없을 때 모든 절이 확인 불가로 남고 unverified에 필요한 상위 결과가 기록되는지 확인합니다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -8,16 +8,28 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-coverage",
+      "id": "kivi-overview",
       "technology": "KIVI",
-      "criterion": "coverage",
-      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+      "criterion": "overview",
+      "text": "KIVI의 원리·적용 전제·실험 조건·한계(prior_results.tech)와 경쟁 기술 진영의 반응(prior_results.stakeholder의 competitors)을 3.1/3.2 기술 개요 문장으로 옮긴다. 판정의 근거가 된 원문 사실만 claims로 쓰고 결론·조건·한계·출처 연결이 유지되는지 판정한다. TRL 단계는 새로 정하지 않는다."
     },
     {
-      "id": "itme-coverage",
+      "id": "kivi-implications",
+      "technology": "KIVI",
+      "criterion": "implications",
+      "text": "KIVI에 대한 관점 간 일치·상충과 조건부 시사점(prior_results.synthesis)을 5 시사점 문장으로 옮긴다. 상충은 해소하지 않고 보존하며, 압축과 메모리 확장의 보완 관계는 원문 전제가 있을 때만 kind=inference로 적는다. 특정 기술을 추천하거나 우열을 판정하는 문장을 쓰지 않는다."
+    },
+    {
+      "id": "itme-overview",
       "technology": "ITME",
-      "criterion": "coverage",
-      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+      "criterion": "overview",
+      "text": "ITME의 원리·적용 전제·실험 조건·한계(prior_results.tech)와 경쟁 기술 진영의 반응(prior_results.stakeholder의 competitors)을 3.1/3.2 기술 개요 문장으로 옮긴다. 판정의 근거가 된 원문 사실만 claims로 쓰고 결론·조건·한계·출처 연결이 유지되는지 판정한다. TRL 단계는 새로 정하지 않는다."
+    },
+    {
+      "id": "itme-implications",
+      "technology": "ITME",
+      "criterion": "implications",
+      "text": "ITME에 대한 관점 간 일치·상충과 조건부 시사점(prior_results.synthesis)을 5 시사점 문장으로 옮긴다. 상충은 해소하지 않고 보존하며, 압축과 메모리 확장의 보완 관계는 원문 전제가 있을 때만 kind=inference로 적는다. 특정 기술을 추천하거나 우열을 판정하는 문장을 쓰지 않는다."
     }
   ],
   "evidence": [],
