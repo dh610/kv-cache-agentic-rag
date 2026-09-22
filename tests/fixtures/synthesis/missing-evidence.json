@@ -1,0 +1,25 @@
+{
+  "case_id": "synthesis-missing-evidence",
+  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-consistency",
+      "technology": "KIVI",
+      "criterion": "consistency",
+      "text": "앞선 결과 간 일치와 상충, 근거 부족을 보존한다. 확인 불가를 낮은 점수로 바꾸지 않는다."
+    },
+    {
+      "id": "itme-consistency",
+      "technology": "ITME",
+      "criterion": "consistency",
+      "text": "앞선 결과 간 일치와 상충, 근거 부족을 보존한다. 확인 불가를 낮은 점수로 바꾸지 않는다."
+    }
+  ],
+  "evidence": [],
+  "prior_results": {}
+}

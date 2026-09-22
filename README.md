@@ -1,120 +1,172 @@
 # Subject
 
-본 프로젝트는 KV cache 최적화 기술을 소프트웨어, 하드웨어 두 진영에서 선정하여,
-기술 성숙도·시장·이해관계자·도메인 관점에서 비교 평가하는 Agentic RAG를 개발하는 프로젝트입니다.
-
-> 현재 상태: 과제 가이드의 예시 README를 바탕으로 작성한 초기 문서입니다.
-> 기술 선정, 설계 및 구현은 아직 진행 전이며, 아래 `TODO` 항목은 팀 논의와 구현 결과로 갱신합니다.
+KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 비교하는 Agentic RAG 프로젝트입니다.
+현재는 **5명이 공통 파이프라인 위에서 담당 노드의 프롬프트·평가 기준·입력을 개발하는 기초 환경**입니다.
+최종 평가, 검색 품질 수치, 제출용 PDF가 완성된 상태는 아닙니다.
 
 ## Overview
 
-- Objective: KV cache 최적화 기술을 복수 관점에서 중립적으로 비교 평가
-- Method: LangGraph 기반 Multi-Agent + Agentic RAG
-- Tools: TODO — 문서 검색, 외부 정보 검색 및 요약 도구 정의
-- 과제 가이드: [KV cache 최적화 기술 평가](https://actually-war-1ea.notion.site/KV-cache-3ba7f4c866938099b7a8fdaa1831c07e)
+- 공통 기반: Python 3.11, uv, LangGraph, Pydantic, Jinja2, LangSmith
+- 개인 작업: `prompts/<node>/`, `rubrics/<node>.yaml`, `tests/fixtures/<node>/`
+- 키 없이 연결을 확인하는 mock / 고정 근거로 실제 LLM을 호출하는 fixture / 실제 검색 모드
+- [과제 가이드](https://actually-war-1ea.notion.site/KV-cache-3ba7f4c866938099b7a8fdaa1831c07e)
+- [팀원 시작 안내](docs/onboarding.md) · [입출력 계약](docs/contracts.md) · [구조와 구현 범위](docs/architecture.md)
 
 ## Selected Technologies
 
-- SW: TODO — 선정 기술 및 선정 이유
-- HW: TODO — 선정 기술 및 선정 이유
-- 기술 선정 방식: TODO — 조 직접 선정 또는 에이전트 기반 선정
-- 적용 도메인: TODO — 비교 대상으로 삼을 서비스 환경 정의
-
-## Features
-
-아래는 구현 예정 기능입니다.
-
-- PDF 자료 기반 기술 정보 추출 및 근거 검색
-- 외부 정보 검색을 통한 시장성·채택 현황·이해관계자 반응 조사
-- 기술 성숙도(TRL), 시장성, 이해관계자, 도메인 적용 관점별 평가
-- 관점 간 일치·상충 지점을 포함한 비교 보고서 생성
-- 실제 사용한 자료의 출처와 공개 정보 기반 추정의 한계 명시
-- 확증편향 방지 전략: TODO — 출처 균형, 반대 근거 확인 및 검증 절차 정의
-
-## Tech Stack
-
-- Framework: LangGraph
-- LLM/Generator: TODO — GPT 모델 및 선택 이유
-- LLM/Judge: TODO — 모델 및 평가 방식
-- Retrieval: TODO — VectorDB, 검색 전략, Hit Rate@K 및 MRR 평가 결과
-- Embedding: TODO — 오픈소스 임베딩 모델, 비교 후보 및 최종 선택 근거
-
-## Agents
-
-아래 역할은 과제 가이드의 제안이며, 팀 설계에 따라 조정합니다.
-
-| Agent | 역할 | RAG 적용 계획 |
-| --- | --- | --- |
-| 기술 조사 | 선정 기술의 원문에서 개요·실험 조건·한계 추출 | TODO |
-| 시장 평가 | 시장성·상용화·채택 현황 조사 | TODO |
-| 이해관계자 평가 | 경쟁 진영·개발자·도입 기업·투자 업계의 반응 조사 | TODO |
-| 도메인 평가 | 선택한 적용 환경에서 적합성과 제약 평가 | TODO |
-| 평가 종합 | 관점별 결과의 일치·불일치 및 시사점 정리 | TODO |
-| 보고서 생성 | 평가 결과와 근거를 연결하여 보고서 작성 | TODO |
-
-기술 조사·시장 평가·도메인 평가 중 최소 1개 에이전트에는 RAG를 적용합니다.
-
-## Architecture
-
-TODO — 확정한 State 설계표 및 실제 구현과 일치하는 그래프를 추가합니다.
-
-아래는 과제 가이드의 참고 흐름입니다. 아직 구현된 구조가 아닙니다.
-
-```mermaid
-flowchart TD
-    A[기술 선정] --> B[기술 조사]
-    B --> C[시장성 평가]
-    B --> D[이해관계자 평가]
-    B --> E[도메인 평가]
-    C --> F[평가 종합]
-    D --> F
-    E --> F
-    F --> G[평가 보고서 생성]
-```
-
-## Directory Structure
-
-아래는 예정 구조입니다. 현재 저장소에는 README.md와 .gitignore만 포함되어 있습니다.
-
-```text
-├── data/                  # 문서 풀 (총 200페이지 이내, 원문은 기본적으로 Git 제외)
-├── agents/                # Agent 모듈
-├── prompts/               # 프롬프트 템플릿
-├── outputs/               # 생성된 평가 결과 (기본적으로 Git 제외)
-├── app.py                 # 실행 스크립트
-└── README.md
-```
+- SW: [KIVI](https://arxiv.org/abs/2402.02750v2) — KV cache 양자화
+- HW: [ITME](https://arxiv.org/abs/2606.12556v2) — CXL 기반 계층형 메모리 확장
+- 도메인: 데이터센터·클라우드 LLM 서빙
+- 서로 다른 접근의 적용 조건을 비교합니다. 서로 다른 실험의 처리량 수치를 직접 우열로 해석하지 않습니다.
 
 ## Usage
 
-현재는 문서 초기화 단계이므로 실행 가능한 프로그램은 없습니다.
-구현 후 환경 설치, 필요한 환경변수, 자료 준비 및 실제 실행 절차를 작성합니다.
-
-예정 실행 방식:
+현재 기초 환경 브랜치에서 시작합니다. main 병합 후에는 `--branch` 옵션을 생략하면 됩니다.
 
 ```bash
-python app.py
+git clone --branch feat/team-node-foundation https://github.com/dh610/kv-cache-agentic-rag.git
+cd kv-cache-agentic-rag
+uv sync --frozen
+cp .env.example .env
+uv run python -m app.run_node --node tech --mode mock
+uv run python -m app.run_pipeline --mode mock
+uv run pytest -q
 ```
+
+기본 설치에는 GPU, 모델 다운로드, API 키가 필요하지 않습니다.
+mock은 고정 문자열로 그래프 연결과 계약을 확인합니다. 프롬프트 품질이나 기술 평가 성능은 측정하지 않습니다.
+
+실제 LLM으로 담당 노드를 테스트하려면 `.env`에 다음을 설정합니다.
+
+```dotenv
+OPENAI_API_KEY=개인_LLM_API_키
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=개인_LangSmith_키
+LANGSMITH_PROJECT=kv-rag-본인이름-dev
+```
+
+```bash
+uv run python -m app.run_node --node market --mode fixture
+```
+
+LangSmith는 관측 도구이므로 **LangSmith 키만으로 LLM을 호출할 수는 없습니다.**
+추적을 켜면 프롬프트, 입력 근거, 출력이 지정한 LangSmith 프로젝트에 기록됩니다.
+출력의 trace 링크와 `outputs/local/<실행 ID>/`의 JSON·렌더링된 프롬프트를 비교하세요.
+기본 fixture는 짧은 논문 발췌라 시장 채택·도메인 적합성의 `확인 불가`가 정상일 수 있습니다.
+
+| 모드 | 의미 | 필요한 준비 |
+| --- | --- | --- |
+| node `mock` | 오프라인 연결 확인 | 없음 |
+| node `fixture` | 내 `.j2` + 고정 근거 + 실제 Generator/Judge | OpenAI 키, 추적 시 LangSmith 키 |
+| node `rag` | BGE-M3 dense + FAISS 검색 + 실제 LLM | 위 준비 + RAG 추가 설치·PDF·인덱스 |
+| node `web` | Tavily 원문 검색 + 실제 LLM | OpenAI·Tavily 키 |
+| pipeline `live` | 역할별 RAG/웹을 사용하는 전체 그래프 | OpenAI·Tavily 키 + RAG 인덱스 |
+
+로컬 논문 검색:
+
+```bash
+# 공유 ZIP의 kivi.pdf, itme.pdf를 data/papers/에 놓습니다.
+uv run python -m app.index --check
+uv sync --frozen --extra rag
+uv run --extra rag python -m app.index
+uv run --extra rag python -m app.run_node --node tech --mode rag
+# TAVILY_API_KEY를 .env에 추가한 뒤 전체 연결:
+uv run --extra rag python -m app.run_pipeline --mode live
+```
+
+최초 인덱싱은 대용량 모델을 다운로드하며 CPU에서는 시간이 걸립니다.
+문서와 본문 범위는 `data/documents.yaml`, 검색 설정은 `config.yaml`에서 관리합니다.
+PDF/설정이 바뀌면 인덱스를 다시 만들어야 합니다. 전체 PDF 페이지 합계는 200 이하로 제한합니다.
+
+실행 종료 코드는 `0=completed`, `2=needs_revision`, `1=failed/설정 오류`입니다.
+결과 파일이 만들어졌다는 사실만으로 성공 판정하지 않습니다.
+
+## Agents
+
+| 노드 | 역할 | live 검색 경로 |
+| --- | --- | --- |
+| `tech` | 원리·성숙도·실험 조건 | 대상 논문 RAG |
+| `market` | 수요·채택·진입 장벽 | 논문 RAG + 웹 |
+| `stakeholder` | 이해관계자 반응 | 웹 + 상위 기술 결과·근거 |
+| `domain` | 클라우드 적용 조건 | 논문 RAG + 웹 |
+| `synthesis` | 관점별 일치·상충 종합 | 기존 결과·근거 사용 |
+| `report` | 보고서 구성 | 기존 결과·근거 사용 |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    START --> tech
+    tech --> market
+    tech --> stakeholder
+    tech --> domain
+    market --> collect
+    stakeholder --> collect
+    domain --> collect
+    collect --> synthesis
+    synthesis --> report
+    report --> END
+```
+
+각 노드 안에서 `search → generate → verify → finalize`를 실행합니다.
+실제 검색 모드는 근거 부족 시 질문별 최대 3회(첫 검색 포함) 안에서 재검색합니다.
+종합 뒤 자동 보완과 별도 답변 수정 루프는 제외한 간소화안입니다.
+
+## Directory Structure
+
+```text
+app/                 # run_node, run_pipeline, index 실행 명령
+schemas/             # 공통 Pydantic 입출력 계약
+graph/               # 공유 LangGraph, 병렬 합류, 검증/종료 처리
+runtime/             # 설정, .j2 렌더링, LLM/Judge, LangSmith 기록
+rag/                 # 공통 검색 인터페이스, PDF/FAISS, 웹 어댑터
+prompts/<node>/      # 담당자 system.j2, user.j2
+prompts/shared/      # 공통 근거 규칙·Judge
+rubrics/<node>.yaml  # 기준 정의·허용 판정: 팀 검토용 초안
+tests/fixtures/      # 공유 고정 입력: Git 추적
+data/documents.yaml # 문서 메타데이터: Git 추적
+data/papers/         # 개인 원문 PDF: Git 제외
+outputs/local/      # 개인 실행 결과: Git 제외
+.cache/              # 개인 FAISS 인덱스: Git 제외
+```
+
+## Tech Stack
+
+- Generator `gpt-4.1-mini`, Judge `gpt-4.1-nano`: 팀 초안의 기본값, `.env`에서 모델 변경 가능
+- BGE-M3 **dense만 사용** + 정규화된 벡터의 FAISS 내적 검색
+- 선택적 reranker는 `config.yaml`의 `retrieval.rerank`; 아직 품질 우위 미검증
+- sparse·multi-vector·BM25 융합, 자동 TRL 점수화, 검색 품질 평가셋은 이번 기초 범위에 포함하지 않음
+- 의존성은 `uv.lock`으로 공유, 기본 설치와 `rag` 추가 설치 분리
+
+## Features and Validation
+
+인용 ID, 대상 기술, rubric, 질문 누락, Judge 누락을 검사합니다.
+검증되지 않은 주장은 `unverified`에 남기고 실패한 평가를 `확인 불가`로 보류합니다.
+Judge는 인용 정합성 보조 도구이며 기준 판정의 타당성은 담당자가 검토해야 합니다.
+검증 상태와 별개로 mock 결과를 실제 기술 결론으로 사용하면 안 됩니다.
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -q
+# 실제 FAISS 저장/조회 경로를 가짜 임베더로 검증 (모델 다운로드 없음):
+uv run --with faiss-cpu --with numpy pytest tests/test_index.py -q
+```
+
+GitHub Actions는 API 키 없이 동일한 검사와 mock 전체 파이프라인을 실행합니다.
+실제 OpenAI/Tavily/LangSmith API 호출 및 BGE 모델의 검색 품질은 개인 설정 후 별도 확인해야 합니다.
 
 ## Contributors
 
-개인별 실제 수행 역할을 기재합니다. 과제 지침에 따라 PM·PL 역할은 포함하지 않습니다.
-
-- TODO — 이름: 실제 수행 역할 (예: PDF Parsing, Retrieval Agent)
-- TODO — 이름: 실제 수행 역할 (예: Prompt Engineering, Agent Design)
+공통 기반 담당과 관점별 담당이 같은 저장소를 사용합니다. 실제 이름·담당 노드 배정은 팀에서 확정 후 기입합니다.
+공유 코드보다 담당 프롬프트·rubric·fixture를 우선 수정하고 작은 PR로 합칩니다.
+[충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다.
 
 ## Deliverables
 
 - 설계 PDF: `RAG-Design_{캠퍼스}-{X반}_{이름1+이름2+...}.pdf`
-  - 기술 선정 및 이유, RAG 적용 대상, 임베딩 선택 근거
-  - 도메인·4가지 관점별 평가 기준, State 설계표, Mermaid 그래프, 보고서 목차
-  - 제출: DAY 3 오전 10시까지, 반별 Slack 제출 스레드
-- 개발 결과: GitHub 링크 + 평가 보고서 PDF
-  - 보고서 파일명: `RAG-Output_{캠퍼스}_{X반}_{이름1+이름2+...}.pdf`
-  - 제출: DAY 3 오후 4시까지, 반별 Slack 제출 스레드
-- 발표: README를 사용한 조별 10분 발표
-  - 설계·개발 차별점, 보고서 핵심 포인트, Lessons Learned 포함
+- 개발 결과: GitHub 링크 + `RAG-Output_{캠퍼스}_{X반}_{이름1+이름2+...}.pdf`
+- 최종 보고서: SUMMARY로 시작하고 REFERENCE로 종료, 실제 사용한 자료만 기재
+- 조별 발표: README로 설계·구현·보고서 핵심 및 Lessons Learned 설명
 
-보고서는 SUMMARY로 시작하고 REFERENCE로 끝납니다.
-SUMMARY는 반 페이지 이내로 작성하고, REFERENCE에는 실제 활용한 자료만 기재합니다.
-최종 일정과 제출 위치는 반별 공지를 확인합니다.
+일정과 제출 위치는 최신 반별 공지를 확인합니다. 현재 `preview.md`는 개발 결과 요약으로, 제출 PDF를 대체하지 않습니다.

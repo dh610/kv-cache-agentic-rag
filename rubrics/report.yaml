@@ -1,0 +1,11 @@
+role: report
+objective: 종합 결과를 SUMMARY부터 REFERENCE까지의 보고서 재료로 구조화한다.
+criteria:
+- id: coverage
+  definition: 결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다.
+  judgments:
+  - 구성 충족
+  - 구성 미충족
+  - 확인 불가
+source_policy: 새 검색을 하지 않는다. 기존 결과와 근거만 사용한다. 새 성능/시장 수치를 만들지 않는다. 현재 출력은 개발용 JSON이며
+  제출 PDF가 아니다.

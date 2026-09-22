@@ -1,0 +1,22 @@
+role: market
+objective: 기술이 해결하는 수요, 실제 채택 증거와 상용화 장벽을 구분한다.
+criteria:
+- id: adoption
+  definition: 공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다.
+  judgments:
+  - 채택 확인
+  - 시험 도입 확인
+  - 확인 불가
+- id: demand
+  definition: 공개된 서비스 요구와 기술의 연결을 평가한다. 출처 개수나 기업 이름만으로 성장성을 판정하지 않는다.
+  judgments:
+  - 수요 근거 있음
+  - 조건부 수요
+  - 확인 불가
+- id: barriers
+  definition: 비용, 공급, SW/HW 교체, 통합 부담을 확인한다.
+  judgments:
+  - 장벽 확인
+  - 확인 불가
+source_policy: 기술 관련 원문 RAG와 공개 웹 자료를 활용한다. 시장 일반 자료는 context로 표시하며 특정 기술 채택으로 확대
+  해석하지 않는다.

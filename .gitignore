@@ -1,9 +1,15 @@
-# Credentials
+# Credentials and per-user configuration
 .env
 .env.*
 !.env.example
+.envrc
+.envrc.*
+secrets/
 *.pem
 *.key
+config.local.yaml
+*.local.yaml
+*.local.json
 
 # Python and local environments
 .venv/
@@ -13,14 +19,41 @@ __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.egg-info/
+build/
+dist/
 
 # Local documents, indexes, caches and generated reports
-data/
-outputs/
+data/papers/*
+!data/papers/.gitkeep
+data/private/
+docs/course/
+tmp/
+*.zip
+outputs/**
+!outputs/.gitkeep
 .cache/
 .chroma/
 chroma_db/
 faiss_index/
+*.faiss
+*.pkl
+*.safetensors
+*.npy
+*.npz
+*.pt
+*.onnx
+*.log
+.langgraph_api/
+
+# Personal editor state (shared project settings should be added explicitly)
+.idea/
+.vscode/
 
 # OS files
 .DS_Store

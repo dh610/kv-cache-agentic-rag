@@ -1,0 +1,22 @@
+role: tech
+objective: KIVI와 ITME의 원리, 실험 조건, 성숙도와 한계를 원문에서 구분한다.
+criteria:
+- id: mechanism
+  definition: KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다.
+  judgments:
+  - 원리 확인
+  - 조건부 확인
+  - 확인 불가
+- id: maturity
+  definition: 실험, 프로토타입, 실서비스 운용을 구분한다. 논문 존재만으로 상용 성숙도를 높게 판단하지 않는다.
+  judgments:
+  - 연구 검증
+  - 프로토타입 검증
+  - 운영 검증
+  - 확인 불가
+- id: limitations
+  definition: 정확도 손실, 지연, 메모리 제약과 재현 조건을 명시한다.
+  judgments:
+  - 제약 확인
+  - 확인 불가
+source_policy: 대상 논문 원문을 사용한다. 다른 기술의 결과를 대상 기술의 성능으로 전용하지 않는다.
