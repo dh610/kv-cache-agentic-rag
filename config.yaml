@@ -3,6 +3,14 @@ target_techs:
   sw: KIVI
   hw: ITME
 domain: 데이터센터·클라우드 LLM 서빙
+# 보고서 표지. 설계서 표지와 같은 구성으로 조판한다.
+report:
+  title: KV cache 최적화 기술 다관점 평가 보고서
+  subtitle: LangGraph 기반 Multi-Agent · Agentic RAG
+  lead: SW 압축 KIVI / HW 메모리 확장 ITME
+  campus: 판교 · 8반
+  members: [김계원, 박유진, 윤동현, 인수연, 정재웅]
+
 models:
   generator: gpt-4.1-mini
   judge: gpt-4.1-mini  # nano 는 claim 당 1개 check·근거 ID 규칙을 지키지 못했다

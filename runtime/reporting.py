@@ -8,6 +8,7 @@ fixed prose in prompts/report/sections.j2, as design E.3 specifies.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -178,14 +179,18 @@ def affiliation_marker(e):
 TYPE_ORDER = {"paper": 0, "patent": 1, "web": 2, "fixture": 3}
 
 
-def reference_entries(sources):
-    """One bibliographic entry per document; cited chunk IDs and pages stay traceable."""
+def _reference_groups(sources):
     groups: dict[tuple, list] = {}
     for e in merge_evidence(sources):
         groups.setdefault((e.source_type, e.document_id or e.url), []).append(e)
-    ordered = sorted(
+    return sorted(
         groups.values(), key=lambda items: (TYPE_ORDER[items[0].source_type], items[0].title)
     )
+
+
+def reference_entries(sources):
+    """One bibliographic entry per document; cited chunk IDs and pages stay traceable."""
+    ordered = _reference_groups(sources)
     lines = []
     for number, items in enumerate(ordered, 1):
         first = items[0]
@@ -198,12 +203,67 @@ def reference_entries(sources):
     return lines
 
 
+INTERNAL = re.compile(
+    r"\s*[\(\[]\s*E\d+(\s*[,;·]\s*E\d+)*\s*[\)\]]"  # (E1, E3) 같은 임시 근거 번호
+    r"|\b(tech|market|stakeholder|domain|synthesis|report)/[A-Za-z]+/[a-z]+\s*:\s*"  # 내부 키
+)
+
+
+def strip_internal(value: str) -> str:
+    """모델이 사유에 섞어 쓴 내부 표기를 지운다.
+
+    E 번호는 프롬프트에서만 쓰는 임시 근거 번호이고 `tech/KIVI/overview:` 는 노드 내부
+    키다. 독자에게는 의미가 없고, 인용은 REFERENCE 번호로 따로 붙는다.
+    """
+    return re.sub(r"\s{2,}", " ", INTERNAL.sub("", value)).strip()
+
+
 def _cell(text):
-    return text.replace("|", "/").replace("\n", " ")
+    return strip_internal(text.replace("|", "/").replace("\n", " "))
+
+
+# 본문 인용을 REFERENCE 번호로 바꾸기 위한 현재 보고서의 지도. assemble_report 가 채운다.
+_CITATIONS: dict[str, str] = {}
+
+
+def citation_numbers(sources) -> dict[str, tuple[int, int | None]]:
+    """근거 ID → (REFERENCE 번호, 쪽). 번호와 묶음은 REFERENCE 목록과 같은 순서를 쓴다."""
+    out = {}
+    for number, items in enumerate(_reference_groups(sources), 1):
+        for e in items:
+            out[e.id] = (number, e.page)
+    return out
 
 
 def _ids(ids):
-    return f" [{', '.join(ids)}]" if ids else ""
+    """긴 원문 ID 대신 REFERENCE 번호로 인용한다. 같은 문서의 쪽은 한 번호로 묶는다."""
+    if not ids:
+        return ""
+    pages: dict[int, list[int]] = {}
+    unknown = []
+    for i in ids:
+        if i not in _CITATIONS:
+            unknown.append(i)
+            continue
+        number, page = _CITATIONS[i]
+        slot = pages.setdefault(number, [])
+        if page and page not in slot:
+            slot.append(page)
+    parts = [
+        f"{number} p.{','.join(str(p) for p in sorted(slot))}" if slot else str(number)
+        for number, slot in sorted(pages.items())
+    ]
+    return f" [{'; '.join(parts + unknown)}]" if parts or unknown else ""
+
+
+def _unique_claim_lines(claims, shown):
+    lines = []
+    for c in claims:
+        if c.text in shown:
+            continue
+        shown.add(c.text)
+        lines.append(_claim_line(c))
+    return lines
 
 
 def _claim_line(c):
@@ -248,8 +308,13 @@ def _assessment_table(run, techs):
     return rows
 
 
-def _narrative(report_run, criterion, tech):
-    """Report-node sentences for one section/technology plus its coverage judgment."""
+def _narrative(report_run, criterion, tech, shown=None):
+    """Report-node sentences for one section/technology plus its coverage judgment.
+
+    같은 내용을 보고서 노드와 역할 노드가 각각 써내는 경우가 많다. shown 에 이미 실은
+    문장을 모아 두면 절 안에서 같은 문장을 두 번 싣지 않는다.
+    """
+    seen = shown if shown is not None else set()
     lines = []
     a = next(
         (
@@ -268,7 +333,11 @@ def _narrative(report_run, criterion, tech):
     claims = [
         c for c in report_run.result.claims if c.criterion == criterion and c.technology == tech
     ]
-    lines.extend(_claim_line(c) for c in claims)
+    for c in claims:
+        if c.text in seen:
+            continue  # 같은 문장을 여러 주장으로 나눠 써도 본문에는 한 번만 싣는다.
+        seen.add(c.text)
+        lines.append(_claim_line(c))
     if not claims:
         lines.append(f"- {tech}: 확인 불가. 이 절에 인용 가능한 보고서 문장이 없음")
     return lines
@@ -313,6 +382,8 @@ def fixed_sections():
 
 
 def assemble_report(state, result_keys, mode):
+    global _CITATIONS
+    _CITATIONS = citation_numbers(report_sources(state, result_keys))
     techs = list(state["target_techs"].values())
     sw = state["target_techs"].get("sw", techs[0])
     hw = state["target_techs"].get("hw", techs[-1])
@@ -333,8 +404,13 @@ def assemble_report(state, result_keys, mode):
     ]
     for number, tech in enumerate(techs, 1):
         lines.append(f"## 3.{number} {tech}")
-        lines.extend(_narrative(report, "overview", tech))
-        lines.extend(_claim_line(c) for c in tech_run.result.claims if c.technology == tech)
+        shown: set[str] = set()
+        lines.extend(_narrative(report, "overview", tech, shown))
+        lines.extend(
+            _unique_claim_lines(
+                [c for c in tech_run.result.claims if c.technology == tech], shown
+            )
+        )
     # Design E.1: the two-technology comparison table closes the section.
     lines.append(
         f"표 3-1 기술 조사 결과 비교 (기술 조사 노드 요약: {_cell(tech_run.result.summary)})"
@@ -387,16 +463,18 @@ def assemble_report(state, result_keys, mode):
     ):
         run = state[result_keys[role]]
         lines.append(f"## 4.{number} {heading}")
+        shown = set()
         for tech in techs:
-            lines.extend(_narrative(report, role, tech))
+            lines.extend(_narrative(report, role, tech, shown))
         lines.append(f"{ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)}")
-        lines.extend(_claim_line(c) for c in run.result.claims)
+        lines.extend(_unique_claim_lines(run.result.claims, shown))
         lines.append(f"표 4-{number} {heading} 비교")
         lines.extend(_assessment_table(run, techs))
 
     lines.append("# 5. 시사점")
+    shown = set()
     for tech in techs:
-        lines.extend(_narrative(report, "implications", tech))
+        lines.extend(_narrative(report, "implications", tech, shown))
     lines.append("## 5.1 관점 간 상충 지점")
     lines.append(f"평가 종합 노드 요약: {_cell(synthesis.result.summary)}")
     for a in synthesis.result.assessments:
@@ -511,59 +589,120 @@ def validate_report(state, result_keys, text, mode):
     }
 
 
-def write_report(text, output: Path):
-    """Korean CID font avoids a platform-specific font path in team clones."""
+def pdf_text(value: str) -> str:
+    """CID 폰트에 없는 글자를 같은 뜻의 한글 문장부호로 바꾼다.
+
+    가운뎃점 U+00B7 은 HYSMyeongJo-Medium 에서 엉뚱한 글리프(∬)로 찍힌다. 마크다운 원문은
+    그대로 두고 조판할 때만 U+318D 로 바꾼다.
+    """
+    return escape(value).replace("\u00b7", "\u318d")
+
+
+def write_report(text, output: Path, meta=None):
+    """설계서 표지와 같은 구성으로 조판한다. 한국어 CID 폰트로 팀 환경 차이를 없앤다."""
+    from datetime import date
+
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+    from reportlab.platypus import (
+        LongTable,
+        PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        TableStyle,
+    )
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "report.md").write_text(text, encoding="utf-8")
     pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
+    ink, rule, band = (
+        colors.HexColor("#1F2933"),
+        colors.HexColor("#B9C2CC"),
+        colors.HexColor("#EEF2F6"),
+    )
     normal = ParagraphStyle(
         "body",
         fontName="HYSMyeongJo-Medium",
-        fontSize=9,
-        leading=14,
+        fontSize=9.5,
+        leading=15.5,
         wordWrap="CJK",
         alignment=TA_LEFT,
-        spaceAfter=6,
+        textColor=ink,
+        spaceAfter=7,
     )
+    cell = ParagraphStyle("cell", parent=normal, fontSize=8.5, leading=12.5, spaceAfter=0)
     heading = ParagraphStyle(
-        "heading", parent=normal, fontSize=14, leading=20, spaceBefore=12, keepWithNext=True
+        "heading",
+        parent=normal,
+        fontSize=15,
+        leading=21,
+        spaceBefore=20,
+        spaceAfter=9,
+        textColor=colors.HexColor("#14202B"),
+        keepWithNext=True,
     )
     subheading = ParagraphStyle(
-        "subheading", parent=normal, fontSize=11, leading=16, spaceBefore=8, keepWithNext=True
+        "subheading",
+        parent=normal,
+        fontSize=11.5,
+        leading=17,
+        spaceBefore=13,
+        spaceAfter=6,
+        keepWithNext=True,
     )
+    centered = ParagraphStyle("centered", parent=normal, alignment=TA_CENTER, spaceAfter=0)
     story = []
+    if meta:
+        big = ParagraphStyle("t", parent=centered, fontSize=20, leading=30)
+        mid = ParagraphStyle("s", parent=centered, fontSize=12, leading=20)
+        small = ParagraphStyle("m", parent=centered, fontSize=9.5, leading=17)
+        label = " ".join("R A G - O U T P U T 평 가  산 출 물".split())
+        story += [
+            Spacer(1, 120),
+            Paragraph(label, ParagraphStyle("l", parent=small, textColor=rule)),
+            Spacer(1, 26),
+            Paragraph(pdf_text(meta.subtitle), mid),
+            Paragraph(pdf_text(meta.title), big),
+            Paragraph(pdf_text(meta.lead), mid),
+            Spacer(1, 60),
+            Paragraph(pdf_text(f"캠퍼스 · 반 {meta.campus}"), small),
+            Paragraph(pdf_text("조원 " + " · ".join(meta.members)), small),
+            Paragraph(f"작성 {date.today():%Y년 %-m월 %-d일}", small),
+            Spacer(1, 30),
+            Paragraph(
+                "자동 생성 초안입니다. 모든 판정은 공개 정보 기반 추정이며 사람의 검토가 필요합니다.",
+                ParagraphStyle("d", parent=small, fontSize=8.5, textColor=rule),
+            ),
+            PageBreak(),
+        ]
     rows = []
 
     def flush():
         if not rows:
             return
-        width = 505 / len(rows[0])
-        first = min(65, width)
+        columns = len(rows[0])
+        first = min(80, 505 / columns)
         widths = (
-            [505]
-            if len(rows[0]) == 1
-            else [first] + [(505 - first) / (len(rows[0]) - 1)] * (len(rows[0]) - 1)
+            [505] if columns == 1 else [first] + [(505 - first) / (columns - 1)] * (columns - 1)
         )
         table = LongTable(rows, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
-        table.setStyle(
-            TableStyle(
-                [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8EDF3")),
-                    ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ]
-            )
-        )
-        story.extend([table, Spacer(1, 8)])
+        style = [
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BACKGROUND", (0, 0), (-1, 0), band),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.7, rule),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#DCE1E7")),
+            ("LINEABOVE", (0, 0), (-1, 0), 0.7, rule),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]
+        table.setStyle(TableStyle(style))
+        story.extend([Spacer(1, 2), table, Spacer(1, 12)])
         rows.clear()
 
     for line in text.splitlines():
@@ -572,21 +711,33 @@ def write_report(text, output: Path):
         if line.startswith("|"):
             if line.startswith("| ---"):
                 continue
-            rows.append([Paragraph(escape(c.strip()), normal) for c in line.strip("|").split("|")])
+            style = cell
+            rows.append([Paragraph(pdf_text(c.strip()), style) for c in line.strip("|").split("|")])
             continue
         flush()
         style = (
             subheading if line.startswith("## ") else heading if line.startswith("#") else normal
         )
-        story.append(Paragraph(escape(line.lstrip("# ").strip()), style))
+        story.append(Paragraph(pdf_text(line.lstrip("# ").strip()), style))
     flush()
     path = output / "report.pdf"
+    label = meta.title if meta else "평가 보고서"
 
     def footer(canvas, doc):
-        canvas.setFont("Helvetica", 8)
-        canvas.drawRightString(550, 25, str(doc.page))
+        canvas.saveState()
+        canvas.setStrokeColor(rule)
+        canvas.setLineWidth(0.3)
+        canvas.line(40, 38, 555, 38)
+        canvas.setFont("HYSMyeongJo-Medium", 7.5)
+        canvas.setFillColor(rule)
+        canvas.drawString(40, 26, label)
+        canvas.drawRightString(555, 26, str(doc.page))
+        canvas.restoreState()
+
+    def cover(canvas, doc):
+        return None
 
     SimpleDocTemplate(
-        str(path), leftMargin=40, rightMargin=40, topMargin=40, bottomMargin=40
-    ).build(story, onFirstPage=footer, onLaterPages=footer)
+        str(path), leftMargin=45, rightMargin=45, topMargin=48, bottomMargin=52, title=label
+    ).build(story, onFirstPage=cover if meta else footer, onLaterPages=footer)
     return str(path)

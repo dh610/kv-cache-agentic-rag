@@ -17,6 +17,16 @@ class SettingsModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ReportMeta(SettingsModel):
+    """보고서 표지 정보. 설계서 표지와 같은 항목을 쓴다."""
+
+    title: str = "평가 보고서"
+    subtitle: str = ""
+    lead: str = ""
+    campus: str = ""
+    members: list[str] = Field(default_factory=list)
+
+
 class Models(SettingsModel):
     generator: str
     judge: str
@@ -128,6 +138,7 @@ class Settings(SettingsModel):
     schema_version: Literal[2]
     target_techs: dict[str, str]
     domain: str
+    report: ReportMeta = Field(default_factory=ReportMeta)
     models: Models
     limits: Limits
     retrieval: Retrieval

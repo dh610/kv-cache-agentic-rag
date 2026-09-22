@@ -15,6 +15,7 @@ from pathlib import Path
 
 from graph.main_graph import RESULT_KEYS
 from runtime.reporting import assemble_report, validate_report, write_report
+from runtime.settings import load_settings
 from schemas.contracts import Evidence, Gap, NodeRun
 
 
@@ -40,7 +41,7 @@ def main(argv=None) -> int:
     validation = validate_report(state, RESULT_KEYS, text, mode)
     target = args.out or args.folder
     target.mkdir(parents=True, exist_ok=True)
-    path = write_report(text, target)
+    path = write_report(text, target, load_settings().report)
     print(f"Report Markdown: {target / 'report.md'}\nReport PDF: {path}")
     print(f"모드: {mode} (모델 호출 없이 재조판) / 제출 준비: {validation['ready']}")
     for problem in validation["problems"]:
