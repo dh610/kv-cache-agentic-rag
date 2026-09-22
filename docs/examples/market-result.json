@@ -1,0 +1,60 @@
+{
+  "node": "market",
+  "summary": "형식 예시입니다. 실제 평가 결과가 아닙니다.",
+  "claims": [],
+  "assessments": [
+    {
+      "technology": "KIVI",
+      "criterion": "adoption",
+      "judgment": "확인 불가",
+      "rationale": "이 예시에는 해당 항목을 평가할 실제 근거가 제공되지 않았습니다.",
+      "evidence_ids": []
+    },
+    {
+      "technology": "KIVI",
+      "criterion": "growth",
+      "judgment": "확인 불가",
+      "rationale": "이 예시에는 해당 항목을 평가할 실제 근거가 제공되지 않았습니다.",
+      "evidence_ids": []
+    },
+    {
+      "technology": "KIVI",
+      "criterion": "ecosystem",
+      "judgment": "확인 불가",
+      "rationale": "이 예시에는 해당 항목을 평가할 실제 근거가 제공되지 않았습니다.",
+      "evidence_ids": []
+    },
+    {
+      "technology": "ITME",
+      "criterion": "adoption",
+      "judgment": "확인 불가",
+      "rationale": "이 예시에는 해당 항목을 평가할 실제 근거가 제공되지 않았습니다.",
+      "evidence_ids": []
+    },
+    {
+      "technology": "ITME",
+      "criterion": "growth",
+      "judgment": "확인 불가",
+      "rationale": "이 예시에는 해당 항목을 평가할 실제 근거가 제공되지 않았습니다.",
+      "evidence_ids": []
+    },
+    {
+      "technology": "ITME",
+      "criterion": "ecosystem",
+      "judgment": "확인 불가",
+      "rationale": "이 예시에는 해당 항목을 평가할 실제 근거가 제공되지 않았습니다.",
+      "evidence_ids": []
+    }
+  ],
+  "unverified": [
+    "KIVI/adoption: 실제 근거 수집 전",
+    "KIVI/growth: 실제 근거 수집 전",
+    "KIVI/ecosystem: 실제 근거 수집 전",
+    "ITME/adoption: 실제 근거 수집 전",
+    "ITME/growth: 실제 근거 수집 전",
+    "ITME/ecosystem: 실제 근거 수집 전"
+  ],
+  "limitations": [
+    "형식 설명용 데이터"
+  ]
+}

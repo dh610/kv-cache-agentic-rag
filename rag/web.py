@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import httpx
 from langsmith import traceable
@@ -55,6 +56,9 @@ class WebSource:
                     scope="context",
                     retrieved_at=datetime.now(timezone.utc).isoformat(),
                     published_at=item.get("published_date"),
+                    authors=item.get("author"),
+                    publisher=item.get("publisher"),
+                    site=urlparse(url).hostname,
                 )
             )
         return out

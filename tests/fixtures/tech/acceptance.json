@@ -1,0 +1,74 @@
+{
+  "case_id": "tech-acceptance",
+  "description": "구현 인수용 질문 범위: 두 기술의 모든 현재 rubric 항목. 기본 evidence는 짧은 예시일 뿐이므로 실제 평가용 근거로 교체해야 합니다. 확인 불가를 숨기지 마세요.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-mechanism",
+      "technology": "KIVI",
+      "criterion": "mechanism",
+      "text": "KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다."
+    },
+    {
+      "id": "kivi-maturity",
+      "technology": "KIVI",
+      "criterion": "maturity",
+      "text": "실험, 프로토타입, 실서비스 운용을 구분한다. 논문 존재만으로 상용 성숙도를 높게 판단하지 않는다."
+    },
+    {
+      "id": "kivi-limitations",
+      "technology": "KIVI",
+      "criterion": "limitations",
+      "text": "정확도 손실, 지연, 메모리 제약과 재현 조건을 명시한다."
+    },
+    {
+      "id": "itme-mechanism",
+      "technology": "ITME",
+      "criterion": "mechanism",
+      "text": "KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다."
+    },
+    {
+      "id": "itme-maturity",
+      "technology": "ITME",
+      "criterion": "maturity",
+      "text": "실험, 프로토타입, 실서비스 운용을 구분한다. 논문 존재만으로 상용 성숙도를 높게 판단하지 않는다."
+    },
+    {
+      "id": "itme-limitations",
+      "technology": "ITME",
+      "criterion": "limitations",
+      "text": "정확도 손실, 지연, 메모리 제약과 재현 조건을 명시한다."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "kivi-abstract-fixture",
+      "text": "the value cache should be quantized per-token.",
+      "title": "KIVI — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "kivi"
+    },
+    {
+      "id": "itme-abstract-fixture",
+      "text": "demonstrating its functional feasibility through an FPGA-based hardware prototype.",
+      "title": "ITME — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "itme"
+    }
+  ],
+  "prior_results": {}
+}

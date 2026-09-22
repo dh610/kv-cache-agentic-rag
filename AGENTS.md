@@ -1,6 +1,7 @@
 # Shared development contract
 
 - Read README.md and docs/contracts.md before changing node contracts.
+- Follow docs/team-contract.md for question batching, references and handoff checks; track remaining design differences in docs/final-design-review.md.
 - Use uv and Python 3.11. Keep pyproject.toml and uv.lock in sync for dependency changes.
 - Prefer node-owned prompts/<node>, rubrics/<node>.yaml, and tests/fixtures/<node> for role development.
 - Shared graph/schema changes must retain all question handling, bounded retries, evidence identity, and failure propagation.

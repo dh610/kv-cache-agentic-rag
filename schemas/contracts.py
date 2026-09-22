@@ -25,6 +25,10 @@ class Evidence(Contract):
     page: int | None = Field(default=None, ge=1)
     document_id: str | None = None
     authors: str | None = None
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    venue: str | None = None
+    publisher: str | None = None
+    site: str | None = None
     published_at: str | None = None
     retrieved_at: str | None = None
 
