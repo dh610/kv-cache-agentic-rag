@@ -24,13 +24,12 @@ class Models(SettingsModel):
 
 
 class Limits(SettingsModel):
+    """설계서 표 13 실행 한도: 검색 3 / 답변 수정 1 / 종합 보완 1. 0으로 두면 해당 루프를 끈다."""
+
     search: int = Field(ge=1, le=3)
     questions: int = Field(ge=1, le=12)
-    fix: Literal[0] = 0
-    supplement: Literal[0] = 0
-
-
-# Only the simplified execution contract is implemented in this foundation.
+    fix: int = Field(default=1, ge=0, le=1)
+    supplement: int = Field(default=1, ge=0, le=1)
 
 
 class Retrieval(SettingsModel):

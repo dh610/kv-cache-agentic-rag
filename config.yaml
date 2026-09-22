@@ -9,11 +9,11 @@ models:
   temperature: 0
   timeout_seconds: 60
   max_retries: 1
-limits:
-  search: 3  # includes initial attempt; per question
+limits:  # 설계서 표 13 실행 한도
+  search: 3  # 첫 검색 포함, 세부 질문마다 따로 적용
   questions: 6
-  fix: 0
-  supplement: 0
+  fix: 1  # 표현 오류 시 답변 수정 1회
+  supplement: 1  # 종합 뒤 보완 재실행 1라운드 (main graph에서 사용)
 retrieval:
   model: BAAI/bge-m3
   revision: main  # resolved model revision is recorded in index manifest

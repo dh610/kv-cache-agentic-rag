@@ -36,6 +36,34 @@ class CombinedSource:
         return found
 
 
+class RoleFilter:
+    """논문 근거를 문서 role 로 거른다 (설계서 B.3).
+
+    기술 조사는 target 만, 시장은 target+reference, 도메인은 target 만, 이해관계자는 경쟁 진영 근거(reference)만.
+    PaperSource.accepts() 는 검색 담당 파일이므로 여기서 결과를 후처리한다. 웹 근거는 그대로 통과한다.
+    """
+
+    retryable = True
+
+    def __init__(self, inner: EvidenceSource, roles: set[str]):
+        self.inner, self.roles = inner, set(roles)
+
+    def search(self, question: Question, attempt: int) -> list[Evidence]:
+        return [
+            e
+            for e in self.inner.search(question, attempt)
+            if e.source_type != "paper" or e.document_role in self.roles
+        ]
+
+
+PAPER_ROLES: dict[str, set[str]] = {
+    "tech": {"target"},
+    "market": {"target", "reference"},
+    "domain": {"target"},
+    "stakeholder": {"reference"},
+}
+
+
 def live_sources(settings):
     from copy import copy
 
@@ -44,12 +72,19 @@ def live_sources(settings):
 
     web = WebSource(settings)
     papers = PaperSource(settings, "tech")
-    sources = {"tech": papers, "stakeholder": web}
-    for role in ("market", "domain"):
+
+    def paper_for(role: str) -> EvidenceSource:
         adapter = copy(papers)  # Share the heavyweight encoder/index and its lock.
         adapter.node = role
-        sources[role] = CombinedSource(adapter, web)
-    return sources
+        return RoleFilter(adapter, PAPER_ROLES[role])
+
+    return {
+        "tech": papers,
+        "market": CombinedSource(paper_for("market"), web),
+        "domain": CombinedSource(paper_for("domain"), web),
+        # 이해관계자: 웹이 주 경로, 경쟁 기술 진영의 근거에 한해 보조 문서(reference)를 조회한다 (표 3 각주·D.2).
+        "stakeholder": CombinedSource(web, paper_for("stakeholder")),
+    }
 
 
 def make_source(mode: str, node: NodeName, data: NodeInput, settings):
@@ -60,11 +95,10 @@ def make_source(mode: str, node: NodeName, data: NodeInput, settings):
             "synthesis/report use fixture inputs or upstream results, not new searches"
         )
     if mode == "rag":
-        if node == "stakeholder":
-            raise ValueError("stakeholder is web-only in the simplified baseline; use web/fixture")
         from rag.local_index import PaperSource
 
-        return PaperSource(settings, node)
+        # 단독 실행에서도 설계서 B.3 의 문서 role 범위를 지킨다.
+        return RoleFilter(PaperSource(settings, node), PAPER_ROLES[node])
     if mode == "web":
         if node == "tech":
             raise ValueError("tech requires paper evidence; use rag/fixture")

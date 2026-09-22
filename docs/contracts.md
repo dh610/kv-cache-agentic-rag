@@ -11,7 +11,7 @@
 | Claim | id, technology, criterion, text, kind, evidence_ids, conditions | 사실/추론 분리 및 조건 보존 |
 | Assessment | technology, criterion, judgment, rationale, evidence_ids | rubric에 허용된 판정만 사용 |
 | NodeResult | node, summary, claims, assessments, unverified, limitations | 모델의 공통 반환 형식 |
-| NodeRun | status, result, evidence, checks, validation_errors, searches, prompt_hash, model | 공통 런타임이 붙이는 검증/추적 결과 |
+| NodeRun | status, result, evidence, checks, validation_errors, searches, prompt_hash, model, verdict, is_sufficient, search_count, fix_count | 공통 런타임이 붙이는 검증/추적 결과. 뒤 4개는 설계서 표 15의 서브그래프 상태 |
 
 `NodeResult`는 모델이 생성하고, `NodeRun.status`는 코드가 결정합니다.
 누락된 근거, Judge 미응답, 잘못된 ID, 미지원 주장을 모델의 자기 선언만으로 성공 처리하지 않습니다.
@@ -27,7 +27,7 @@ summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니�
 검색 중 발생한 오류는 이후 재시도 성공과 별개로 이력에 남고 검토 상태를 유지합니다.
 상위 노드 실패는 전체 상태에도 남습니다. 하위 노드를 계속 실행해 디버깅 결과는 얻지만 성공으로 승격하지 않습니다.
 
-메인 State 키는 팀 starter의 `tech_result`, `market_result`, `stakeholder_result`, `domain_result`, `synthesis`, `report`를 계승했습니다.
+메인 State는 설계서 표 14의 13키(`target_techs`, `domain`, `limits`, `tech_result`, `market_result`, `stakeholder_result`, `domain_result`, `sources`, `trl_result`, `synthesis`, `gaps`, `supplement_round`, `report_path`)를 쓰며, 기존 `report`·`run_status`를 계승합니다. `sources`는 실제 인용된 근거만 누적 리듀서로 모읍니다.
 값은 공통 `NodeRun`으로 정규화했습니다. 병렬 가지는 자기 결과 키만 쓰고, 세 가지가 끝난 뒤 한 번 합류합니다.
 이전 결과를 원문 근거로 대신 사용하지 않습니다. 원문 evidence를 따로 병합하고 같은 ID의 다른 내용은 덮어쓰지 않습니다.
 

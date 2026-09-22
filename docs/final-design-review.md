@@ -29,16 +29,19 @@
 | 항목 | 최종 PDF | 현재 main의 기초 범위 / 후속 작업 |
 | --- | --- | --- |
 | 큰 흐름 | 기술 → 3관점 병렬 → 종합 → 보고서 | 같은 구조 구현 |
-| 호출 API | 질문을 호출자가 하나씩 전달 | 목록을 한 번 받아 내부에서 모든 질문 순회. 기술/질문별 예산 보존 |
-| 실행 한도 | 검색 3, 답변 수정 1, 종합 보완 1 | 사용자와 선택한 간소화안: 검색 3, 별도 수정/종합 보완 0 |
+| 호출 API | 질문을 호출자가 하나씩 전달 | 목록을 한 번 받아 내부에서 모든 질문 순회. 기술/질문별 예산 보존. 재검색은 충분성 판정에서 부족한 질문만 |
+| 서브그래프 | 그림 2: 검색 계획·검색·충분성 확인·질문 수정·결과 작성·검증·답변 수정·반환 8노드, 표 15 키 | `graph/node_graph.py`에 8노드와 표 15 키(`role`·`questions`·`current_query`·`search_results`·`is_sufficient`·`draft`·`verdict`·`search_count`·`fix_count`·`output`) 구현. 충분성 판정·이중언어 질의 재작성·답변 수정은 공유 프롬프트(`prompts/shared/`)와 백엔드 메서드로 연결 |
+| 실행 한도 | 검색 3, 답변 수정 1, 종합 보완 1 | `Limits`를 표 13대로 완화(검색 3 / 수정 1 / 보완 1). 서브그래프에 답변 수정(fix) 구현. 종합 보완은 main graph 후속 작업 |
 | 논문 corpus | target 2 + reference 2 | target 2 기본 제공. reference corpus 등록·검증은 검색 담당 후속 작업 |
-| 도메인 필터 | target만 | 현재 target+reference 허용. 최종 정책에 맞추려면 필터를 함께 변경하고 검증 필요 |
-| 이해관계자 | 웹 + 제한적 reference 조회 | 현재 웹 + 상위 원문 전달. 새로운 reference 검색은 없음 |
+| 메인 그래프 | 표 12: 입력 초기화·결과 수집·보완 재실행·인용·형식 검사 코드 노드 | `graph/main_graph.py`에 `init`·`collect`·`supplement`(1라운드, 기술 변경 시 의존 평가 재실행)·`citation_check` 구현. 설계에 없던 `finish`는 `citation_check`에 흡수 |
+| Main State | 표 14의 13키, `sources`는 누적 리듀서 | 13키 구현(`target_techs`·`domain`·`limits`·4 결과·`sources`·`trl_result`·`synthesis`·`gaps`·`supplement_round`·`report_path`). 기존 `report`·`run_status`는 계승. `trl_result`는 기술 rubric의 maturity/TRL 판정을 잠정값으로 옮기며, 종합 rubric에 TRL 기준이 없어 확정값은 비어 있음 |
+| 도메인 필터 | target만 | `rag/interface.py`의 `RoleFilter`가 target만 통과시킴. `PaperSource.accepts()` 정리는 검색 담당 후속 |
+| 이해관계자 | 웹 + 제한적 reference 조회 | 웹 주경로 + `RoleFilter(reference)`로 경쟁 진영(보조 문서) 근거 조회 |
 | 검색 품질 | 3개 모델·30문항, Hit@5 ≥ .80 / MRR ≥ .60 | 목표값이며 현재 플랫폼에서 측정 완료한 성능 아님 |
 | 시장 항목 | 성장/채택/생태계 3개 | 범주와 6질문 acceptance 반영. 등급 규칙은 근거 기반 초안 유지 |
 | 이해관계자/도메인 세부 항목 | 주체 3개 / 기준 5개 | 현재 초기 rubric 범위가 더 작음. 각 담당자가 확대해야 함 |
 | TRL | 기술에서 잠정, 종합에서 확정 | 현재 정성적 maturity 기준. 별도 trl_result/1–9 판정 미구현 |
-| 출력 | SUMMARY–REFERENCE PDF 및 인용 검사 | 개발용 JSON/Markdown, 인수용 서지 검사. 제출 PDF 출력은 후속 작업 |
+| 출력 | SUMMARY–REFERENCE PDF 및 인용 검사 | `citation_check` 노드(인용된 출처만 표 18 서지 검사, 실패 시 완료 승격 안 함) + `report.md`/`references.json`. 제출 PDF 출력은 후속 작업(report 역할 미배정) |
 
 최종본을 기준으로 개발한다고 소개하려면 이 차이표를 닫아야 합니다.
 기존 사용자의 간소화 선택을 최종 PDF만으로 바꾸지 않았습니다. 자동 보완을 다시 넣을지는 별도 범위 결정입니다.

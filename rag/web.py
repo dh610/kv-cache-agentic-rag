@@ -21,9 +21,9 @@ class WebSource:
 
     @traceable(run_type="retriever", name="web_search")
     def search(self, question: Question, attempt: int) -> list[Evidence]:
+        # question.text 는 서브그래프가 재검색마다 이중언어로 다시 쓴 검색어다 (설계서 D.2).
+        # 시도별 고정 접미어는 더 붙이지 않는다.
         query = f"{question.technology} {question.text}"
-        if attempt > 1:
-            query += " limitations evidence official" if attempt == 2 else " deployment evaluation"
         # Client does not receive API key via trace arguments.
         response = httpx.post(
             "https://api.tavily.com/search",

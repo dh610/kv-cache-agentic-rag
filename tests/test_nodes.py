@@ -128,7 +128,12 @@ def test_partial_evidence_retries_for_unanswered_question():
     source = Partial()
     result = run(source=source, mode="rag")
     assert result.status == "needs_revision"
-    assert len(source.calls) == 6
+    # 그림 2의 '질문 수정'은 부족한 질문만 다시 찾는다: 답을 얻은 KIVI 질문은 1회, 못 얻은 ITME 질문은 3회.
+    questions = load_input("tech").questions
+    expected = {q.id: (1 if q.technology == "KIVI" else 3) for q in questions}
+    assert dict(Counter(q for q, _ in source.calls)) == expected
+    assert result.is_sufficient is False
+    assert any("근거 부족" in u for u in result.result.unverified)
 
 
 class RecordingBackend(MockBackend):
@@ -189,3 +194,67 @@ def test_live_pipeline_uses_injected_sources_and_drops_demo_evidence():
     assert final["run_status"] == "needs_revision"
     assert len(final["report"].evidence) == 2
     assert all(e.id.startswith("injected-") for e in final["report"].evidence)
+
+
+def test_verdict_follows_design_table_15():
+    assert run().verdict == "통과"
+    assert run().is_sufficient is True
+    assert run(backend=UnknownCitation()).verdict == "추가 근거 필요"
+    assert run(backend=Misstated()).verdict == "표현 오류"
+
+
+class CountingFix(Misstated):
+    def __init__(self):
+        self.fixes = 0
+
+    def fix(self, result, checks, evidence):
+        self.fixes += 1
+        return super().fix(result, checks, evidence)
+
+
+def test_fix_loop_is_bounded_by_limits_fix():
+    backend = CountingFix()
+    result = run(backend=backend)
+    assert backend.fixes == 1  # 표 13: 답변 수정 1회
+    assert result.fix_count == 1
+    assert result.status == "needs_revision"  # mock은 표현을 고치지 못하므로 재검증도 실패
+
+    settings = load_settings()
+    settings.limits.fix = 0
+    data = load_input("tech")
+    backend = CountingFix()
+    result = build_node_graph("tech", data, "mock", settings, backend, FixedEvidence(data)).invoke(
+        {}
+    )["output"]
+    assert backend.fixes == 0
+    assert result.verdict == "표현 오류"
+
+
+def test_rewrite_keeps_korean_question_and_adds_english_keywords():
+    source = EmptySearch()
+    result = run(source=source, mode="rag")
+    by_question = {}
+    for record in result.searches:
+        by_question.setdefault(record.question_id, []).append(record)
+    for question_id, records in by_question.items():
+        first, second = records[0].query, records[1].query
+        assert second != first
+        assert first in second  # 한국어 원문 유지
+        assert "evidence" in second  # 영어 핵심어 추가 (mock 자리 표시자)
+    assert result.search_count == {q: 3 for q in by_question}
+
+
+class InventedIds(MockBackend):
+    def sufficiency(self, questions, evidence):
+        verdict = super().sufficiency(questions, evidence)
+        verdict.missing_question_ids = ["not-a-question"]
+        verdict.sufficient = False
+        return verdict
+
+
+def test_sufficiency_judge_cannot_invent_question_ids():
+    source = EmptySearch()
+    result = run(backend=InventedIds(), source=source, mode="rag")
+    # 알 수 없는 id는 버려지므로 재검색 대상이 없고, 첫 검색 뒤 바로 작성으로 넘어간다.
+    assert len(source.calls) == 2
+    assert result.status == "needs_revision"

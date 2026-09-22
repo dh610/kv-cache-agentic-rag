@@ -10,7 +10,9 @@ LangGraph 역할, BGE-M3/FAISS, 기본 모델과 State 결과 키를 계승했�
 - 적용: 기술·시장·도메인의 논문 RAG, 시장·이해관계자·도메인의 웹 근거
 - 적용: 역할별 Jinja2 프롬프트와 rubric, 개인 LangSmith, 고정 근거 단독 테스트
 - 적용: 질문별 최대 3회 검색, 실제 인용 검증, 원문 evidence를 보존하는 합류
-- 제외: 별도 답변 수정 루프, 종합 뒤 자동 보완 루프 (`fix=0`, `supplement=0`으로 제한)
+- 적용: 설계서 그림 2의 서브그래프 8노드(검색 계획·충분성 확인·질문 수정·답변 수정 포함)와 표 13 한도(검색 3 / 수정 1 / 보완 1)
+- 적용: 그림 1의 코드 노드(입력 초기화·결과 수집·보완 재실행 1라운드·인용·형식 검사)와 표 14 State 키, `sources` 누적 리듀서
+- 적용: 설계서 B.3 문서 role 범위(기술 target / 시장 target+reference / 도메인 target / 이해관계자 reference)를 `RoleFilter`로 강제
 - 미완성: 최종 평가 기준 합의, 검색 품질 평가셋/실측, 최종 보고서 PDF
 
 기본 rubric은 팀이 기준 정의를 편집할 출발점입니다. 교수님이 확정한 기준이나 자동 TRL 점수표가 아닙니다.
@@ -21,16 +23,23 @@ LangGraph 역할, BGE-M3/FAISS, 기본 모델과 State 결과 키를 계승했�
 
 ```mermaid
 flowchart TD
-    A[모든 질문의 근거 검색] --> B[담당 j2로 생성]
-    B --> C[Judge와 공통 계약 검사]
-    C -->|근거 부족·unsupported, 검색 예산 남음| A
-    C -->|완료 또는 예산 소진| D[검증 상태와 결과 저장]
+    P[plan 검색 계획] --> S[search 논문/웹 검색]
+    S --> C[check_sufficiency 근거 충분성 Judge]
+    C -->|충분| D[draft 담당 j2로 생성]
+    C -->|부족·예산 남음| R[rewrite_query 이중언어 질의 재작성]
+    R --> S
+    C -->|부족·한도 도달| D
+    D --> V[verify Judge + 계약 검사 → verdict]
+    V -->|통과| F[finalize 상태·결과 저장]
+    V -->|표현 오류·수정 1회 이내| X[fix 표현 수정] --> V
+    V -->|추가 근거 필요·예산 남음| R
 ```
 
 fixture/mock은 이미 고정된 근거이므로 재검색하지 않습니다.
-실제 검색의 재질의는 시도 횟수별 고정 보조 검색어를 붙이는 기본 구현입니다.
-LLM이 질문을 자유롭게 다시 만드는 query rewriting, 별도 sufficiency 모델, 자동 수정 루프는 없습니다.
-misstated 및 계약 위반은 성공으로 처리하지 않고 수정 필요 상태에 남깁니다.
+실제 검색의 재질의는 `prompts/shared/rewrite.j2`로 한국어 질문에 영어 핵심어를 덧붙이는 이중언어 재작성입니다(설계서 D.2).
+충분성 판정(`sufficiency.j2`)은 생성 전에 부족한 질문을 골라내고, 그 질문만 다시 검색합니다.
+검증은 주장 단위 라벨(supported/misstated/unsupported)을 결과 단위 verdict(통과/표현 오류/추가 근거 필요)로 올려 분기합니다.
+misstated는 `fix.j2`로 1회 수정 후 재검증하며, 그래도 실패하면 성공으로 처리하지 않고 수정 필요 상태에 남깁니다.
 
 전체 live에서 논문 임베더와 FAISS는 한 번 로드해 공유하고 임베딩 호출은 lock으로 보호합니다.
 각 병렬 노드가 같은 State 필드를 덮어쓰지 않도록 결과 슬롯을 분리했습니다.

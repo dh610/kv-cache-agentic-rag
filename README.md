@@ -97,7 +97,8 @@ PDF/설정이 바뀌면 인덱스를 다시 만들어야 합니다. 전체 PDF �
 
 ```mermaid
 flowchart TD
-    START --> tech
+    START --> init[init 입력 초기화]
+    init --> tech
     tech --> market
     tech --> stakeholder
     tech --> domain
@@ -105,13 +106,16 @@ flowchart TD
     stakeholder --> collect
     domain --> collect
     collect --> synthesis
-    synthesis --> report
-    report --> END
+    synthesis -->|gaps 있음 · 보완 0회| supplement[supplement 담당 역할 재실행]
+    supplement --> synthesis
+    synthesis -->|그 외| report
+    report --> citation_check[citation_check 인용·형식 검사]
+    citation_check --> END
 ```
 
-각 노드 안에서 `search → generate → verify → finalize`를 실행합니다.
-실제 검색 모드는 근거 부족 시 질문별 최대 3회(첫 검색 포함) 안에서 재검색합니다.
-종합 뒤 자동 보완과 별도 답변 수정 루프는 제외한 간소화안입니다.
+각 노드 안에서 설계서 그림 2의 서브그래프 `plan → search → check_sufficiency → draft → verify → finalize`를 실행하며,
+근거가 부족하면 `rewrite_query`(이중언어 재작성)로 질문별 최대 3회(첫 검색 포함) 재검색하고, 표현 오류는 `fix`로 1회 수정합니다.
+종합에서 근거 부족(gaps)이 나오면 담당 역할만 1라운드 재실행하고(기술 조사가 바뀌면 의존 평가도), `citation_check`가 실제 인용된 출처의 서지 필드를 검사합니다.
 
 ## Directory Structure
 

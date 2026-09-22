@@ -87,6 +87,24 @@ class NodeInput(Contract):
         return self
 
 
+# 설계서 표 15 verdict: 검증 노드가 결과 단위로 내리는 판정. 서브그래프 분기에 그대로 쓴다.
+Verdict = Literal["통과", "표현 오류", "추가 근거 필요"]
+
+
+class SufficiencyResult(Contract):
+    """근거 관련성·충분성 판정 (설계서 그림 2 '근거 관련성·충분성 확인')."""
+
+    sufficient: bool
+    missing_question_ids: list[str]
+    reason: str
+
+
+class RewriteResult(Contract):
+    """질문 수정 결과: 한국어 질문 + 영어 핵심어를 덧붙인 이중언어 검색어 (설계서 D.2)."""
+
+    query: str
+
+
 class ClaimCheck(Contract):
     claim_id: str
     label: Literal["supported", "misstated", "unsupported"]
@@ -117,6 +135,11 @@ class NodeRun(Contract):
     searches: list[SearchRecord]
     prompt_hash: str
     model: str
+    # 설계서 표 15의 서브그래프 상태 중 상위 그래프가 참고할 값. 없던 실행 결과와도 호환되게 기본값을 둔다.
+    verdict: Verdict | None = None
+    is_sufficient: bool | None = None
+    search_count: dict[str, int] = Field(default_factory=dict)
+    fix_count: int = 0
 
 
 def empty_result(node: NodeName, reason: str) -> NodeResult:

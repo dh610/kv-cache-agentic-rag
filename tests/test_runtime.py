@@ -55,9 +55,7 @@ def test_prompt_typo_fails_loudly(monkeypatch, tmp_path):
         prompts.render("tech", runner.load_input("tech"), [])
 
 
-@pytest.mark.parametrize(
-    "node,mode", [("tech", "web"), ("stakeholder", "rag"), ("synthesis", "rag"), ("report", "web")]
-)
+@pytest.mark.parametrize("node,mode", [("tech", "web"), ("synthesis", "rag"), ("report", "web")])
 def test_source_policy_is_enforced(node, mode):
     with pytest.raises(ValueError):
         make_source(mode, node, runner.load_input(node), load_settings())
