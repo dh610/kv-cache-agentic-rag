@@ -13,7 +13,7 @@ limits:
   search: 3  # includes initial attempt; per question
   questions: 10
   fix: 1
-  supplement: 0
+  supplement: 1  # 설계서 표 13: 종합 뒤 보완 재실행 1라운드 (0이면 끔)
 retrieval:
   model: BAAI/bge-m3
   revision: main  # resolved model revision is recorded in index manifest

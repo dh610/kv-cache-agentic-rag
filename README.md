@@ -114,7 +114,7 @@ flowchart TD
 
 조사 노드 내부는 `plan → search → check_sufficiency → write_draft → verify → return_result`이며 `rewrite_query`, `fix`를 포함한 8단계입니다.
 실제 검색 모드는 근거 부족 시 질문별 최대 3회(첫 검색 포함) 안에서 재검색합니다.
-표현 오류는 최대 1회 수정 후 재검증합니다. 종합 뒤 자동 보완은 기존 사용자 결정대로 제외하고 gaps를 한계점에 남깁니다.
+표현 오류는 최대 1회 수정 후 재검증합니다. 종합에서 근거 부족(gaps)이 남으면 담당 역할만 1라운드 재실행합니다(설계서 표 13, `limits.supplement`; 기술 조사가 바뀌면 의존 평가도, mock 모드는 건너뜀).
 
 ## Directory Structure
 

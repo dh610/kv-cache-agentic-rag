@@ -40,7 +40,7 @@ summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니�
 
 
 MainState: `target_techs`, `domain`, `limits`, `tech_result`, `market_result`, `stakeholder_result`, `domain_result`, `sources`, `trl_result`, `synthesis`, `gaps`, `supplement_round`, `report_path`; 호환/검증 확장 `report`, `report_check`, `run_status`.
-`sources`는 누적 리듀서이며 사용 전 `merge_evidence`로 중복/충돌을 확인합니다. `gaps`는 코드 규칙으로 계산합니다.
+`sources`는 누적 리듀서이며 사용 전 `merge_evidence`로 중복/충돌을 확인합니다. 충돌은 같은 ID의 본문·URL·기술·문서·페이지가 다를 때만 오류이고, 제목·발행일·기관 같은 서지 메타데이터 차이는 먼저 본 항목을 유지하고 빈 필드만 채워 병합합니다(병렬 노드가 같은 웹 페이지를 각자 가져오면 Tavily 응답이 달라질 수 있음). `gaps`는 코드 규칙으로 계산합니다.
 
 RAGSubState의 설계 키: `role`, `questions`, `current_query`, `search_results`, `is_sufficient`, `draft`, `verdict`, `search_count`, `fix_count`, `output`.
 목록 호출을 보존하므로 `search_count`는 질문 ID별 dict입니다. 내부 `queries`는 질문별 positive/critical 질의를 보관하고 `current_query`는 마지막 실행 질의입니다.
