@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from runtime.settings import ROOT
+from runtime.validation import verified_evidence_ids
 from schemas.contracts import Claim, Evidence, NodeInput, NodeRun
 
 DATASET = ROOT / "tests/fixtures/stakeholder/eval"
@@ -109,6 +110,12 @@ def score_case(case: dict, data: NodeInput, run: NodeRun) -> dict:
             problems.append("Assessment cites a different technology")
         if not set(case["required_evidence_ids"]).issubset(cited):
             problems.append("Assessment omits the reviewer-required evidence")
+        # Same rule as the runtime (PR #6): only IDs the claim's own supported check confirmed.
+        verified = verified_evidence_ids(
+            run.result, run.checks, data.evidence, technology, criterion
+        )
+        if not cited.issubset(verified):
+            problems.append("Citations lack a Judge-confirmed supported claim for this item")
         supported = {check.claim_id for check in run.checks if check.label == "supported"}
         premises = [
             claim
@@ -117,8 +124,6 @@ def score_case(case: dict, data: NodeInput, run: NodeRun) -> dict:
             and claim.technology == technology
             and claim.criterion == criterion
         ]
-        if not cited.issubset({eid for claim in premises for eid in claim.evidence_ids}):
-            problems.append("Citations lack a supported claim for this item")
         for claim in premises:
             problems.extend(grounding_errors(claim, supplied))
         needle = case.get("required_claim_condition")
