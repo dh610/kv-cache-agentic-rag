@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
+from langchain_core.runnables.config import ContextThreadPoolExecutor
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
@@ -306,59 +307,99 @@ def build_node_graph(
             return {}
         evidence = list(state["search_results"])
         counts, records = dict(state["search_count"]), list(state["searches"])
-        last_query = ""
-        searched_ids = []
+        jobs = []
         for q in data.questions:
             count = counts.get(q.id, offsets[q.id])
-            if q.id not in state["queries"] or count - offsets[q.id] >= settings.limits.search:
+            budget = settings.limits.search - (count - offsets[q.id])
+            if q.id not in state["queries"] or budget <= 0:
                 continue
-            count += 1
-            counts[q.id] = count
-            intent = (
-                (
-                    "positive"
-                    if "positive" not in intents(state, q.id)
-                    else "critical"
-                    if "critical" not in intents(state, q.id)
-                    else "followup"
-                )
-                if live_search
-                else "fixture"
-            )
+            missing = [i for i in ("positive", "critical") if i not in intents(state, q.id)]
+            wanted = (missing or ["followup"]) if live_search else ["fixture"]
             pair = state["queries"][q.id]
-            last_query = pair.critical if intent == "critical" else pair.positive
-            searched = q.model_copy(update={"text": last_query}) if live_search else q
-            searched_ids.append(q.id)
+            for intent in wanted[:budget]:
+                count += 1
+                query = pair.critical if intent == "critical" else pair.positive
+                searched = q.model_copy(update={"text": query}) if live_search else q
+                jobs.append((searched, count, intent))
+            counts[q.id] = count
+
+        def fetch(job):
+            q, count, intent = job
             try:
-                found = source.search(searched, count)
-                evidence = merge_evidence(evidence, found)
-                records.append(
-                    SearchRecord(
-                        question_id=q.id,
-                        attempt=count,
-                        query=searched.text,
-                        intent=intent,
-                        evidence_ids=[e.id for e in found],
-                    )
+                found = source.search(q, count)
+                return found, SearchRecord(
+                    question_id=q.id,
+                    attempt=count,
+                    query=q.text,
+                    intent=intent,
+                    evidence_ids=[e.id for e in found],
                 )
             except Exception as exc:
-                records.append(
-                    SearchRecord(
-                        question_id=q.id,
-                        attempt=count,
-                        query=searched.text,
-                        intent=intent,
-                        evidence_ids=[],
-                        error=f"Search failed: {type(exc).__name__}",
-                    )
+                return [], SearchRecord(
+                    question_id=q.id,
+                    attempt=count,
+                    query=q.text,
+                    intent=intent,
+                    evidence_ids=[],
+                    error=f"Search failed: {type(exc).__name__}",
                 )
+
+        # Bounded provider concurrency; merge in request order to keep identity checks stable.
+        with ContextThreadPoolExecutor(max_workers=4) as pool:
+            for found, record in pool.map(fetch, jobs):
+                try:
+                    evidence = merge_evidence(evidence, found)
+                except ValueError as exc:
+                    record.error = f"Search failed: {type(exc).__name__}"
+                    record.evidence_ids = []
+                records.append(record)
         return {
             "search_results": evidence,
             "search_count": counts,
             "searches": records,
-            "current_query": last_query,
-            "searched_question_ids": searched_ids,
+            "current_query": jobs[-1][0].text if jobs else "",
+            "searched_question_ids": list(dict.fromkeys(q.id for q, _, _ in jobs)),
         }
+
+    def relevant_evidence(state, questions, *, generation=False):
+        selected = {q.id for q in questions}
+        ids = {
+            eid
+            for record in state["searches"]
+            if record.question_id in selected
+            for eid in record.evidence_ids
+        }
+        ids.update(
+            eid
+            for c in state.get("coverage", [])
+            if c.question_id in selected
+            for eid in c.evidence_ids
+        )
+        if generation:
+            # Once judged, prefer the cited sufficient premises plus both search intents.
+            covered = {c.question_id for c in state.get("coverage", []) if c.sufficient}
+            ids = {eid for c in state.get("coverage", []) for eid in c.evidence_ids}
+            lookup = {e.id: e for e in state["search_results"]}
+            for record in state["searches"]:
+                if record.question_id not in covered:
+                    ids.update(record.evidence_ids)
+                    continue
+                by_kind = {}
+                for eid in record.evidence_ids:
+                    if eid not in lookup:
+                        continue
+                    kind = lookup[eid].source_type
+                    by_kind[kind] = by_kind.get(kind, 0) + 1
+                    if by_kind[kind] <= 2 or lookup[eid].stance in ("critical", "mixed"):
+                        ids.add(eid)
+        ids.update(e.id for e in data.evidence)
+        techs = {q.technology for q in questions}
+        return [
+            e
+            for e in state["search_results"]
+            if (e.id in ids or not live_search)
+            and (e.technology in techs or e.technology == "other" or e.document_role == "reference")
+        ]
 
     def check_sufficiency(state):
         if state.get("fatal"):
@@ -388,7 +429,8 @@ def build_node_graph(
         try:
             review = SufficiencyResult.model_validate(
                 backend.sufficiency(
-                    data.model_copy(update={"questions": questions}), state["search_results"]
+                    data.model_copy(update={"questions": questions}),
+                    relevant_evidence(state, questions),
                 )
             )
             # 질문에 대응하는 항목이 하나도 없으면 쓸 수 없는 출력이다 → 기존대로 fail-closed.
@@ -447,7 +489,8 @@ def build_node_graph(
         current.description += "\n근거 충분성 검사: " + str(
             [c.model_dump() for c in state.get("coverage", [])]
         )
-        system, user, digest = render(node, current, state["search_results"])
+        prompt_evidence = relevant_evidence(state, data.questions, generation=True)
+        system, user, digest = render(node, current, prompt_evidence)
         if state.get("fatal"):
             return {
                 "draft": empty_result(node, "; ".join(state["errors"])),
@@ -456,7 +499,7 @@ def build_node_graph(
                 "rendered_user": user,
             }
         try:
-            draft = backend.generate(node, current, state["search_results"], system, user)
+            draft = backend.generate(node, current, prompt_evidence, system, user)
             return {
                 "draft": NodeResult.model_validate(draft),
                 "prompt_hash": digest,

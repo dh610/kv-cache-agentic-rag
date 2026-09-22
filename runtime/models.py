@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol, Union
 
+from pydantic import create_model
+
+from runtime.context import evidence_payload
+from runtime.prompts import load_rubric
 from runtime.settings import Settings, require_key
 from schemas.contracts import (
     Assessment,
@@ -138,6 +142,21 @@ class MockBackend:
         )
 
 
+def result_schema(node):
+    """Constrain each criterion's vocabulary before generation, not by relabeling outputs."""
+    variants = tuple(
+        create_model(
+            f"{node}_{criterion.id}_Assessment",
+            __base__=Assessment,
+            criterion=(Literal[criterion.id], ...),
+            judgment=(Literal[tuple(criterion.judgments)], ...),
+        )
+        for criterion in load_rubric(node).criteria
+    )
+    item_type = Union[variants] if len(variants) > 1 else variants[0]
+    return create_model(f"{node}_Result", __base__=NodeResult, assessments=(list[item_type], ...))
+
+
 class OpenAIBackend:
     def __init__(self, settings: Settings):
         from langchain_openai import ChatOpenAI
@@ -149,9 +168,8 @@ class OpenAIBackend:
             "timeout": settings.models.timeout_seconds,
             "max_retries": settings.models.max_retries,
         }
-        self.generator = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
-            NodeResult, method="json_schema"
-        )
+        self.generator = ChatOpenAI(model=self.name, **kwargs)
+        self.generators = {}
         self.planner = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
             QueryPlan, method="json_schema"
         )
@@ -163,7 +181,12 @@ class OpenAIBackend:
         )
 
     def generate(self, node, data, evidence, system, user):
-        return self.generator.invoke([("system", system), ("human", user)])
+        if node not in self.generators:
+            self.generators[node] = self.generator.with_structured_output(
+                result_schema(node), method="json_schema"
+            )
+        result = self.generators[node].invoke([("system", system), ("human", user)])
+        return NodeResult.model_validate(result.model_dump())
 
     def judge(self, result, evidence):
         import json
@@ -175,7 +198,14 @@ class OpenAIBackend:
         payload = json.dumps(
             {
                 "result": result.model_dump(),
-                "evidence": [e.model_dump() for e in evidence],
+                "evidence": evidence_payload(
+                    [
+                        e
+                        for e in evidence
+                        if e.id in {eid for c in result.claims for eid in c.evidence_ids}
+                    ],
+                    full_text=True,
+                ),
             },
             ensure_ascii=False,
         )
@@ -223,7 +253,7 @@ class OpenAIBackend:
                     json.dumps(
                         {
                             "questions": [q.model_dump() for q in data.questions],
-                            "evidence": [e.model_dump() for e in evidence],
+                            "evidence": evidence_payload(evidence, data.questions),
                         },
                         ensure_ascii=False,
                     ),

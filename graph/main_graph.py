@@ -95,7 +95,10 @@ def build_main_graph(
                     data.description += (
                         f"\n상위 노드 {r.node}: {r.status}. 미확인/실패 내용을 보존하세요."
                     )
-            data.evidence = merge_evidence(data.evidence, *(r.evidence for r in runs))
+            data.evidence = merge_evidence(
+                data.evidence,
+                *([e for e in r.evidence if e.id in used_ids(r)] for r in runs),
+            )
             if name == "synthesis" and state.get("gaps"):
                 # Code-rule gaps are data for the synthesis prompt, never a judgment to fill in.
                 data.description += "\n코드 규칙 gaps: " + json.dumps(

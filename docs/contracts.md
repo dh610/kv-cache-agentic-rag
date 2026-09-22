@@ -60,3 +60,12 @@ RAGSubState의 설계 키: `role`, `questions`, `current_query`, `search_results
 `ModelBackend`는 generate/judge 외 plan/sufficiency 메서드를 제공합니다. 실제 backend는 구조화된 QueryPlan/SufficiencyResult를 반환하고 mock은 오프라인 연결만 확인합니다.
 
 PR #10의 서지 확장: Evidence에 선택적 `citation_id`와 `source_type=patent`를 추가했습니다. 논문·특허의 최종 서지 검사에서는 citation_id가 필요합니다. 기존 JSON은 파싱되지만 누락된 서지는 인수 검사에서 보완 대상으로 표시됩니다. 문서 메타데이터가 바뀌므로 각자 `uv run --extra rag python -m app.index`로 FAISS 인덱스를 재생성하세요.
+
+### 입력 근거와 호출량 관리
+
+- 최초 계획의 positive/critical 질의를 함께 실행한 뒤 충분성을 한 번 판단합니다. 제공자 호출은 노드당 최대 4개 동시 실행하며 추적 문맥을 전달합니다. 두 검색은 각각 질문별 예산을 사용하고, 실패 이력과 최대 3회 한도를 유지합니다. 부족할 때만 planner로 질의를 재작성합니다.
+- 충분성 검사에는 해당 질문의 검색 이력·coverage에 연결된 근거를 전달합니다. 생성에는 충분성에서 인용한 근거와 각 검색의 출처 유형별 상위 2개 및 비판·상충으로 분류된 근거를 합치고, 부족한 질문의 검색 근거는 모두 유지합니다. 원문은 NodeRun.evidence에 계속 보관합니다.
+- 긴 웹 본문은 생성/충분성 프롬프트에서 질의와 관련된 원문 구간과 한계 표현 구간을 발췌합니다. excerpt_ranges는 보관 원문의 문자 위치이며, 생략 부분의 사실이나 부재를 추정하면 안 됩니다. 논문 청크는 자르지 않습니다. 이 선택 방식의 실제 검색 품질은 별도 평가가 필요합니다.
+- 인용 Judge에는 각 주장이 실제 인용한 원문을 **발췌 없이** 전달합니다. 생성 모델의 요약문을 인용 근거로 대체하지 않습니다.
+- 상위 노드의 검색 자료 전체 대신 실제 결과가 사용한 근거만 다음 노드에 넘깁니다. 각 노드의 전체 검색 이력은 보존합니다.
+- 실제 생성의 JSON 스키마에서 criterion별 judgment 허용값을 제한합니다. 생성 후 값을 임의 교체하지 않으며 기존 rubric/인용 검증을 유지합니다. 공개 NodeInput/NodeRun 및 담당자 프롬프트 변수는 그대로입니다.
