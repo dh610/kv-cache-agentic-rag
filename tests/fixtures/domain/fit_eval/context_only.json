@@ -1,0 +1,58 @@
+{
+  "case_id": "fit-context-only",
+  "description": "분야 배경(scope=context, technology=other) 자료만 있을 때 ITME 판정을 만들지 않는지 확인하는 입력. 배경 자료는 회귀 점검용 가짜 자료다.",
+  "target_techs": {
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "itme-cost",
+      "technology": "ITME",
+      "criterion": "cost",
+      "text": "ITME를 데이터센터·클라우드 LLM 서빙에 도입할 때 추가 장비가 필요한가, 그리고 장비 투자 대비 GPU·메모리 절감 효과가 어떤 모델·장비·워크로드 조건에서 수치로 확인되는가? 절감 근거 없이 신규 인프라만 확인되면 확인 불가로 둔다."
+    },
+    {
+      "id": "itme-performance",
+      "technology": "ITME",
+      "criterion": "performance",
+      "text": "ITME의 처리량 또는 지연(TTFT) 개선이 어떤 모델·하드웨어·워크로드·비교 기준선에서 보고되며, 논문 실험과 독립적인 외부 적용 사례에서도 확인되는가? 논문 근거만 있으면 최대 조건부 적합이다."
+    },
+    {
+      "id": "itme-quality",
+      "technology": "ITME",
+      "criterion": "quality",
+      "text": "ITME 적용 시 정확도·품질 손실이 어떤 벤치마크·모델·설정에서 보고되며, 저하가 보고된 조건과 서비스 요구 품질 대비 판단 근거는 무엇인가? 품질 보고가 없으면 확인 불가로 둔다."
+    },
+    {
+      "id": "itme-operations",
+      "technology": "ITME",
+      "criterion": "operations",
+      "text": "ITME를 기존 서빙 프레임워크에 도입할 때 설정 변경 수준으로 가능한가, 커스텀 구현·특정 하드웨어·드라이버·네트워크 구성이 필요한가, 또는 목표 환경과 명시적으로 양립하지 않는 조건이 있는가? 신규 장비와 SW 변경만으로 부적합을 단정하지 않는다."
+    },
+    {
+      "id": "itme-scalability",
+      "technology": "ITME",
+      "criterion": "scalability",
+      "text": "ITME의 효과가 동시 사용자·문맥 길이·모델 크기 증가에도 유지된다는 근거가 있는가? 검증된 규모(GPU 수·노드 수·동시 요청 수)와 실제 데이터센터 규모의 차이를 함께 기록한다."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "domain-context-cxl-background",
+      "text": "검토자 작성 예시(분야 배경): CXL 기반 메모리 확장은 일반적으로 GPU 외부에 메모리 계층을 추가해 용량을 늘린다는 배경 설명. ITME 자체의 실험, 장비, 비용, 품질, 적용 조건은 포함하지 않는다. 이 자료는 회귀 점검용 가짜 배경 자료이며 실제 출처가 아니다.",
+      "title": "분야 배경 예시 (fixture) — 실제 출처 아님",
+      "url": "https://example.invalid/cxl-memory-background",
+      "technology": "other",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "reference",
+      "page": null,
+      "document_id": null,
+      "affiliation": "unknown",
+      "affiliation_reason": "회귀 점검용 가짜 배경 자료",
+      "stance": "unknown"
+    }
+  ],
+  "prior_results": {}
+}

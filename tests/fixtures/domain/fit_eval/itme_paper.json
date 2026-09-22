@@ -1,0 +1,118 @@
+{
+  "case_id": "fit-itme-paper",
+  "description": "도메인 적합성 평가용 고정 입력. evidence.text는 원문 인용이 아니라 검토자가 ITME 논문 해당 페이지와 arXiv 초록에서 작성한 한국어 요약이다. 설계서의 vLLM 구현·NVMe-oF 대비 1.80배 수치는 원문 페이지를 대조하지 못해 포함하지 않았다.",
+  "target_techs": {
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "itme-cost",
+      "technology": "ITME",
+      "criterion": "cost",
+      "text": "ITME를 데이터센터·클라우드 LLM 서빙에 도입할 때 추가 장비가 필요한가, 그리고 장비 투자 대비 GPU·메모리 절감 효과가 어떤 모델·장비·워크로드 조건에서 수치로 확인되는가? 절감 근거 없이 신규 인프라만 확인되면 확인 불가로 둔다."
+    },
+    {
+      "id": "itme-performance",
+      "technology": "ITME",
+      "criterion": "performance",
+      "text": "ITME의 처리량 또는 지연(TTFT) 개선이 어떤 모델·하드웨어·워크로드·비교 기준선에서 보고되며, 논문 실험과 독립적인 외부 적용 사례에서도 확인되는가? 논문 근거만 있으면 최대 조건부 적합이다."
+    },
+    {
+      "id": "itme-quality",
+      "technology": "ITME",
+      "criterion": "quality",
+      "text": "ITME 적용 시 정확도·품질 손실이 어떤 벤치마크·모델·설정에서 보고되며, 저하가 보고된 조건과 서비스 요구 품질 대비 판단 근거는 무엇인가? 품질 보고가 없으면 확인 불가로 둔다."
+    },
+    {
+      "id": "itme-operations",
+      "technology": "ITME",
+      "criterion": "operations",
+      "text": "ITME를 기존 서빙 프레임워크에 도입할 때 설정 변경 수준으로 가능한가, 커스텀 구현·특정 하드웨어·드라이버·네트워크 구성이 필요한가, 또는 목표 환경과 명시적으로 양립하지 않는 조건이 있는가? 신규 장비와 SW 변경만으로 부적합을 단정하지 않는다."
+    },
+    {
+      "id": "itme-scalability",
+      "technology": "ITME",
+      "criterion": "scalability",
+      "text": "ITME의 효과가 동시 사용자·문맥 길이·모델 크기 증가에도 유지된다는 근거가 있는가? 검증된 규모(GPU 수·노드 수·동시 요청 수)와 실제 데이터센터 규모의 차이를 함께 기록한다."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "domain-itme-p1-abstract",
+      "text": "검토자 요약: 초록은 에이전트·장문맥 워크로드로 TB급 문맥 상태를 다루기 위해 개별 서버 용량을 넘어 분리형 공유 스토리지로 옮겨 가는 흐름을 배경으로, CXL-하이브리드 메모리 기반 계층형 메모리 확장(ITME)을 제안한다. 기존 CPU 오프로딩 대비 최대 35.7% 처리량 향상을 보고하며 FPGA 기반 하드웨어 시제품으로 기능 실현 가능성을 보였다고 적는다. 초록에는 정확도·품질 영향, 비용·GPU 절감 수치, 지연(TTFT) 수치가 없다.",
+      "title": "ITME p.1 초록 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "unknown"
+    },
+    {
+      "id": "domain-itme-p8-fpga",
+      "text": "검토자 요약: 기능 검증용 ITME 시제품은 Intel Agilex 7 FPGA에 32GB DDR4 DRAM 캐시와 SK Hynix PCIe Gen5 NVMe SSD 두 개를 결합해 하드웨어 제어와 소프트웨어 prefetcher를 검증한다. 기존 GPU 서버 외에 CXL 하이브리드 메모리 장치와 그 제어 소프트웨어가 필요하다.",
+      "title": "ITME p.8 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 8,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "unknown"
+    },
+    {
+      "id": "domain-itme-p8-cmm",
+      "text": "검토자 요약: 성능 잠재력은 별도 플랫폼의 SK Hynix CMM과 KIOXIA PCIe Gen5 SSD 두 개로 평가한다. 이 측정치를 FPGA 시제품의 측정치로 표현하면 안 된다. 장비 가격이나 GPU 대수 절감은 이 페이지에서 보고되지 않는다.",
+      "title": "ITME p.8 CMM 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 8,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "unknown"
+    },
+    {
+      "id": "domain-itme-p9-workload",
+      "text": "검토자 요약: 성능 평가는 ShareGPT 기반 128개 동시 대화, 최대 5턴의 워크로드와 Llama-3.1 8B·70B를 사용하며 GPU 메모리 및 오프로딩 기준과 비교한다. 제공된 페이지 범위에서는 단일 GPU 서버 실험만 확인되고 다중 노드 데이터센터 규모 배포는 없다.",
+      "title": "ITME p.9 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 9,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "unknown"
+    },
+    {
+      "id": "domain-itme-p10-prototype",
+      "text": "검토자 요약: 논문은 FPGA 시제품의 성능을 별도 CMM 플랫폼과 같은 조건으로 비교한다. FPGA 측정에는 하드웨어 오버헤드가 있다.",
+      "title": "ITME p.10 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 10,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "unknown"
+    }
+  ],
+  "prior_results": {}
+}

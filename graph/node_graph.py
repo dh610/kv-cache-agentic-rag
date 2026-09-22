@@ -5,6 +5,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
+from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
 from runtime.validation import tech_trl_errors, verified_evidence_ids
@@ -262,6 +263,18 @@ def build_node_graph(node, data, mode, settings, backend, source):
     def check_sufficiency(state):
         if state.get("fatal"):
             return {"is_sufficient": False}
+        if not state["search_results"]:
+            # Nothing to judge: record insufficiency without a model call so an
+            # empty search stays "insufficient evidence" instead of an execution failure.
+            return {
+                "coverage": [
+                    Coverage(
+                        question_id=q.id, sufficient=False, evidence_ids=[], reason="근거 없음"
+                    )
+                    for q in data.questions
+                ],
+                "is_sufficient": False,
+            }
         try:
             review = SufficiencyResult.model_validate(
                 backend.sufficiency(data, state["search_results"])
@@ -355,21 +368,38 @@ def build_node_graph(node, data, mode, settings, backend, source):
     def verify(state):
         if state.get("fatal"):
             return {"judge": JudgeResult(checks=[]), "verdict": "추가 근거 필요"}
+        # Role rules that need no Judge run first; a violation is an expression error the
+        # bounded fix retry can repair before any Judge call is spent.
+        rule_errors = DRAFT_RULES.get(node, lambda d, r, e: [])(
+            data, state["draft"], state["search_results"]
+        )
+        if rule_errors and state["fix_count"] < settings.limits.fix:
+            return {"judge": JudgeResult(checks=[]), "errors": rule_errors, "verdict": "표현 오류"}
         try:
-            judge = JudgeResult.model_validate(
-                backend.judge(state["draft"], state["search_results"])
+            # No claims means nothing to verify; never let a model invent checks for them.
+            judge = (
+                JudgeResult.model_validate(backend.judge(state["draft"], state["search_results"]))
+                if state["draft"].claims
+                else JudgeResult(checks=[])
             )
-            errors = contract_errors(node, data, state["draft"], state["search_results"], judge)
+            errors = rule_errors + contract_errors(
+                node, data, state["draft"], state["search_results"], judge
+            )
             labels = {c.label for c in judge.checks}
             absent = bool(state["draft"].unverified) or (
                 mode != "mock"
                 and any(a.judgment == "확인 불가" for a in state["draft"].assessments)
             )
+            expression_error = "misstated" in labels or bool(errors)
+            # While the single fix retry is available, repair expression errors before
+            # concluding that more evidence is needed; afterwards the stricter verdict wins.
             verdict = (
-                "추가 근거 필요"
+                "표현 오류"
+                if expression_error and state["fix_count"] < settings.limits.fix
+                else "추가 근거 필요"
                 if "unsupported" in labels or absent
                 else "표현 오류"
-                if "misstated" in labels or errors
+                if expression_error
                 else "통과"
             )
             return {"judge": judge, "errors": errors, "verdict": verdict}
