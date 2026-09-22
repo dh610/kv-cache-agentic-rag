@@ -44,6 +44,39 @@ def test_provider_structured_output_can_be_constructed_without_network(monkeypat
     assert backend.generator is not None and backend.evaluator is not None
 
 
+def test_judge_skips_llm_when_there_are_no_claims(monkeypatch):
+    """An honest all-unknown result has nothing to verify; the LLM judge must not invent checks."""
+    from schemas.contracts import Assessment, NodeResult
+
+    monkeypatch.setenv("OPENAI_API_KEY", "unit-test-placeholder")
+    backend = OpenAIBackend(load_settings())
+
+    class ForbiddenEvaluator:
+        def invoke(self, *args, **kwargs):
+            raise AssertionError("Judge LLM must not be called for an empty claim list")
+
+    backend.evaluator = ForbiddenEvaluator()
+    data = runner.load_input("stakeholder", "acceptance")
+    result = NodeResult(
+        node="stakeholder",
+        summary="근거 없음",
+        claims=[],
+        assessments=[
+            Assessment(
+                technology=q.technology,
+                criterion=q.criterion,
+                judgment="확인 불가",
+                rationale="근거 없음",
+                evidence_ids=[],
+            )
+            for q in data.questions
+        ],
+        unverified=[q.id for q in data.questions],
+        limitations=[],
+    )
+    assert backend.judge(result, data.evidence).checks == []
+
+
 def test_prompt_typo_fails_loudly(monkeypatch, tmp_path):
     import shutil
 

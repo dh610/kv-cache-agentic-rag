@@ -109,6 +109,9 @@ class OpenAIBackend:
 
         from runtime.settings import ROOT
 
+        # Nothing to verify: an honest all-unknown result must not receive invented checks.
+        if not result.claims:
+            return JudgeResult(checks=[])
         prompt = (ROOT / "prompts/shared/judge.j2").read_text(encoding="utf-8")
         # This shared prompt has no variables; claim/evidence JSON is a separate message.
         payload = json.dumps(

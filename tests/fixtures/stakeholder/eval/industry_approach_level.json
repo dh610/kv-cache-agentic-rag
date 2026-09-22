@@ -1,0 +1,30 @@
+{
+  "case_id": "stakeholder-eval-industry-approach-level",
+  "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자가 공개 기사를 읽고 쓴 한국어 요약이다. 기사는 CXL 메모리 접근 전반을 다루며 ITME라는 이름은 등장하지 않는다. 접근 전반 근거를 conditions에 표시하고 등급을 매기는지 확인한다.",
+  "target_techs": {"hw": "ITME"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "itme-industry",
+      "technology": "ITME",
+      "criterion": "industry",
+      "text": "투자·업계·애널리스트·미디어가 CXL memory for LLM inference(ITME 계열) 접근을 어떻게 전망하는지 확인한다. SK hynix CMM, Samsung CMM, CXL market outlook, analyst, investment"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "newkerala-curated-cxl-news",
+      "text": "검토자 요약: NewKerala(ANI 보도 전재, 2026-07-20 갱신)는 삼성전자와 SK hynix가 HBM만으로는 부족한 AI 확장 한계를 넘기 위해 CXL 메모리를 상용화하고 있다고 전한다. 삼성이 1TB CXL 메모리 풀로 8개 GPU에서 DRAM 수준의 약 92% 추론 성능을 얻었다는 보고와, SK hynix 연구진이 6월에 CXL을 공유 계층으로 쓴 연구에서 최대 35.7% 처리량 향상을 발표했다는 내용을 담는다. 유진투자증권 애널리스트 임소정(Yim So-jung)의 'CXL 수요는 2026년부터 본격화되고 2028년에는 CXL 지원 서버 플랫폼이 주류가 될 것'이라는 전망을 인용한다. 기사에 ITME라는 이름은 등장하지 않는다.",
+      "title": "NewKerala/ANI 기사 검토자 요약 — 원문 발췌 아님",
+      "url": "https://www.newkerala.com/news/a/samsung-sk-hynix-advance-new-memory-layer-tackle-837.htm",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "target",
+      "publisher": "NewKerala (ANI)",
+      "site": "www.newkerala.com",
+      "published_at": "2026-07-20"
+    }
+  ],
+  "prior_results": {}
+}

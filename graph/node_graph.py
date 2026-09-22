@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -19,6 +20,40 @@ from schemas.contracts import (
     SearchRecord,
     empty_result,
 )
+
+QUOTE = re.compile(r"「(.+?)」", re.S)
+ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[\.\.\.\]|\(\.\.\.\))\s*")
+
+
+MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+
+def _squash(text: str) -> str:
+    """Compare quotes without markdown emphasis/links or whitespace differences."""
+    text = MD_LINK.sub(r"\1", text)
+    return " ".join(text.replace("*", "").replace("#", "").split())
+
+
+def _fragments(quote: str) -> list[str]:
+    """A quote may join non-adjacent passages with an ellipsis; each part must be verbatim."""
+    return [_squash(part) for part in ELLIPSIS.split(quote) if part.strip()]
+
+
+def grounding_errors(claim, evidence_by_id: dict[str, Evidence]) -> list[str]:
+    """Deterministic checks the LLM Judge has been observed to miss."""
+    errors = []
+    for eid in claim.evidence_ids:
+        item = evidence_by_id.get(eid)
+        # "other" marks shared context (e.g. reference papers) usable by any technology.
+        if item and item.technology not in (claim.technology, "other"):
+            errors.append(f"{claim.id}: cites {item.technology} evidence for {claim.technology}")
+    cited = [_squash(evidence_by_id[e].text) for e in claim.evidence_ids if e in evidence_by_id]
+    for quote in QUOTE.findall(claim.text):
+        for needle in _fragments(quote):
+            if not any(needle in text for text in cited):
+                errors.append(f"{claim.id}: quoted text is not verbatim in cited evidence")
+                break
+    return errors
 
 
 class WorkState(TypedDict, total=False):
@@ -59,11 +94,13 @@ def contract_errors(
             errors.append(f"{check.claim_id}: Judge cited evidence not supplied by claim")
         if check.label == "supported" and not check.evidence_ids:
             errors.append(f"{check.claim_id}: supported without evidence")
+    by_id = {e.id: e for e in evidence}
     for claim in result.claims:
         if claim.technology not in techs or claim.criterion not in rubric:
             errors.append(f"{claim.id}: unknown technology/criterion")
         if not claim.evidence_ids or not set(claim.evidence_ids).issubset(known):
             errors.append(f"{claim.id}: missing/unknown evidence IDs")
+        errors.extend(grounding_errors(claim, by_id))
     for item in result.assessments:
         criterion = rubric.get(item.criterion)
         if item.technology not in techs or not criterion:

@@ -1,0 +1,90 @@
+{
+  "rubric": "설계서 §C.5 표 9 / 평가 가이드 C.3 이해관계자 3주체(competitor, adopter, industry) × 긍정·중립·부정·확인 불가",
+  "scope": "제공된 고정 근거에 한정한 반응 판정 평가. 각 사례는 하나의 (technology, criterion)만 묻고, 근거 텍스트는 검토자가 실제 공개 페이지를 읽고 쓴 요약이다. 웹 검색 품질이나 실제 이해관계자 여론을 측정하지 않는다.",
+  "cases": [
+    {
+      "id": "adopter_third_party",
+      "input": "adopter_third_party.json",
+      "technology": "KIVI",
+      "criterion": "adopter",
+      "allowed_judgments": ["중립", "긍정"],
+      "expected_unknown": false,
+      "allow_unknown": true,
+      "required_evidence_ids": ["spheron-curated-kivi-setup"],
+      "required_claim_condition": null,
+      "reason": "논문 저자가 아닌 제3자 개발자 블로그가 KIVI를 직접 이름으로 다루며 설정 조건과 정확도 비용을 적었다. 시도 사례이자 조건부 평가이므로 중립이 기본이고, 효과 확인으로 읽으면 긍정까지 허용한다. 부정은 근거에 없다.",
+      "manual_review": ["Transformers 패치·CUDA 커널·Python 3.10 조건을 conditions에 보존했는가", "논문 초록 수치(2.6×, 3.47×)를 블로그의 확인 효과로 옮기지 않았는가", "발언 주체를 Spheron Network 블로그(작성자 Mitrasish)로 적었는가"],
+      "source_url": "https://www.spheron.network/blog/kv-cache-quantization-with-kivi-int2-setup-guide-2026"
+    },
+    {
+      "id": "industry_approach_level",
+      "input": "industry_approach_level.json",
+      "technology": "ITME",
+      "criterion": "industry",
+      "allowed_judgments": ["긍정", "중립"],
+      "expected_unknown": false,
+      "allow_unknown": true,
+      "required_evidence_ids": ["newkerala-curated-cxl-news"],
+      "required_claim_condition": "접근 전반",
+      "reason": "미디어·애널리스트가 CXL 메모리 접근을 성장 방향으로 전망하지만 기사에 ITME라는 이름은 없다. 설계서 §A.4에 따라 접근 전반 근거로 등급을 매길 수 있으나, claim.conditions에 '접근 전반'을 명시해야 한다.",
+      "manual_review": ["rationale이 ITME가 아니라 CXL 메모리 접근 전반에 대한 반응이라고 밝혔는가", "삼성·SK hynix 발표(자사 발표)와 애널리스트 전망(독립)을 구분했는가", "35.7% 수치를 ITME 논문 결과의 보도로만 다루고 확대하지 않았는가"],
+      "source_url": "https://www.newkerala.com/news/a/samsung-sk-hynix-advance-new-memory-layer-tackle-837.htm"
+    },
+    {
+      "id": "industry_repost_trap",
+      "input": "industry_repost_trap.json",
+      "technology": "KIVI",
+      "criterion": "industry",
+      "allowed_judgments": [],
+      "expected_unknown": true,
+      "allow_unknown": true,
+      "required_evidence_ids": [],
+      "required_claim_condition": null,
+      "reason": "논문 게시·요약 사이트는 저자 초록의 재게시이며 투자·업계 주체가 아니다. 어떤 등급도 부여하면 안 된다(프롬프트 규칙 7-1).",
+      "manual_review": ["unverified에 '재게시 사이트만 확인' 같은 사유가 남았는가"],
+      "source_url": "https://www.alphaxiv.org/abs/2402.02750"
+    },
+    {
+      "id": "competitor_third_party_trap",
+      "input": "competitor_third_party_trap.json",
+      "technology": "KIVI",
+      "criterion": "competitor",
+      "allowed_judgments": [],
+      "expected_unknown": true,
+      "allow_unknown": true,
+      "required_evidence_ids": [],
+      "required_claim_condition": null,
+      "reason": "페이지가 스스로 'Google과 무관한 독립 사이트'라고 밝히므로 TurboQuant 진영의 발언이 아니다. 경쟁 기술 진영 등급을 부여하면 안 된다(프롬프트 규칙 10-3).",
+      "manual_review": ["제3자 비교 사이트임을 unverified나 limitations에 적었는가"],
+      "source_url": "https://turbo-quant.com/ko/turboquant-vs-kivi"
+    },
+    {
+      "id": "competitor_self_report_trap",
+      "input": "competitor_self_report_trap.json",
+      "technology": "ITME",
+      "criterion": "competitor",
+      "allowed_judgments": [],
+      "expected_unknown": true,
+      "allow_unknown": true,
+      "required_evidence_ids": [],
+      "required_claim_condition": null,
+      "reason": "ITME 논문이 NVIDIA CMX·삼성 CMM-H를 평가한 문장은 선정 기술→경쟁 기술 방향이다. 경쟁 진영→ITME 방향의 발언이 아니므로 competitor 등급을 부여하면 안 된다(프롬프트 규칙 10-1).",
+      "manual_review": ["발언 방향이 뒤집히지 않았는가", "저자 자기 평가로 표시했는가"],
+      "source_url": "https://arxiv.org/abs/2606.12556"
+    },
+    {
+      "id": "no_evidence",
+      "input": "no_evidence.json",
+      "technology": "ITME",
+      "criterion": "competitor",
+      "allowed_judgments": [],
+      "expected_unknown": true,
+      "allow_unknown": true,
+      "required_evidence_ids": [],
+      "required_claim_condition": null,
+      "reason": "근거가 없으므로 등급을 만들 수 없다.",
+      "manual_review": ["미확인 사유가 unverified에 남아 있는가"],
+      "source_url": null
+    }
+  ]
+}

@@ -84,6 +84,60 @@ def test_invalid_claims_cannot_be_final_accepted_output(backend):
     assert "검증을 통과하지" in result.result.summary
 
 
+def test_grounding_checks_reject_cross_technology_and_fabricated_quotes():
+    from graph.node_graph import grounding_errors
+    from schemas.contracts import Claim
+
+    data = load_input("tech")
+    by_id = {e.id: e for e in data.evidence}
+    kivi, itme = data.evidence[0], data.evidence[1]
+    assert kivi.technology == "KIVI" and itme.technology == "ITME"
+
+    def claim(text, *ids, technology="KIVI"):
+        return Claim(
+            id="c", technology=technology, criterion="maturity", text=text,
+            kind="fact", evidence_ids=list(ids), conditions=[],
+        )  # fmt: skip
+
+    # A KIVI claim must not cite ITME evidence.
+    assert any("cites ITME" in e for e in grounding_errors(claim("x", itme.id), by_id))
+    # Quoted text must appear verbatim (whitespace-insensitive) in cited evidence.
+    verbatim = claim(f"「{kivi.text}」 — 저자", kivi.id)
+    assert grounding_errors(verbatim, by_id) == []
+    spaced = claim("「" + kivi.text.replace(" ", "\n ") + "」", kivi.id)
+    assert grounding_errors(spaced, by_id) == []
+    fabricated = claim("「KIVI는 2.6배 메모리를 줄인다」 — 커뮤니티", kivi.id)
+    assert any("not verbatim" in e for e in grounding_errors(fabricated, by_id))
+    # Non-adjacent passages may be joined with an ellipsis; every fragment must still be verbatim.
+    words = kivi.text.split()
+    joined = claim(f"「{' '.join(words[:2])} ... {' '.join(words[-2:])}」", kivi.id)
+    assert grounding_errors(joined, by_id) == []
+    tampered = claim(f"「{' '.join(words[:2])} … not in the source」", kivi.id)
+    assert any("not verbatim" in e for e in grounding_errors(tampered, by_id))
+    # Claims without quotes are untouched by the verbatim rule.
+    assert grounding_errors(claim("paraphrase only", kivi.id), by_id) == []
+
+
+class FabricatedQuote(MockBackend):
+    def generate(self, *args):
+        result = super().generate(*args)
+        result.claims[0].text = "「이 문장은 원문에 없다」 — 출처"
+        return result
+
+    def judge(self, result, evidence):
+        judgment = super().judge(result, evidence)
+        for check in judgment.checks:
+            check.label = "supported"  # A lenient Judge must not rescue a fabricated quote.
+        return judgment
+
+
+def test_fabricated_quote_is_not_accepted_even_if_judge_supports_it():
+    result = run(backend=FabricatedQuote())
+    assert result.status == "needs_revision"
+    assert any("not verbatim" in e for e in result.validation_errors)
+    assert all(a.judgment == "확인 불가" for a in result.result.assessments)
+
+
 class BrokenBackend(MockBackend):
     def generate(self, *args):
         raise RuntimeError("provider error with confidential detail")

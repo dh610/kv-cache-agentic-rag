@@ -1,0 +1,33 @@
+{
+  "case_id": "stakeholder-eval-competitor-self-report-trap",
+  "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자가 ITME 논문 해당 페이지를 읽고 쓴 요약이다. 선정 기술 저자가 경쟁 기술을 평가한 문장을 경쟁 진영의 반응으로 뒤집지 않는지 확인한다.",
+  "target_techs": {"hw": "ITME"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "itme-competitor",
+      "technology": "ITME",
+      "criterion": "competitor",
+      "text": "경쟁 기술 진영(NVIDIA CMX Context Memory Storage/BlueField DPU, Samsung CXL CMM-H, PNM)이 ITME의 CXL-hybrid memory 기반 KV cache tiering을 어떻게 평가하는지 확인한다. ITME SK hynix comparison, limitation, disaggregated context storage"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "itme-curated-p2-cmx-critique",
+      "text": "검토자 요약: ITME 논문(SK hynix, arXiv 2606.12556v2, 2026-06-16) 2쪽은 NVIDIA CMX Context Memory Storage를 BlueField DPU 중심 구현으로 소개하며, DPU 기반 접근이 원격 경로 효율을 높이지만 비싼 고성능 하드웨어와 복잡한 소프트웨어 스택을 요구한다고 지적한다. 11쪽은 삼성 CMM-H가 PCIe Gen4 기반이라 대역폭이 제한된다고 평가한다. 이는 ITME 저자가 경쟁 기술을 평가한 문장이며, 경쟁 진영이 ITME를 평가한 문장은 없다.",
+      "title": "ITME p.2·p.11 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 2,
+      "document_id": "itme",
+      "authors": "Hakbeom Jang et al. (SK hynix)",
+      "year": 2026,
+      "venue": "arXiv preprint (2606.12556v2)",
+      "published_at": "2026-06-16"
+    }
+  ],
+  "prior_results": {}
+}

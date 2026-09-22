@@ -16,6 +16,8 @@
 `NodeResult`는 모델이 생성하고, `NodeRun.status`는 코드가 결정합니다.
 누락된 근거, Judge 미응답, 잘못된 ID, 미지원 주장을 모델의 자기 선언만으로 성공 처리하지 않습니다.
 확인 불가가 아닌 판정은 같은 기술/기준의 supported claim을 근거로 가져야 합니다.
+claim이 인용한 evidence의 `technology`는 claim의 기술과 같거나 `other`(공용 참고 자료)여야 하며,
+claim 본문의 「」 안 문장은 인용한 evidence 본문에 그대로(공백 차이만 허용) 있어야 합니다. 이 두 검사는 LLM Judge와 별개로 코드가 수행합니다.
 이 검사는 인용과 전제 연결을 확인하는 것이며 rationale의 모든 의미나 평가 등급의 타당성을 증명하지 않습니다.
 summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니다.
 

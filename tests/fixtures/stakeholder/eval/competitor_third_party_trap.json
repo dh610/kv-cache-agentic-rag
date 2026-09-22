@@ -1,0 +1,29 @@
+{
+  "case_id": "stakeholder-eval-competitor-third-party-trap",
+  "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자 요약이다. 스스로 '독립 사이트'라고 밝힌 제3자 비교 페이지를 경쟁 기술 진영의 발언으로 오인하지 않는지 확인한다.",
+  "target_techs": {"sw": "KIVI"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-competitor",
+      "technology": "KIVI",
+      "criterion": "competitor",
+      "text": "경쟁 기술 진영(TurboQuant, KVTC, MLA)이 KIVI의 2-bit asymmetric KV cache quantization(per-channel key, per-token value)을 어떻게 평가하는지 확인한다. KIVI comparison, limitation, accuracy drop, integration"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "turboquant-site-curated-comparison",
+      "text": "검토자 요약: turbo-quant.com의 'TurboQuant vs KIVI' 페이지는 상단에 '독립 레퍼런스 사이트 · Google 또는 Alphabet Inc.와 무관'이라고 밝힌다. KIVI를 잘 알려진 KV cache 양자화 베이스라인으로, TurboQuant를 벡터 양자화와 벡터 검색까지 범위를 넓힌 Google의 최신 접근법으로 소개하고, 각 논문에 명시된 방법과 벤치마크 초점을 비교한다. Google이나 TurboQuant 저자의 발언은 아니다.",
+      "title": "turbo-quant.com 비교 페이지 검토자 요약 — 원문 발췌 아님",
+      "url": "https://turbo-quant.com/ko/turboquant-vs-kivi",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "target",
+      "publisher": "TurboQuant Tools (독립 사이트, Google과 무관)",
+      "site": "turbo-quant.com"
+    }
+  ],
+  "prior_results": {}
+}

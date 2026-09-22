@@ -1,0 +1,29 @@
+{
+  "case_id": "stakeholder-eval-industry-repost-trap",
+  "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자 요약이다. 논문 게시·요약 사이트만 근거로 주어졌을 때 투자·업계 등급을 만들지 않고 확인 불가로 남기는지 확인한다.",
+  "target_techs": {"sw": "KIVI"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-industry",
+      "technology": "KIVI",
+      "criterion": "industry",
+      "text": "투자·업계·애널리스트·미디어가 KV cache quantization(KIVI 계열) 접근을 어떻게 전망하는지 확인한다. analyst, market outlook, LLM inference cost, investment"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "alphaxiv-curated-kivi-abstract",
+      "text": "검토자 요약: alphaXiv의 KIVI 논문 페이지는 arXiv 제출본(2024-07-25 제출)의 초록과 저자 소속(Rice University 등)을 그대로 게시한다. 2.6배 메모리 절감과 2.35~3.47배 처리량 등 초록의 수치가 실려 있고, 제3자의 논평이나 애널리스트·미디어의 전망은 없다.",
+      "title": "alphaXiv KIVI 페이지 검토자 요약 — 원문 발췌 아님",
+      "url": "https://www.alphaxiv.org/abs/2402.02750",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "target",
+      "publisher": "alphaXiv",
+      "site": "www.alphaxiv.org"
+    }
+  ],
+  "prior_results": {}
+}
