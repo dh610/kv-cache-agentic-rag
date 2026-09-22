@@ -120,6 +120,15 @@ def contract_errors(
     known = {e.id for e in evidence}
     techs = set(data.target_techs.values())
     rubric = {c.id: c for c in load_rubric(node).criteria}
+    # 평가 종합의 일은 관점 간 대조다. 등급은 자기 루브릭(consistency·implications)만 쓰지만,
+    # 개별 주장은 대조 대상인 상위 관점의 항목명을 그대로 가리킬 수 있어야 한다.
+    claim_criteria = set(rubric)
+    if node == "synthesis":
+        claim_criteria |= {
+            c.id
+            for role in ("tech", "market", "stakeholder", "domain")
+            for c in load_rubric(role).criteria
+        }
     if result.node != node:
         errors.append(f"node mismatch: expected {node}")
     ids = [c.id for c in result.claims]
@@ -136,10 +145,9 @@ def contract_errors(
         if check.label == "supported" and not check.evidence_ids:
             errors.append(f"{check.claim_id}: supported without evidence")
     for claim in result.claims:
-        if claim.technology not in techs or claim.criterion not in rubric:
+        if claim.technology not in techs or claim.criterion not in claim_criteria:
             errors.append(
-                f"{claim.id}: unknown technology/criterion "
-                f"({claim.technology}/{claim.criterion})"
+                f"{claim.id}: unknown technology/criterion ({claim.technology}/{claim.criterion})"
             )
         if not claim.evidence_ids or not set(claim.evidence_ids).issubset(known):
             errors.append(f"{claim.id}: missing/unknown evidence IDs")
@@ -147,8 +155,7 @@ def contract_errors(
         criterion = rubric.get(item.criterion)
         if item.technology not in techs or not criterion:
             errors.append(
-                "assessment has unknown technology/criterion "
-                f"({item.technology}/{item.criterion})"
+                f"assessment has unknown technology/criterion ({item.technology}/{item.criterion})"
             )
         elif item.judgment not in criterion.judgments:
             errors.append(f"{item.criterion}: judgment not allowed by rubric")
