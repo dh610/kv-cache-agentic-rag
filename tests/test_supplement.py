@@ -106,3 +106,29 @@ def test_report_excludes_superseded_citations_but_keeps_source_history():
     assert any(e.id == "superseded-source" for e in state["sources"])
     problems = validate_report(state, RESULT_KEYS, text, "fixture")["problems"]
     assert not any("superseded-source" in p for p in problems)
+
+
+def test_unchanged_tech_does_not_rerun_otherwise_ungapped_roles(monkeypatch):
+    from schemas.contracts import Gap
+
+    monkeypatch.setattr(
+        "graph.main_graph.collect_gaps",
+        lambda runs, settings: [Gap(role="tech", criterion="verification", reason="review")],
+    )
+    state, backend = run()
+    assert state["supplement_round"] == 1
+    assert backend.calls["tech"] == 2
+    assert all(backend.calls[role] == 1 for role in ("market", "stakeholder", "domain"))
+    assert backend.calls["synthesis"] == 2
+
+
+def test_changed_tech_still_reruns_ungapped_dependents(monkeypatch):
+    from schemas.contracts import Gap
+
+    monkeypatch.setattr(
+        "graph.main_graph.collect_gaps",
+        lambda runs, settings: [Gap(role="tech", criterion="verification", reason="review")],
+    )
+    state, backend = run(FailTechOnce())
+    assert state["supplement_round"] == 1
+    assert all(backend.calls[role] == 2 for role in NODES[:4])
