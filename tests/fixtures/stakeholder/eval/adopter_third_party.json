@@ -1,0 +1,36 @@
+{
+  "case_id": "stakeholder-eval-adopters-third-party",
+  "description": "이해관계자 평가용 고정 입력. evidence.text는 원문 인용이 아니라 검토자가 해당 공개 페이지를 읽고 쓴 한국어 요약이다. 제3자 개발자 블로그의 설정 가이드가 도입 기업·개발자 반응으로 어떻게 판정되는지 확인한다.",
+  "target_techs": {
+    "sw": "KIVI"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-adopters",
+      "technology": "KIVI",
+      "criterion": "adopters",
+      "text": "도입 기업·개발자가 KIVI 방식의 2-bit quantized KV cache를 실제로 써 본 후기와 커뮤니티 평가를 확인한다. Hugging Face transformers KV cache quantization, vLLM, GitHub jy-yuan/KIVI issues, deployment experience, accuracy"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "spheron-curated-kivi-setup",
+      "text": "검토자 요약: Spheron Network 블로그(작성자 Mitrasish, Co-founder & CTO, 2026-09-05)는 KIVI를 vLLM 기능이 아니라 vLLM과 별도로 실행하는 Transformers 패치로 소개한다. 설치에는 컴파일된 CUDA 커널과 Python 3.10이 필요하고, FP16 대비 정확도 비용은 Llama-2-7B·Mistral-7B에서 CoQA·GSM8K 약 1점이라고 적는다. 재현은 논문과 같은 A100 80GB에서 하라고 권한다.",
+      "title": "Spheron 블로그 검토자 요약 — 원문 발췌 아님",
+      "url": "https://www.spheron.network/blog/kv-cache-quantization-with-kivi-int2-setup-guide-2026",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "target",
+      "authors": "Mitrasish (Co-founder & CTO, Spheron)",
+      "publisher": "Spheron Network",
+      "site": "www.spheron.network",
+      "published_at": "2026-09-05",
+      "affiliation": "independent",
+      "affiliation_reason": "KIVI 저자·개발사와 무관한 GPU 클라우드 업체(Spheron)의 기술 블로그",
+      "stance": "mixed"
+    }
+  ],
+  "prior_results": {}
+}
