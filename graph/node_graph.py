@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import hashlib
+from collections import Counter
 from typing import TypedDict
 
 from langchain_core.runnables.config import ContextThreadPoolExecutor
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
+from rag.interface import search_source, supports_scope
+from runtime.aliases import alias, restore_result, split_absence_claims
 from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
-from runtime.validation import tech_trl_errors, verified_evidence_ids
+from runtime.validation import (
+    enforce_direct_evidence,
+    tech_trl_errors,
+    trim_to_verified,
+    verified_evidence_ids,
+)
 from schemas.contracts import (
     Coverage,
     Evidence,
@@ -141,13 +149,17 @@ def contract_errors(
             errors.append(f"{check.claim_id}: supported without evidence")
     for claim in result.claims:
         if claim.technology not in techs or claim.criterion not in rubric:
-            errors.append(f"{claim.id}: unknown technology/criterion")
+            errors.append(
+                f"{claim.id}: unknown technology/criterion ({claim.technology}/{claim.criterion})"
+            )
         if not claim.evidence_ids or not set(claim.evidence_ids).issubset(known):
             errors.append(f"{claim.id}: missing/unknown evidence IDs")
     for item in result.assessments:
         criterion = rubric.get(item.criterion)
         if item.technology not in techs or not criterion:
-            errors.append("assessment has unknown technology/criterion")
+            errors.append(
+                f"assessment has unknown technology/criterion ({item.technology}/{item.criterion})"
+            )
         elif item.judgment not in criterion.judgments:
             errors.append(f"{item.technology}/{item.criterion}: judgment not allowed by rubric")
         if not set(item.evidence_ids).issubset(known):
@@ -316,6 +328,24 @@ def build_node_graph(
             initial.update(fatal=True, errors=[f"Planning failed: {type(exc).__name__}"])
         return initial
 
+    def layered_queries(q, base, intent, count, live):
+        """설계서 A.4·C.2: 기술 자체(direct)와 그 기술이 대표하는 접근 전반(background)을
+        각각 찾는다. 기술명 단독 검색은 하지 않고 항상 맥락 검색어를 붙인다."""
+        if not live:
+            return [("target", q.text)]
+        terms = settings.search_terms.get(q.technology)
+        if not terms or not supports_scope(source):
+            return [("target", base)]
+
+        def pick(pool, offset=0):
+            return pool[(count - 1 + offset) % len(pool)] if pool else ""
+
+        direct = f"{pick(terms.direct)} {base}".strip()
+        pool = terms.background.get(node) or [terms.approach]
+        extra = pick(terms.critical, 1) if intent == "critical" else ""
+        background = f"{pick(pool)} {terms.approach} {extra}".strip()
+        return [("target", direct), ("context", background)]
+
     def search(state):
         if state.get("fatal"):
             return {}
@@ -333,19 +363,21 @@ def build_node_graph(
             for intent in wanted[:budget]:
                 count += 1
                 query = pair.critical if intent == "critical" else pair.positive
-                searched = q.model_copy(update={"text": query}) if live_search else q
-                jobs.append((searched, count, intent))
+                for scope, text in layered_queries(q, query, intent, count, live_search):
+                    searched = q.model_copy(update={"text": text}) if live_search else q
+                    jobs.append((searched, count, intent, scope))
             counts[q.id] = count
 
         def fetch(job):
-            q, count, intent = job
+            q, count, intent, scope = job
             try:
-                found = source.search(q, count)
+                found = search_source(source, q, count, scope)
                 return found, SearchRecord(
                     question_id=q.id,
                     attempt=count,
                     query=q.text,
                     intent=intent,
+                    scope=scope,
                     evidence_ids=[e.id for e in found],
                 )
             except Exception as exc:
@@ -354,6 +386,7 @@ def build_node_graph(
                     attempt=count,
                     query=q.text,
                     intent=intent,
+                    scope=scope,
                     evidence_ids=[],
                     error=f"Search failed: {type(exc).__name__}",
                 )
@@ -372,7 +405,7 @@ def build_node_graph(
             "search_count": counts,
             "searches": records,
             "current_query": jobs[-1][0].text if jobs else "",
-            "searched_question_ids": list(dict.fromkeys(q.id for q, _, _ in jobs)),
+            "searched_question_ids": list(dict.fromkeys(q.id for q, _, _, _ in jobs)),
         }
 
     def relevant_evidence(state, questions, *, generation=False):
@@ -507,7 +540,9 @@ def build_node_graph(
             [c.model_dump() for c in state.get("coverage", [])]
         )
         prompt_evidence = relevant_evidence(state, data.questions, generation=True)
-        system, user, digest = render(node, current, prompt_evidence)
+        labelled, back = alias(prompt_evidence)
+        prompt_evidence = labelled
+        system, user, digest = render(node, current, labelled)
         if state.get("fatal"):
             return {
                 "draft": empty_result(node, "; ".join(state["errors"])),
@@ -546,7 +581,9 @@ def build_node_graph(
             else:
                 draft = backend.generate(node, current, prompt_evidence, system, user)
             return {
-                "draft": NodeResult.model_validate(draft),
+                "draft": split_absence_claims(
+                    restore_result(NodeResult.model_validate(draft), back)
+                )[0],
                 "prompt_hash": digest,
                 "rendered_system": system,
                 "rendered_user": user,
@@ -580,8 +617,15 @@ def build_node_graph(
                 if state["draft"].claims
                 else JudgeResult(checks=[])
             )
+            # Judge 가 확인해 준 근거만 남기고 계약을 검사한다. 확인되지 않은 인용을
+            # 지우는 것이므로 내용이 늘지 않는다.
+            draft = trim_to_verified(state["draft"], judge.checks, state["search_results"])
+            # 선정 기술 자체를 말하는 항목(채택·TRL)은 직접 근거만 쓴다.
+            draft = enforce_direct_evidence(
+                draft, state["search_results"], settings.evidence_policy.direct_only.get(node, [])
+            )
             errors = rule_errors + contract_errors(
-                node, data, state["draft"], state["search_results"], judge
+                node, data, draft, state["search_results"], judge
             )
             labels = {c.label for c in judge.checks}
             absent = bool(state["draft"].unverified) or (
@@ -602,6 +646,7 @@ def build_node_graph(
             )
             return {
                 "judge": judge,
+                "draft": draft,
                 "errors": errors,
                 "verdict": verdict,
                 "retry_from_verification": True,
@@ -631,11 +676,17 @@ def build_node_graph(
         current.description += (
             "\n검증 피드백: " + state["judge"].model_dump_json() + str(state["errors"])
         )
-        system, user, digest = render(node, current, state["search_results"])
+        labelled, back = alias(state["search_results"])
+        system, user, digest = render(node, current, labelled)
         try:
-            draft = NodeResult.model_validate(
-                backend.generate(node, current, state["search_results"], system, user)
-            )
+            draft = split_absence_claims(
+                restore_result(
+                    NodeResult.model_validate(
+                        backend.generate(node, current, labelled, system, user)
+                    ),
+                    back,
+                )
+            )[0]
             return {
                 "draft": draft,
                 "fix_count": state["fix_count"] + 1,
@@ -686,51 +737,79 @@ def build_node_graph(
 def finalize_node(node, data, mode, state, model):
     result = state["draft"].model_copy(deep=True)
     errors = list(state.get("errors", []))
-    rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
     for c in state["judge"].checks:
         if c.label != "supported":
             errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
-    bad_pairs = {(c.technology, c.criterion) for c in result.claims if c.id in rejected}
-    global_failure = bool(state.get("fatal"))
-    for error in state.get("errors", []):
-        if error.startswith("Judge returned unknown claim IDs"):
-            continue
-        matched = {
-            (c.technology, c.criterion) for c in result.claims if error.startswith(c.id + ":")
-        }
-        matched.update(
-            (q.technology, q.criterion)
-            for q in data.questions
-            if error.startswith(f"{q.technology}/{q.criterion}:")
-            or error.startswith(q.criterion + ":")
-        )
-        if not matched:
-            global_failure = True
-        bad_pairs.update(matched)
-    if global_failure:
-        bad_pairs = {(q.technology, q.criterion) for q in data.questions}
-        bad_pairs.update((c.technology, c.criterion) for c in result.claims)
-        bad_pairs.update((a.technology, a.criterion) for a in result.assessments)
-    result.unverified.extend(
-        c.text for c in result.claims if (c.technology, c.criterion) in bad_pairs
+    # 주장은 자기 자신에 대한 supported check가 정확히 하나 있을 때만 살아남는다.
+    # 검증받지 못한 주장은 여전히 미확인으로 내려가지만, 노드 전체를 덮어쓰지는 않는다.
+    check_counts = Counter(c.claim_id for c in state["judge"].checks)
+    known_ids = {e.id for e in state["search_results"]}
+    cited_by = {c.id: set(c.evidence_ids) for c in result.claims}
+    confirmed = {
+        c.claim_id
+        for c in state["judge"].checks
+        if c.label == "supported"
+        and check_counts[c.claim_id] == 1
+        and cited_by.get(c.claim_id)
+        # Judge 는 판단에 쓴 근거만 적는다. 확인된 인용이 하나라도 있으면 주장은 유지하고,
+        # 확인되지 않은 인용에 기대던 등급만 뒤에서 확인 불가로 내린다.
+        and (cited_by[c.claim_id] & set(c.evidence_ids) & known_ids)
+    }
+    invalid_claims = {
+        c.id
+        for c in result.claims
+        if any(error.startswith(c.id + ":") for error in state.get("errors", []))
+    }
+    kept = (
+        []
+        if state.get("fatal")
+        else [c for c in result.claims if c.id in confirmed and c.id not in invalid_claims]
     )
-    result.claims = [c for c in result.claims if (c.technology, c.criterion) not in bad_pairs]
-    if bad_pairs:
-        result.summary = (
-            "검증을 통과하지 못한 항목은 보류하고, 통과한 항목의 주장과 평가만 보존했습니다."
+    keep_ids = {c.id for c in kept}
+    result.unverified.extend(c.text for c in result.claims if c.id not in keep_ids)
+    dropped = len(kept) != len(result.claims)
+    result.claims = kept
+    # 등급은 살아남은 주장에 다시 대조한다. 전제가 사라진 항목만 확인 불가로 내린다.
+    allowed = {c.id: set(c.judgments) for c in load_rubric(node).criteria}
+    for a in result.assessments:
+        if a.judgment not in allowed.get(a.criterion, set()):
+            # 루브릭에 없는 값(오염된 문자열 등)은 판정으로 쓰지 않는다.
+            a.judgment, a.rationale, a.evidence_ids = (
+                "확인 불가",
+                "허용되지 않은 판정 값이어서 보류합니다.",
+                [],
+            )
+            continue
+        if a.judgment == "확인 불가":
+            continue
+        verified = verified_evidence_ids(
+            result, state["judge"].checks, state["search_results"], a.technology, a.criterion
         )
-        for a in result.assessments:
-            if (a.technology, a.criterion) in bad_pairs:
-                a.judgment, a.rationale, a.evidence_ids = (
-                    "확인 불가",
-                    "근거 검증 실패로 해당 항목의 판정을 보류합니다.",
-                    [],
-                )
-        for t in result.trl_estimates:
-            if global_failure or any(
-                tech == t.technology and criterion == "maturity" for tech, criterion in bad_pairs
-            ):
-                t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+        if not verified or not set(a.evidence_ids).issubset(verified):
+            a.judgment, a.rationale, a.evidence_ids = (
+                "확인 불가",
+                "근거 검증 실패로 판정을 보류합니다.",
+                [],
+            )
+    for t in result.trl_estimates:
+        if t.level is None:
+            continue
+        supported = verified_evidence_ids(
+            result, state["judge"].checks, state["search_results"], t.technology
+        )
+        if not t.evidence_ids or not set(t.evidence_ids).issubset(supported):
+            t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+    # TRL 이 같은 노드의 등급과 어긋나면 근거가 확인되더라도 그 기술의 단계는 남기지
+    # 않는다. 판정은 기술별로만 적용한다.
+    for name in {t.technology for t in result.trl_estimates}:
+        view = result.model_copy(deep=True)
+        view.trl_estimates = [t for t in view.trl_estimates if t.technology == name]
+        if tech_trl_errors(view):
+            for t in result.trl_estimates:
+                if t.technology == name:
+                    t.level, t.evidence_ids, t.rationale = None, [], "등급과 불일치"
+    if dropped or state.get("errors") or state.get("fatal"):
+        result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
     errors.extend(
         f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
     )

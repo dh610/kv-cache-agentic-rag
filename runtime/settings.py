@@ -8,11 +8,24 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from schemas.contracts import NodeName
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SettingsModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class ReportMeta(SettingsModel):
+    """보고서 표지 정보. 설계서 표지와 같은 항목을 쓴다."""
+
+    title: str = "평가 보고서"
+    subtitle: str = ""
+    lead: str = ""
+    campus: str = ""
+    members: list[str] = Field(default_factory=list)
+    submission: str = ""
 
 
 class Models(SettingsModel):
@@ -41,6 +54,9 @@ class Retrieval(SettingsModel):
     reranker: str
     candidates: int = Field(ge=1, le=100)
     index_dir: str
+    # 웹 원문은 질문 관련 문단만 남겨 노드 입력이 생성 제한 시간을 넘기지 않게 한다.
+    web_excerpt_chars: int = Field(default=1200, ge=200, le=12000)
+    web_context_terms: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def valid_window(self):
@@ -92,15 +108,51 @@ class GapPolicy(SettingsModel):
     )
 
 
+class EvidencePolicy(SettingsModel):
+    """직접 근거만 허용할 항목. TRL 은 노드와 무관하게 항상 직접 근거만 쓴다."""
+
+    direct_only: dict[NodeName, list[str]] = Field(default_factory=dict)
+
+
+class TechTerms(SettingsModel):
+    """설계서 A.4·C.2: 평가 단위는 접근 전반이고, 선정 기술은 그 대표 사례다.
+
+    direct 는 기술 자체(scope=target), background 는 그 기술이 대표하는 접근 전반
+    (scope=context)을 찾는다. 기술명 단독 검색은 동명 잡음을 부르므로 금지한다.
+    """
+
+    approach: str = Field(min_length=1)
+    direct: list[str] = Field(min_length=1)
+    background: dict[NodeName, list[str]] = Field(default_factory=dict)
+    critical: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def usable_terms(self):
+        if any(not term.strip() for group in self.background.values() for term in group):
+            raise ValueError("Background search terms must not be blank")
+        if any(not group for group in self.background.values()):
+            raise ValueError("Each perspective needs at least one background term")
+        return self
+
+
 class Settings(SettingsModel):
     schema_version: Literal[2]
     target_techs: dict[str, str]
     domain: str
+    report: ReportMeta = Field(default_factory=ReportMeta)
     models: Models
     limits: Limits
     retrieval: Retrieval
     evaluation: Evaluation = Field(default_factory=Evaluation)
     gap_policy: GapPolicy = Field(default_factory=GapPolicy)
+    evidence_policy: EvidencePolicy = Field(default_factory=EvidencePolicy)
+    search_terms: dict[str, TechTerms] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def terms_cover_targets(self):
+        if self.search_terms and set(self.search_terms) != set(self.target_techs.values()):
+            raise ValueError("search_terms must list exactly the target technologies")
+        return self
 
 
 def load_settings() -> Settings:
@@ -109,6 +161,15 @@ def load_settings() -> Settings:
     for env, key in (("GENERATOR_MODEL", "generator"), ("JUDGE_MODEL", "judge")):
         if os.getenv(env):
             raw["models"][key] = os.environ[env]
+    # 빠른 점검용 1회 통과 실행: 재검색·수정·보완 재실행을 껐다 켤 수 있다.
+    # 한쪽 근거만 보고 판정하므로 확인 불가가 늘어난다. 제출본 설정은 config.yaml 이다.
+    for env, key in (
+        ("SEARCH_LIMIT", "search"),
+        ("FIX_LIMIT", "fix"),
+        ("SUPPLEMENT_LIMIT", "supplement"),
+    ):
+        if os.getenv(env):
+            raw["limits"][key] = int(os.environ[env])
     return Settings.model_validate(raw)
 
 

@@ -49,7 +49,13 @@ def execute(graph, label: str, mode: str, metadata: dict) -> tuple[dict, Path]:
             raise ValueError("Set your own LANGSMITH_PROJECT, e.g. kv-rag-donghyeon-dev")
     run_id = uuid.uuid4()
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output = ROOT / "outputs/local" / f"{stamp}-{label}-{run_id.hex[:8]}"
+    # 테스트는 RUN_OUTPUT_DIR 로 임시 폴더를 지정해 실제 산출물 폴더를 어지럽히지 않는다.
+    base = (
+        Path(os.environ["RUN_OUTPUT_DIR"])
+        if os.getenv("RUN_OUTPUT_DIR")
+        else ROOT / "outputs/local"
+    )
+    output = base / f"{stamp}-{label}-{run_id.hex[:8]}"
     output.mkdir(parents=True, exist_ok=False)
     manifest = {
         "run_id": str(run_id),

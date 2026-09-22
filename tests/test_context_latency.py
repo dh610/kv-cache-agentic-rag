@@ -83,7 +83,8 @@ def test_citation_judge_receives_all_cited_originals_without_unused_pages():
     backend = OpenAIBackend.__new__(OpenAIBackend)
     backend.evaluator = Evaluator()
     backend.judge(draft, [original, extra])
-    assert [e["id"] for e in captured[0]["evidence"]] == [original.id]
+    assert [e["id"] for e in captured[0]["evidence"]] == ["E1"]
+    assert captured[0]["claim"]["evidence_ids"] == ["E1"]
     assert captured[0]["evidence"][0]["text"] == original.text
 
 

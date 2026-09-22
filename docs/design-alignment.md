@@ -43,7 +43,7 @@
 - `config.yaml.schema_version=2`; `uv sync --frozen` 재실행. 실제 검색/평가는 `uv sync --frozen --extra rag`.
 - 공개 입력 `NodeInput.questions` 목록과 반환 `NodeRun`은 유지. 내부 State 이름/단계가 바뀌었으므로 기존 graph 코드를 통째로 덮어쓰지 않습니다.
 - `ModelBackend`를 직접 구현한 경우 `plan(data, feedback) -> QueryPlan`, `sufficiency(data, evidence) -> SufficiencyResult`도 구현합니다. 출력은 런타임에서 다시 검증합니다.
-- `EvidenceSource.search(Question, attempt)`는 유지. Question.text에 실제 재작성된 질의가 전달됩니다. 어댑터에서 예전 고정 접미사를 또 붙이지 않습니다.
+- `EvidenceSource.search(Question, attempt, scope="target")`로 검색 층을 전달합니다. 기존 2인수 어댑터는 단일 층으로 호환합니다. Question.text에 실제 재작성된 질의가 전달됩니다. 어댑터에서 예전 고정 접미사를 또 붙이지 않습니다.
 - 이해관계자 criterion ID: `competitors`, `adopters`, `industry`. 도메인: `cost`, `performance`, `quality`, `operations`, `scalability`. 종합: `consistency`, `implications`. 이전 `reaction/conflict`, `fit`, `recommendation` 입력은 새 fixture를 참고해 바꿉니다.
 - 기술의 `mechanism/maturity/limitations` ID는 유지. maturity는 TRL 1~9/확인 불가를 허용. 김계원님의 PR #4 프롬프트·TRL 평가 사례는 최신 main에서 받아 보존했습니다. TRL 세부 단계는 기술 프롬프트의 실습 가이드 정의를 유지합니다.
 - 질문 한도 기본값은 10개: 두 기술 × 도메인 5항목을 한 번에 처리합니다. 검색 예산은 여전히 질문별 최초 포함 3회이고 수정은 노드당 최대 1회입니다.

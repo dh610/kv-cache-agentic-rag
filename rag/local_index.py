@@ -230,7 +230,7 @@ class PaperSource:
             )
 
     @traceable(run_type="retriever", name="paper_search")
-    def search(self, question: Question, attempt: int) -> list[Evidence]:
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
         import faiss
         import numpy as np
 

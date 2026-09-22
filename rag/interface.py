@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Protocol
 
 from rag.evidence import merge_evidence
@@ -9,7 +10,22 @@ from schemas.contracts import Evidence, NodeInput, NodeName, Question
 class EvidenceSource(Protocol):
     retryable: bool
 
-    def search(self, question: Question, attempt: int) -> list[Evidence]: ...
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]: ...
+
+
+def supports_scope(source) -> bool:
+    """Keep existing two-argument team adapters usable during the scope migration."""
+    try:
+        inspect.signature(source.search).bind(None, 1, "target")
+        return True
+    except TypeError:
+        return False
+
+
+def search_source(source, question, attempt, scope="target"):
+    if supports_scope(source):
+        return source.search(question, attempt, scope)
+    return source.search(question, attempt)
 
 
 class FixedEvidence:
@@ -18,7 +34,7 @@ class FixedEvidence:
     def __init__(self, data: NodeInput):
         self.evidence = data.evidence
 
-    def search(self, question: Question, attempt: int) -> list[Evidence]:
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
         return [e for e in self.evidence if e.technology in (question.technology, "other")]
 
 
@@ -28,11 +44,11 @@ class CombinedSource:
     def __init__(self, *sources: EvidenceSource):
         self.sources = sources
 
-    def search(self, question: Question, attempt: int) -> list[Evidence]:
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
         # Each provider must succeed; a failed provider is recorded by the node runtime.
         found = []
         for source in self.sources:
-            found = merge_evidence(found, source.search(question, attempt))
+            found = merge_evidence(found, search_source(source, question, attempt, scope))
         return found
 
 

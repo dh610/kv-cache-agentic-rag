@@ -3,11 +3,21 @@ target_techs:
   sw: KIVI
   hw: ITME
 domain: 데이터센터·클라우드 LLM 서빙
+# 보고서 표지. 설계서 표지와 같은 구성으로 조판한다.
+report:
+  title: KV cache 최적화 기술 다관점 평가 보고서
+  subtitle: LangGraph 기반 Multi-Agent · Agentic RAG
+  lead: SW 압축 KIVI / HW 메모리 확장 ITME
+  campus: 판교 · 8반
+  members: [김계원, 박유진, 윤동현, 인수연, 정재웅]
+  # 과제 규칙의 제출 파일명. outputs/ 아래에 이 이름으로 최종본을 복사한다.
+  submission: RAG-Output_판교_8반_김계원+박유진+윤동현+인수연+정재웅.pdf
+
 models:
   generator: gpt-4.1-mini
-  judge: gpt-4.1-nano
+  judge: gpt-4.1-mini  # nano 는 claim 당 1개 check·근거 ID 규칙을 지키지 못했다
   temperature: 0
-  timeout_seconds: 60
+  timeout_seconds: 180  # 종합·보고서 생성이 60초를 넘겨 실패했다
   max_retries: 1
 limits:
   search: 3  # includes initial attempt; per question
@@ -24,6 +34,74 @@ retrieval:
   reranker: BAAI/bge-reranker-v2-m3
   candidates: 20
   index_dir: .cache/paper-index
+  web_excerpt_chars: 1200  # 질문 관련 문단만 남긴 웹 발췌 길이
+  web_context_terms:  # 동명 이슈 방지: 하나도 없는 문서는 무관한 대상으로 본다
+    - KV cache
+    - KV 캐시
+    - LLM
+    - inference
+    - quantization
+    - 양자화
+    - CXL
+    - GPU 메모리
+
+# 설계서 A.4·C.2: 평가 단위는 "접근 전반"이다. 두 층으로 검색한다.
+#   direct     = 선정 기술 자체 (evidence.scope=target)
+#   background = 그 기술이 대표하는 접근 전반 (evidence.scope=context)
+# 기술명은 흔한 단어와 겹치므로(KIWI 도어락, Kivy, 동명 회사) 단독으로 쓰지 않는다.
+# 설계서 A.4·C.2: 접근 전반 근거로 등급을 매겨도 되지만, 선정 기술 "자체"의 채택과
+# TRL 은 직접 근거(scope=target)만 쓴다. 직접 근거가 없으면 확인 불가로 남긴다.
+evidence_policy:
+  direct_only:
+    market: [adoption]
+
+search_terms:
+  KIVI:
+    approach: KV cache 양자화 접근
+    direct:
+      - KIVI 2bit KV cache quantization
+      - KIVI asymmetric quantization LLM
+    background:
+      market:
+        - Hugging Face quantized KV cache
+        - vLLM KV cache quantization
+        - TensorRT-LLM KV cache quantization
+      stakeholder:
+        - TurboQuant KV cache
+        - KVQuant
+        - NVIDIA KV cache transform coding
+      domain:
+        - KV cache quantization throughput memory savings
+        - 2bit KV cache long context serving
+    critical:
+      - KV cache quantization accuracy degradation
+      - 2bit KV cache long context limitations
+  ITME:
+    approach: CXL 메모리를 KV cache 저장 계층으로 쓰는 접근
+    direct:
+      - Inference Tiered Memory Expansion
+      - ITME CXL hybrid memory
+      - arXiv 2606.12556
+    background:
+      market:
+        - CXL memory market forecast
+        - CXL memory expansion AI inference
+        - SK hynix CMM CXL
+        - Samsung CMM-D CXL memory
+        - CXL 메모리 시장 전망
+      stakeholder:
+        - NVIDIA CMX context memory
+        - KV cache offloading NVMe SSD
+        - LMCache KV cache tiering
+        - CXL memory hyperscaler adoption
+        - SK hynix CXL AI memory strategy
+      domain:
+        - CXL memory TCO LLM serving
+        - KV cache offload throughput latency datacenter
+        - disaggregated memory LLM inference cost
+    critical:
+      - CXL memory latency limitations
+      - CXL memory bandwidth overhead inference
 
 evaluation:
   samples: 30

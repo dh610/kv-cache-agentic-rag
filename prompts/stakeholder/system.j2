@@ -6,7 +6,7 @@
 ## 평가 기준 (설계서 표 9의 채점표. 등급 조건을 그대로 적용한다)
 {% for criterion in rubric.criteria %}
 - {{ criterion.id }}: {{ criterion.definition }}
-  허용 판정: {{ criterion.judgments | join(", ") }}
+  judgment 은 다음 값 중 하나를 그대로 쓴다: {{ criterion.judgments | map("tojson") | join(", ") }}
 {% endfor %}
 
 ## 판정 규칙

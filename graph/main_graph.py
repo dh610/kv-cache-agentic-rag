@@ -98,10 +98,15 @@ def build_main_graph(
                     data.description += (
                         f"\n상위 노드 {r.node}: {r.status}. 미확인/실패 내용을 보존하세요."
                     )
-            data.evidence = merge_evidence(
-                data.evidence,
-                *([e for e in r.evidence if e.id in used_ids(r)] for r in runs),
+            # 종합·보고서는 앞 노드의 근거 풀 전체가 아니라, 검증을 통과한 주장이 실제로
+            # 인용한 원문만 물려받는다. 풀을 그대로 넘기면 입력이 수 MB가 되어 생성이
+            # 제한 시간을 넘긴다 (live 점검에서 report 노드가 시간 초과로 실패).
+            inherited = (
+                [[e for e in r.evidence if e.id in used_ids(r)] for r in runs]
+                if name in ("synthesis", "report")
+                else [r.evidence for r in runs]
             )
+            data.evidence = merge_evidence(data.evidence, *inherited)
             if name == "synthesis" and state.get("gaps"):
                 # Code-rule gaps are data for the synthesis prompt, never a judgment to fill in.
                 data.description += "\n코드 규칙 gaps: " + json.dumps(
@@ -263,7 +268,7 @@ def build_main_graph(
             )
         validation = validate_report(state, RESULT_KEYS, text, mode)
         folder = config.get("configurable", {}).get("output_dir")
-        path = write_report(text, Path(folder)) if folder else ""
+        path = write_report(text, Path(folder), settings.report, mode) if folder else ""
         if not path:
             validation["ready"] = False
             validation["problems"].append("No report output directory was configured")

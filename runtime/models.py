@@ -230,27 +230,66 @@ class OpenAIBackend:
         return merged
 
     def judge(self, result, evidence):
+        """주장 하나씩, 그 주장이 인용한 근거만 보여주고 판정한다.
+
+        전체 결과와 근거 풀(수백 건)을 한 번에 넘기면 판정기가 다른 주장의 ID 를 인용하거나
+        일부 주장을 빠뜨린다 (live 점검의 `Judge cited evidence not supplied by claim`,
+        `Judge must return exactly one check per claim`). 범위를 좁히면 그 오류가 구조적으로
+        생길 수 없고, claim 당 정확히 하나의 check 를 코드가 보장한다.
+        """
         import json
 
+        from runtime.aliases import alias
         from runtime.settings import ROOT
 
         prompt = (ROOT / "prompts/shared/judge.j2").read_text(encoding="utf-8")
-        # This shared prompt has no variables; claim/evidence JSON is a separate message.
-        payload = json.dumps(
-            {
-                "result": result.model_dump(),
-                "evidence": evidence_payload(
-                    [
-                        e
-                        for e in evidence
-                        if e.id in {eid for c in result.claims for eid in c.evidence_ids}
-                    ],
-                    full_text=True,
-                ),
-            },
-            ensure_ascii=False,
-        )
-        return self.evaluator.invoke([("system", prompt), ("human", payload)])
+        by_id = {e.id: e for e in evidence}
+        checks = []
+        for claim in result.claims:
+            cited = [by_id[eid] for eid in dict.fromkeys(claim.evidence_ids) if eid in by_id]
+            if not cited:
+                checks.append(
+                    ClaimCheck(
+                        claim_id=claim.id,
+                        label="unsupported",
+                        evidence_ids=[],
+                        reason="인용한 근거가 현재 근거 목록에 없다.",
+                    )
+                )
+                continue
+            labelled, back = alias(cited)
+            payload = json.dumps(
+                {
+                    "claim": claim.model_dump() | {"evidence_ids": [e.id for e in labelled]},
+                    "evidence": [e.model_dump() for e in labelled],
+                },
+                ensure_ascii=False,
+            )
+            one = JudgeResult.model_validate(
+                self.evaluator.invoke([("system", prompt), ("human", payload)])
+            )
+            check = one.checks[0] if one.checks else None
+            if check is None:
+                checks.append(
+                    ClaimCheck(
+                        claim_id=claim.id,
+                        label="unsupported",
+                        evidence_ids=[],
+                        reason="판정 결과가 비어 있다.",
+                    )
+                )
+                continue
+            known = {e.id for e in labelled}
+            ids = [back[i] for i in dict.fromkeys(check.evidence_ids) if i in known]
+            checks.append(
+                ClaimCheck(
+                    claim_id=claim.id,  # 판정기가 바꿔 적어도 대상 주장은 코드가 고정한다.
+                    label=check.label,
+                    evidence_ids=ids,
+                    reason=check.reason,
+                )
+            )
+        return JudgeResult(checks=checks)
 
     def plan(self, data, feedback):
         import json
@@ -281,6 +320,14 @@ class OpenAIBackend:
         )
 
     def sufficiency(self, data, evidence):
+
+        from runtime.aliases import alias, restore_coverage
+
+        labelled, back = alias(evidence)
+        review = SufficiencyResult.model_validate(self._sufficiency(data, labelled))
+        return SufficiencyResult(items=restore_coverage(review.items, back))
+
+    def _sufficiency(self, data, evidence):
         import json
 
         return self.sufficiency_judge.invoke(
