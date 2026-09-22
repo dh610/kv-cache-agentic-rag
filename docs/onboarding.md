@@ -2,6 +2,8 @@
 
 계약 v2 변경을 받는 기존 팀원은 [브랜치 이관 안내](design-alignment.md#각자-브랜치에-최신-main-반영)를 먼저 확인하세요.
 
+보고서 전체 실행이 목적이면 [자동 실행 안내](one-command-report.md)를 먼저 보세요. 키 설정 후 `./run-report.sh`가 설치·PDF·인덱스 준비를 처리합니다. 아래는 담당 노드를 개발할 때의 수동 절차입니다.
+
 ## 최초 한 번
 
 1. README의 main 브랜치를 clone하고 `uv sync --frozen`을 실행합니다.

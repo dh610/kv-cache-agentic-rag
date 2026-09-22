@@ -35,6 +35,7 @@ def main(argv=None) -> int:
         body.extend(f"- 확인 필요: {s}" for s in run.result.unverified + run.validation_errors)
         body.append("")
     (output / "preview.md").write_text("\n".join(body), encoding="utf-8")
+    print(f"Report PDF: {output / 'report.pdf'}\nReport Markdown: {output / 'report.md'}")
     return show_run(output, final["run_status"])
 
 
