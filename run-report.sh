@@ -3,16 +3,19 @@
 set -eu
 cd "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 mode=live
+first_pass=false
 case "${1:-}" in
   '') ;;
   --mock) mode=mock ;;
+  --first-pass) first_pass=true ;;
   --prepare-only) mode=prepare ;;
   --help|-h)
-    printf '%s\n' 'Usage: ./run-report.sh [--mock | --prepare-only]' \
+    printf '%s\n' 'Usage: ./run-report.sh [--mock | --prepare-only | --first-pass]' \
       'Default: prepare dependencies, papers and embeddings, then generate a live report.' \
       'Set OPENAI_API_KEY and TAVILY_API_KEY in .env or exported environment variables.' \
       '--prepare-only: prepare local resources without calling paid APIs.' \
-      '--mock: generate a wiring-test report without keys, papers or model downloads.'
+      '--mock: generate a wiring-test report without keys, papers or model downloads.' \
+      '--first-pass: generate a reviewed first draft without follow-up search/fix/supplement rounds.'
     exit 0 ;;
   *) printf '%s\n' 'Unknown option. Use ./run-report.sh --help' >&2; exit 1 ;;
 esac
@@ -44,5 +47,8 @@ fi
 "$uv_bin" sync --frozen --python 3.11 --extra rag
 if [ "$mode" = prepare ]; then
   exec "$uv_bin" run --no-sync python -m app.run_report --prepare-only
+fi
+if [ "$first_pass" = true ]; then
+  exec "$uv_bin" run --no-sync python -m app.run_report --first-pass
 fi
 exec "$uv_bin" run --no-sync python -m app.run_report

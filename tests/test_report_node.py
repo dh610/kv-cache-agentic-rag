@@ -184,3 +184,21 @@ def test_report_pdf_renders_every_table_width(tmp_path):
 def test_report_pdf_accepts_a_single_column_table(tmp_path):
     write_report("# SUMMARY\n\n| 항목 |\n| --- |\n| 내용 |\n", tmp_path)
     assert (tmp_path / "report.pdf").stat().st_size > 0
+
+
+def test_pdf_embeds_korean_font_and_preserves_text(tmp_path):
+    from pypdf import PdfReader
+
+    sample = "한글 보고서 내용과 근거 검증"
+    reader = PdfReader(write_report("# SUMMARY\n" + sample, tmp_path))
+    assert sample in reader.pages[0].extract_text()
+    fonts = reader.pages[0]["/Resources"]["/Font"].get_object().values()
+    embedded = []
+    for ref in fonts:
+        font = ref.get_object()
+        descriptor = font.get("/FontDescriptor")
+        if descriptor:
+            descriptor = descriptor.get_object()
+            if "/FontFile2" in descriptor:
+                embedded.append(descriptor["/FontFile2"].get_data())
+    assert embedded and all(embedded)

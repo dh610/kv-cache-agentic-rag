@@ -128,6 +128,11 @@ def main(argv=None) -> int:
     mode.add_argument("--mock", action="store_true")
     mode.add_argument("--prepare-only", action="store_true")
     mode.add_argument("--check-keys", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--first-pass",
+        action="store_true",
+        help="Finish the first evaluated report before optional refinement",
+    )
     args = parser.parse_args(argv)
     settings = load_settings()  # loads .env without overriding exported credentials
     if not args.mock and not args.prepare_only:
@@ -166,7 +171,9 @@ def main(argv=None) -> int:
         else "[4/4] 실제 조사·보고서 생성 (LLM·검색 API 사용)",
         flush=True,
     )
-    code = run_pipeline(["--mode", "mock" if args.mock else "live"])
+    code = run_pipeline(
+        ["--mode", "mock" if args.mock else "live"] + (["--first-pass"] if args.first_pass else [])
+    )
     if code == 2:
         print(
             "보고서 초안이 생성됐지만 미확인/검증 항목이 남았습니다. state.json의 report_check를 확인하세요."

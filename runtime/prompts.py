@@ -7,6 +7,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from runtime.context import evidence_payload
 from runtime.settings import ROOT
 from schemas.contracts import Evidence, NodeInput, NodeName
 
@@ -55,9 +56,9 @@ def render(node: NodeName, data: NodeInput, evidence: list[Evidence]) -> tuple[s
         "node": node,
         "rubric": load_rubric(node).model_dump(),
         # Live retrieval must never see the fixture's original evidence as another source.
-        "input_json": data.model_dump_json(indent=2, exclude={"evidence"}),
+        "input_json": data.model_dump_json(exclude={"evidence"}),
         "evidence_json": json.dumps(
-            [e.model_dump() for e in evidence], ensure_ascii=False, indent=2
+            evidence_payload(evidence, data.questions), ensure_ascii=False, separators=(",", ":")
         ),
     }
     system = env.get_template(f"{node}/system.j2").render(**context)

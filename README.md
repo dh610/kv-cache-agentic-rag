@@ -35,6 +35,7 @@ uv·Python 3.11·의존성, 등록 판본 PDF 네 편, BGE-M3 임베딩과 FAISS
 ```bash
 ./run-report.sh --prepare-only  # 키/API 호출 없이 자료·모델·인덱스 준비
 ./run-report.sh --mock          # 키·논문·임베딩 없이 연결 점검용 보고서 생성
+./run-report.sh --first-pass    # 추가 재검색·수정·종합 뒤 보완 없이 1차 실제 보고서 우선 생성
 ```
 
 결과 경로가 터미널에 표시됩니다: `outputs/local/<실행 ID>/report.pdf`, `report.md`, `state.json`. 종료 코드 2는 초안은 생성됐지만 검증·근거 보완이 필요하다는 뜻입니다. 자동 실행이 최종 제출 승인을 뜻하지는 않습니다. [설치·실행 상세와 오류 해결](docs/one-command-report.md)을 참고하세요.
@@ -167,7 +168,7 @@ outputs/local/      # 개인 실행 결과: Git 제외
 ## Features and Validation
 
 인용 ID, 대상 기술, rubric, 질문 누락, Judge 누락을 검사합니다.
-검증되지 않은 주장은 `unverified`에 남기고 실패한 평가를 `확인 불가`로 보류합니다.
+검증되지 않은 주장은 `unverified`에 남기고 실패한 기술·기준의 평가를 `확인 불가`로 보류합니다. 위치가 특정되는 실패 때문에 다른 항목의 검증된 평가를 지우지 않습니다.
 Judge는 인용 정합성 보조 도구이며 기준 판정의 타당성은 담당자가 검토해야 합니다.
 검증 상태와 별개로 mock 결과를 실제 기술 결론으로 사용하면 안 됩니다.
 
