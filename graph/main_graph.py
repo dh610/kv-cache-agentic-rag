@@ -1,3 +1,10 @@
+"""Main graph (설계서 그림 1 / 표 12 / 표 14).
+
+initialize → tech → [market, stakeholder, domain] → collect → synthesis
+  → (gaps 있음 · supplement_round < limits.supplement, mock 제외) supplement → synthesis
+  → report → check_report
+"""
+
 from __future__ import annotations
 
 import json
@@ -129,8 +136,9 @@ def build_main_graph(
 
         return run
 
+    runners = {name: make_node(name) for name in NODES}
     for name in NODES:
-        builder.add_node(name, make_node(name))
+        builder.add_node(name, runners[name])
 
     def collect(state):
         runs = {role: state[RESULT_KEYS[role]] for role in NODES[:4]}
@@ -139,6 +147,45 @@ def build_main_graph(
         return {"gaps": collect_gaps(runs, settings)}
 
     builder.add_node("collect", collect)
+
+    def supplement(state):
+        """보완 재실행 (표 12·13): gaps 의 담당 역할만 1라운드 재실행하고 결과 키를 교체한다.
+
+        기술 조사 결과가 바뀌면 그것을 참고한 세 평가도 다시 돈다. 결과 수집을 거치지 않고 synthesis 로 복귀한다.
+        출처는 누적 리듀서에 더해지고, gaps 는 재실행 결과로 다시 계산한다.
+        """
+        roles = {g.role for g in state["gaps"] if g.role in NODES[:4]}
+        if "tech" in roles:
+            roles |= {"market", "stakeholder", "domain"}
+        working = dict(state)
+        updates = {"supplement_round": state["supplement_round"] + 1}
+        new_sources: list[Evidence] = []
+        for name in [n for n in NODES[:4] if n in roles]:
+            # 재실행 입력은 첫 실행과 같은 상위 결과만 본다: 기술은 없음, 평가는 기술 결과만.
+            allowed = () if name == "tech" else ("tech_result",)
+            view = {
+                k: v for k, v in working.items() if k not in RESULT_KEYS.values() or k in allowed
+            }
+            delta = runners[name](view)
+            working[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
+            updates[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
+            new_sources.extend(delta["sources"])
+        runs = {role: working[RESULT_KEYS[role]] for role in NODES[:4]}
+        updates["gaps"] = collect_gaps(runs, settings)
+        updates["sources"] = new_sources
+        return updates
+
+    builder.add_node("supplement", supplement)
+
+    def route_after_synthesis(state):
+        # mock 은 고정 문자열 연결 점검이라 재실행해도 결과가 같다. 실제 모드에서만 1라운드 보완한다.
+        if (
+            mode != "mock"
+            and state.get("gaps")
+            and state.get("supplement_round", 0) < settings.limits.supplement
+        ):
+            return "supplement"
+        return "report"
 
     def check_report(state, config: RunnableConfig):
         text = assemble_report(state, RESULT_KEYS, mode)
@@ -165,7 +212,8 @@ def build_main_graph(
         builder.add_edge("tech", role)
     builder.add_edge(["market", "stakeholder", "domain"], "collect")
     builder.add_edge("collect", "synthesis")
-    builder.add_edge("synthesis", "report")
+    builder.add_conditional_edges("synthesis", route_after_synthesis, ["supplement", "report"])
+    builder.add_edge("supplement", "synthesis")
     builder.add_edge("report", "check_report")
     builder.add_edge("check_report", END)
     return builder.compile()

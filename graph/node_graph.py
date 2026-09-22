@@ -7,7 +7,9 @@ from langgraph.graph import END, START, StateGraph
 from rag.evidence import merge_evidence
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
+from runtime.validation import tech_trl_errors, verified_evidence_ids
 from schemas.contracts import (
+    Coverage,
     Evidence,
     JudgeResult,
     NodeInput,
@@ -45,6 +47,58 @@ class RAGSubState(TypedDict, total=False):
 
 
 WorkState = RAGSubState
+
+
+def normalize_coverage(review, questions, evidence) -> list:
+    """충분성 판정 결과를 질문 집합에 맞게 정리한다.
+
+    - 질문마다 정확히 하나의 Coverage 를 남긴다: 빠진/중복 질문은 부족, 미지 question_id 는 무시.
+    - 현재 근거에 없거나 다른 기술인 evidence_id 는 버리고 부족 사유를 남긴다.
+    - '충분'인데 인용이 없거나 다른 기술의 근거만 인용했으면 부족으로 강등하고 사유를 남긴다.
+    판정기(nano)는 근거가 수십 건일 때 id 를 빠뜨리거나 다른 기술 청크를 인용하기 쉽다. 그 실수로
+    노드 전체를 failed 로 만들면 실제 실행에서 모든 역할이 죽는다 (live 점검에서 실제로 발생).
+    """
+    by_id = {e.id: e for e in evidence}
+    tech_of = {q.id: q.technology for q in questions}
+    seen: dict[str, object] = {}
+    duplicates = set()
+    for c in review.items:
+        if c.question_id in tech_of:
+            if c.question_id in seen:
+                duplicates.add(c.question_id)
+            else:
+                seen[c.question_id] = c
+    out = []
+    for q in questions:
+        c = seen.get(q.id)
+        if c is None:
+            out.append(
+                Coverage(
+                    question_id=q.id,
+                    sufficient=False,
+                    evidence_ids=[],
+                    reason="판정기가 이 질문을 빠뜨려 부족으로 처리",
+                )
+            )
+            continue
+        ids = list(
+            dict.fromkeys(
+                eid
+                for eid in c.evidence_ids
+                if eid in by_id and by_id[eid].technology in (q.technology, "other")
+            )
+        )
+        sufficient, reason = c.sufficient, c.reason
+        if q.id in duplicates:
+            sufficient, reason = False, f"{reason} (중복 질문 판정 → 부족)"
+        if set(c.evidence_ids) - set(ids):
+            sufficient, reason = False, f"{reason} (모르는/다른 기술 근거 제거 → 부족)"
+        elif sufficient and not ids:
+            sufficient, reason = False, f"{reason} (인용 근거 없음 → 부족)"
+        out.append(
+            Coverage(question_id=q.id, sufficient=sufficient, evidence_ids=ids, reason=reason)
+        )
+    return out
 
 
 def contract_errors(
@@ -89,17 +143,10 @@ def contract_errors(
         if item.judgment != "확인 불가" and not item.evidence_ids:
             errors.append(f"{item.criterion}: assessment without evidence")
         if item.judgment != "확인 불가":
-            supported_ids = {check.claim_id for check in judge.checks if check.label == "supported"}
-            premises = [
-                c
-                for c in result.claims
-                if c.id in supported_ids
-                and c.technology == item.technology
-                and c.criterion == item.criterion
-            ]
-            if not premises or not set(item.evidence_ids).issubset(
-                {eid for c in premises for eid in c.evidence_ids}
-            ):
+            verified = verified_evidence_ids(
+                result, judge.checks, evidence, item.technology, item.criterion
+            )
+            if not verified or not set(item.evidence_ids).issubset(verified):
                 errors.append(f"{item.criterion}: assessment lacks verified claim premises")
     addressed = {(a.technology, a.criterion) for a in result.assessments}
     if len(addressed) != len(result.assessments):
@@ -111,17 +158,12 @@ def contract_errors(
         if estimate.technology not in techs or not set(estimate.evidence_ids).issubset(known):
             errors.append("TRL has unknown technology/evidence")
         if estimate.level is not None:
-            supported = {
-                eid
-                for c in result.claims
-                if c.technology == estimate.technology
-                for check in judge.checks
-                if check.claim_id == c.id and check.label == "supported"
-                for eid in check.evidence_ids
-            }
+            supported = verified_evidence_ids(result, judge.checks, evidence, estimate.technology)
             if not estimate.evidence_ids or not set(estimate.evidence_ids).issubset(supported):
                 errors.append("TRL lacks verified claim premises")
-    if len({t.technology for t in result.trl_estimates}) != len(result.trl_estimates):
+    if node == "tech":
+        errors.extend(tech_trl_errors(result))
+    elif len({t.technology for t in result.trl_estimates}) != len(result.trl_estimates):
         errors.append("Duplicate TRL technologies")
     if node == "synthesis":
         # Role-specific rules; other nodes keep the shared contract unchanged.
@@ -224,25 +266,15 @@ def build_node_graph(node, data, mode, settings, backend, source):
             review = SufficiencyResult.model_validate(
                 backend.sufficiency(data, state["search_results"])
             )
-            ids = {q.id for q in data.questions}
-            if len(review.items) != len(ids) or {c.question_id for c in review.items} != ids:
-                raise ValueError("Sufficiency must cover all questions")
-            evidence_by_id = {e.id: e for e in state["search_results"]}
-            technologies = {q.id: q.technology for q in data.questions}
-            for c in review.items:
-                if not set(c.evidence_ids).issubset(evidence_by_id):
-                    raise ValueError("Unknown sufficiency citation")
-                if c.sufficient and (
-                    not c.evidence_ids
-                    or any(
-                        evidence_by_id[eid].technology not in (technologies[c.question_id], "other")
-                        for eid in c.evidence_ids
-                    )
-                ):
-                    raise ValueError("Sufficiency needs relevant evidence")
+            # 질문에 대응하는 항목이 하나도 없으면 쓸 수 없는 출력이다 → 기존대로 fail-closed.
+            if not any(c.question_id in {q.id for q in data.questions} for c in review.items):
+                raise ValueError("Sufficiency returned no usable item")
+            # 부분적 형식 실수(빠진 질문, 모르는 id, 다른 기술 근거 인용)는 실행 실패가 아니다.
+            # 설계서 D.3: 근거 부족은 실행 실패와 구분한다. 정리한 뒤 부족으로 처리하고 계속 진행한다.
+            coverage = normalize_coverage(review, data.questions, state["search_results"])
             return {
-                "coverage": review.items,
-                "is_sufficient": all(c.sufficient for c in review.items),
+                "coverage": coverage,
+                "is_sufficient": all(c.sufficient for c in coverage),
             }
         except Exception as exc:
             return {
