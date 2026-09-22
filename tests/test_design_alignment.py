@@ -79,9 +79,8 @@ def test_permanent_expression_error_does_not_loop_or_pass():
     state = invoke(Bad())
     assert state["fix_count"] == 1
     assert state["output"].status == "needs_revision"
-    assert not state["output"].result.claims or all(
-        "tech-kivi" not in c.id for c in state["output"].result.claims
-    )
+    rejected = {check.claim_id for check in state["output"].checks if check.label != "supported"}
+    assert rejected.isdisjoint({claim.id for claim in state["output"].result.claims})
 
 
 @pytest.mark.parametrize("phase", ["plan", "sufficiency"])
@@ -112,7 +111,9 @@ def test_live_search_records_both_intents_and_rewritten_queries():
 
     source = Source()
     state = invoke(source=source, mode="rag")
-    assert len(source.calls) == 3 * len(load_input("tech").questions)  # every question retains a bounded search budget
+    assert len(source.calls) == 3 * len(
+        load_input("tech").questions
+    )  # every question retains a bounded search budget
     for q in load_input("tech").questions:
         records = [r for r in state["searches"] if r.question_id == q.id]
         assert [r.intent for r in records] == ["positive", "critical", "followup"]
