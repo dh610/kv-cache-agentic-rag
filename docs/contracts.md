@@ -16,6 +16,7 @@
 | NodeRun | status, result, evidence, checks, validation_errors, searches, prompt_hash, model, verdict, fix_count, coverage | 공통 런타임이 붙이는 검증/추적 결과 |
 
 `NodeResult`는 모델이 생성하고, `NodeRun.status`는 코드가 결정합니다.
+보고서 PR #10부터 report의 기존 `coverage` criterion은 `overview/market/stakeholder/domain/implications`로 나뉩니다. 보고서 개인 입력과 결과의 criterion도 함께 이관해야 하며, 허용 판정은 `구성 충족/부분 구성/확인 불가`입니다. 상세 절 대응은 [보고서 노드 문서](report-node.md)를 참고하세요. 다른 노드와 공통 JSON 외피는 유지합니다.
 누락된 근거, Judge 미응답, 잘못된 ID, 미지원 주장을 모델의 자기 선언만으로 성공 처리하지 않습니다.
 확인 불가가 아닌 판정은 같은 기술/기준의 supported claim을 근거로 가져야 합니다.
 인정되는 근거는 해당 claim의 인용 ID와 Judge가 실제 확인한 인용 ID의 교집합입니다. claim이 여러 출처를 나열해도 Judge가 확인하지 않은 출처를 assessment에 사용할 수 없습니다. Judge가 claim의 모든 인용을 반복할 필요는 없지만, 최종 판정에 사용한 인용은 확인되어야 합니다.

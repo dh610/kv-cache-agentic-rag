@@ -1,11 +1,26 @@
 role: report
-objective: 종합 결과를 SUMMARY부터 REFERENCE까지의 보고서 재료로 구조화한다.
+objective: >-
+  설계서 E장 목차(SUMMARY, 1 분석 배경, 2 기술 선정, 3 기술 개요, 4 관점별 평가, 5 시사점, 6 한계점, REFERENCE)에 따라 상위 노드 결과를 보고서 문장으로 구조화한다. 특정 기술을 추천하거나 우열을 판정하지 않고, 관점에 따라 같은 기술이 어떻게 다르게 평가되는지를 두 기술 나란히 보여 준다. 절마다 결론·조건·한계·실제 사용한 출처의 연결을 보존하며, 모든 내용이 공개 정보 기반 추정임을 명시한다.
 criteria:
-- id: coverage
-  definition: 결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다.
-  judgments:
-  - 구성 충족
-  - 구성 미충족
-  - 확인 불가
-source_policy: 새 검색을 하지 않는다. 기존 결과와 근거만 사용한다. 새 성능/시장 수치를 만들지 않는다. 현재 출력은 개발용 JSON이며
-  제출 PDF가 아니다.
+- id: overview
+  definition: >-
+    3.1/3.2 기술 개요. prior_results.tech의 원리(mechanism)·적용 전제·실험 조건·한계(limitations)와 prior_results.stakeholder의 경쟁 기술 진영 반응(competitors)을 기술별 보고서 문장으로 옮긴다. 3.3 TRL은 코드가 trl_result로 표를 만들므로 단계 숫자를 새로 정하지 않는다. 구성 충족=tech의 세 항목이 모두 판정·이유·근거를 갖췄고 결론·조건·한계·출처 연결이 claims에 유지됨. 부분 구성=일부 항목이 확인 불가 또는 미검증이지만 나머지는 원문 근거로 옮겼고 누락 항목을 unverified에 적음. 확인 불가=이 기술에 대해 인용할 원문 근거나 tech 결과가 없음.
+  judgments: [구성 충족, 부분 구성, 확인 불가]
+- id: market
+  definition: >-
+    4.1 시장성. prior_results.market의 시장 규모·성장성(growth), 상용화·채택(adoption), 생태계 지지(ecosystem) 판정을 기술별로 옮긴다. 판정의 근거가 된 원문 사실을 claims로, 판정 등급은 rationale에 "market/기술/기준: 등급" 형식으로 적는다. 분야 일반 자료(scope=context)는 배경으로만 서술하고 선정 기술의 채택으로 확대하지 않는다. 출시 계획과 실제 출시를 구분한다. 구성 충족=세 항목 모두 판정·이유·근거가 있고 연결이 유지됨. 부분 구성=일부 확인 불가·미검증. 확인 불가=인용할 근거나 market 결과가 없음.
+  judgments: [구성 충족, 부분 구성, 확인 불가]
+- id: stakeholder
+  definition: >-
+    4.2 이해관계자. prior_results.stakeholder의 경쟁 기술 진영(competitors), 도입 기업·개발자(adopters), 투자·업계(industry) 반응을 기술별로 옮기되, 각 이해관계자가 왜 그렇게 보는지 입장을 함께 적는다. 자사(first_party) 발언과 독립 반응을 구분하고 발언 주체·날짜·조건을 conditions에 보존한다. 반응이 없는 주체는 등급 대신 확인 불가로 남긴다. 구성 충족=세 주체 모두 판정·이유·근거가 있고 연결이 유지됨. 부분 구성=일부 확인 불가·미검증. 확인 불가=인용할 근거나 stakeholder 결과가 없음.
+  judgments: [구성 충족, 부분 구성, 확인 불가]
+- id: domain
+  definition: >-
+    4.3 도메인 적용(데이터센터·클라우드 LLM 서빙). prior_results.domain의 비용(cost), 성능(performance), 품질(quality), 도입·운영 난이도(operations), 확장성(scalability) 판정을 기술별로 옮긴다. 논문 실험 규모와 실제 데이터센터 규모의 차이를 문장에 유지하고, 서로 다른 실험의 수치를 직접 비교하지 않는다. 구성 충족=다섯 항목 모두 판정·이유·근거가 있고 연결이 유지됨. 부분 구성=일부 확인 불가·미검증. 확인 불가=인용할 근거나 domain 결과가 없음.
+  judgments: [구성 충족, 부분 구성, 확인 불가]
+- id: implications
+  definition: >-
+    5 시사점. prior_results.synthesis의 관점 간 일치·상충(consistency)과 조건부 시사점(implications)을 기술별 문장으로 옮기고, 압축과 메모리 확장을 함께 쓸 때의 보완 관계 가능성은 원문 전제가 있을 때만 kind=inference로 적는다. 상충은 해소하지 않고 그대로 보존하며, 특정 기술을 추천하거나 우열을 판정하는 문장을 쓰지 않는다. 구성 충족=synthesis의 두 항목이 모두 판정·이유·근거를 갖췄고 상충이 보존됨. 부분 구성=일부 판정 유보·확인 불가. 확인 불가=인용할 근거나 synthesis 결과가 없음.
+  judgments: [구성 충족, 부분 구성, 확인 불가]
+source_policy: >-
+  새 RAG/웹 검색을 하지 않는다. prior_results는 상위 노드의 평가 결과이고 인용 가능한 원문은 evidence 목록뿐이다. 상위 결과의 수치·조건·출처를 그대로 옮기며 새 성능·시장 수치를 만들거나 재해석하지 않는다. 상위 노드가 unverified로 남긴 내용은 보고서 문장으로 승격하지 않는다. REFERENCE는 코드가 실제 인용된 evidence ID로만 구성하므로 인용하지 않은 자료를 언급하지 않는다. 현재 출력은 보고서 재료 JSON이며 제출 PDF 자체가 아니다.
