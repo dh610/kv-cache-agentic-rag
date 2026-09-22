@@ -138,6 +138,35 @@ class MockBackend:
         )
 
 
+def constrained_result(node: NodeName):
+    """해당 노드 루브릭이 허용한 judgment 만 받는 NodeResult 를 만든다.
+
+    judgment 는 자유 문자열이라 모델이 근거 ID 조각이나 제어문자를 넣어 보내는 일이
+    실제로 있었다(live 점검: '655acb8', '\x0b\x0b확인 불가'). 구조화 출력 스키마에
+    허용값을 못 박으면 그 입력 자체가 만들어지지 않는다. 기준별 정합성은 계약 검사가
+    따로 본다.
+    """
+    from typing import Literal
+
+    from pydantic import create_model
+
+    from runtime.prompts import load_rubric
+
+    allowed = tuple(
+        dict.fromkeys(j for c in load_rubric(node).criteria for j in c.judgments)
+    )
+    judged = create_model(
+        f"{node.title()}Assessment",
+        __base__=Assessment,
+        judgment=(Literal[allowed], ...),
+    )
+    return create_model(
+        f"{node.title()}Result",
+        __base__=NodeResult,
+        assessments=(list[judged], ...),
+    )
+
+
 class OpenAIBackend:
     def __init__(self, settings: Settings):
         from langchain_openai import ChatOpenAI
@@ -149,9 +178,8 @@ class OpenAIBackend:
             "timeout": settings.models.timeout_seconds,
             "max_retries": settings.models.max_retries,
         }
-        self.generator = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
-            NodeResult, method="json_schema"
-        )
+        self._chat = ChatOpenAI(model=self.name, **kwargs)
+        self._generators: dict[str, object] = {}
         self.planner = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
             QueryPlan, method="json_schema"
         )
@@ -163,7 +191,11 @@ class OpenAIBackend:
         )
 
     def generate(self, node, data, evidence, system, user):
-        return self.generator.invoke([("system", system), ("human", user)])
+        if node not in self._generators:
+            self._generators[node] = self._chat.with_structured_output(
+                constrained_result(node), method="json_schema"
+            )
+        return self._generators[node].invoke([("system", system), ("human", user)])
 
     def judge(self, result, evidence):
         """주장 하나씩, 그 주장이 인용한 근거만 보여주고 판정한다.

@@ -50,8 +50,27 @@ def _ids(values: list[str], back: dict[str, str]) -> list[str]:
     return list(dict.fromkeys(back.get(value, value) for value in values))
 
 
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def clean_text(value: str) -> str:
+    return CONTROL.sub("", value).strip()
+
+
 def restore_result(result: NodeResult, back: dict[str, str]) -> NodeResult:
     restored = result.model_copy(deep=True)
+    # 원문 PDF·웹에서 옮겨 붙은 제어문자가 판정 값까지 오염시킨 적이 있다(live 점검).
+    restored.summary = clean_text(restored.summary)
+    restored.unverified = [clean_text(u) for u in restored.unverified]
+    restored.limitations = [clean_text(x) for x in restored.limitations]
+    for claim in restored.claims:
+        claim.text = clean_text(claim.text)
+        claim.conditions = [clean_text(c) for c in claim.conditions]
+    for item in restored.assessments:
+        item.judgment = clean_text(item.judgment)
+        item.rationale = clean_text(item.rationale)
+    for estimate in restored.trl_estimates:
+        estimate.rationale = clean_text(estimate.rationale)
     for item in [*restored.claims, *restored.assessments, *restored.trl_estimates]:
         item.evidence_ids = _ids(item.evidence_ids, back)
     return restored
