@@ -7,6 +7,7 @@ initialize → tech → [market, stakeholder, domain] → collect → synthesis
 
 from __future__ import annotations
 
+import json
 import operator
 from pathlib import Path
 from typing import Annotated, TypedDict
@@ -95,6 +96,11 @@ def build_main_graph(
                         f"\n상위 노드 {r.node}: {r.status}. 미확인/실패 내용을 보존하세요."
                     )
             data.evidence = merge_evidence(data.evidence, *(r.evidence for r in runs))
+            if name == "synthesis" and state.get("gaps"):
+                # Code-rule gaps are data for the synthesis prompt, never a judgment to fill in.
+                data.description += "\n코드 규칙 gaps: " + json.dumps(
+                    [g.model_dump() for g in state["gaps"]], ensure_ascii=False
+                )
             if name in ("market", "stakeholder", "domain") and "tech_result" in state:
                 # Prior result is an input, never a replacement for original evidence.
                 data.prior_results = {"tech": state["tech_result"].result}

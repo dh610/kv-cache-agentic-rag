@@ -6,6 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
 from runtime.prompts import load_rubric, render
+from runtime.synthesis_check import synthesis_errors
 from runtime.validation import tech_trl_errors, verified_evidence_ids
 from schemas.contracts import (
     Coverage,
@@ -164,6 +165,9 @@ def contract_errors(
         errors.extend(tech_trl_errors(result))
     elif len({t.technology for t in result.trl_estimates}) != len(result.trl_estimates):
         errors.append("Duplicate TRL technologies")
+    if node == "synthesis":
+        # Role-specific rules; other nodes keep the shared contract unchanged.
+        errors.extend(synthesis_errors(data, result, evidence))
     return errors
 
 

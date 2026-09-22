@@ -1,6 +1,6 @@
 {
-  "case_id": "synthesis-basic",
-  "description": "개발용 연결 확인 입력. evidence.text는 원문 인용이 아니라 검토자가 초록에서 작성한 한국어 요약이며, prior_results는 기술 조사 결과만 담은 최소 예시다. 실제 종합 평가나 보고서 근거로 제출하지 않는다.",
+  "case_id": "synthesis-eval-no-prior",
+  "description": "상위 관점 결과가 없고 초록 요약만 있을 때 종합 노드가 일치·상충·시사점을 만들어내지 않고 확인 불가와 level=null을 유지하는지 확인하는 평가용 입력. evidence.text는 검토자 요약이며 원문 인용이 아니다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -14,10 +14,22 @@
       "text": "KIVI에 대한 관점별 판정과 한계가 같은 측면에서 일치하는지 상충하는지 원문 근거 ID로 대조하고, 기술 조사의 잠정 TRL을 시장 직접 근거와 대조해 최종 TRL 또는 level=null을 기록한다."
     },
     {
+      "id": "kivi-implications",
+      "technology": "KIVI",
+      "criterion": "implications",
+      "text": "KIVI가 어떤 조건에서 각 관점의 평가가 성립하고 어디서 갈리는지 정리한다. 추천이나 우열은 쓰지 않는다."
+    },
+    {
       "id": "itme-consistency",
       "technology": "ITME",
       "criterion": "consistency",
       "text": "ITME에 대한 관점별 판정과 한계가 같은 측면에서 일치하는지 상충하는지 원문 근거 ID로 대조하고, 기술 조사의 잠정 TRL을 시장 직접 근거와 대조해 최종 TRL 또는 level=null을 기록한다."
+    },
+    {
+      "id": "itme-implications",
+      "technology": "ITME",
+      "criterion": "implications",
+      "text": "ITME가 어떤 조건에서 각 관점의 평가가 성립하고 어디서 갈리는지 정리한다. 추천이나 우열은 쓰지 않는다."
     }
   ],
   "evidence": [
@@ -52,49 +64,5 @@
       "stance": "positive"
     }
   ],
-  "prior_results": {
-    "tech": {
-      "node": "tech",
-      "summary": "초록 요약만으로 두 기술의 핵심 접근을 확인했다. 실험 조건과 TRL은 이 입력에서 판정하지 않았다. 공개 정보 기반 추정.",
-      "claims": [
-        {
-          "id": "tech-kivi-mechanism",
-          "technology": "KIVI",
-          "criterion": "mechanism",
-          "text": "KIVI는 학습 없이 KV cache를 2비트로 양자화해 최대 메모리를 줄이고 배치를 키우는 접근이다.",
-          "kind": "fact",
-          "evidence_ids": ["kivi-review-p1-abstract"],
-          "conditions": ["초록 수준 요약", "모델별 예외 미기재"]
-        },
-        {
-          "id": "tech-itme-mechanism",
-          "technology": "ITME",
-          "criterion": "mechanism",
-          "text": "ITME는 CXL 하이브리드 메모리를 계층형으로 확장해 KV cache를 GPU 밖에 두는 접근이며 FPGA 시제품으로 기능을 확인했다.",
-          "kind": "fact",
-          "evidence_ids": ["itme-review-p1-abstract"],
-          "conditions": ["초록 수준 요약", "성능 수치의 측정 플랫폼은 초록에 명시되지 않음"]
-        }
-      ],
-      "assessments": [
-        {
-          "technology": "KIVI",
-          "criterion": "mechanism",
-          "judgment": "원리 확인",
-          "rationale": "초록에서 2비트 양자화와 메모리·처리량 효과의 방향을 확인. 공개 정보 기반 추정.",
-          "evidence_ids": ["kivi-review-p1-abstract"]
-        },
-        {
-          "technology": "ITME",
-          "criterion": "mechanism",
-          "judgment": "원리 확인",
-          "rationale": "초록에서 CXL 하이브리드 메모리 계층 확장과 FPGA 시제품을 확인. 공개 정보 기반 추정.",
-          "evidence_ids": ["itme-review-p1-abstract"]
-        }
-      ],
-      "unverified": [],
-      "limitations": ["초록 요약만 사용", "원 저자(first_party) 자료"],
-      "trl_estimates": []
-    }
-  }
+  "prior_results": {}
 }
