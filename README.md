@@ -185,8 +185,8 @@ uv run python -m app.run_pipeline --mode mock
 
 | 팀원 | GitHub | 담당 역할 |
 | --- | --- | --- |
-| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 조사 에이전트, 도메인 조사 에이전트, 도메인 / 기술 프롬프트·rubric·TRL 평가 사례 |
-| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 에이전트, 이해관계자 프롬프트·rubric·평가 사례 |
-| 윤동현 | [dh610](https://github.com/dh610) | 논문 RAG, PDF 청킹·임베딩·인덱싱, 검색 성능 평가 |
+| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 조사 에이전트, 도메인 조사 에이전트, 도메인 / 기술 프롬프트·rubric·TRL 평가 사례 및 검증 |
+| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 에이전트, 이해관계자 프롬프트·rubric·평가 사례 및 검증 |
+| 윤동현 | [dh610](https://github.com/dh610) | 논문 RAG, PDF 청킹·임베딩·인덱싱, 검색 성능 평가 및 검증 |
 | 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 평가 에이전트, 시장 프롬프트·rubric·평가 사례 및 검증 |
 | 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | 웹 검색, 공통 서브그래프와 그래프 연결·검증 |
