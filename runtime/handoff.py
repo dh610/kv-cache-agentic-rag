@@ -10,7 +10,11 @@ from schemas.contracts import Evidence, JudgeResult, NodeInput, NodeRun
 def reference_issues(evidence: Evidence) -> list[str]:
     required = ["id", "text", "title", "url"]
     if evidence.source_type == "paper":
-        required += ["authors", "year", "venue", "document_id", "page"]
+        # Guide format: 저자(YYYY). 논문제목. 학술지/학회명, 권(호), 페이지.
+        required += ["authors", "year", "venue", "citation_id", "document_id", "page"]
+    elif evidence.source_type == "patent":
+        # Guide format: 출원인(YYYY-MM). 특허명, 특허번호/공개번호, URL
+        required += ["publisher", "published_at", "citation_id"]
     elif evidence.source_type == "web":
         required += ["site", "published_at", "retrieved_at"]
         if not (evidence.publisher or evidence.authors):

@@ -113,11 +113,25 @@ def collect_gaps(runs, settings):
 
 
 def reference_text(e):
-    """Guide E reference format: 논문/웹페이지. Fixture excerpts are never a final reference."""
+    """Guide E / design E.4 formats. Fixture excerpts are never a final reference.
+
+    논문: 저자(YYYY). 논문제목. 학술지/학회명, 권(호), 페이지.
+    특허: 출원인(YYYY-MM). 특허명, 특허번호/공개번호, URL
+    웹:   기관명 또는 작성자(YYYY-MM-DD). 제목. 사이트명, URL
+    """
     if e.source_type == "paper":
         author = e.authors or "저자 미확인"
         venue = e.venue or "게재 정보 미확인"
-        return f"{author}({e.year or '연도 미확인'}). {e.title}. {venue}. {e.url}"
+        return (
+            f"{author}({e.year or '연도 미확인'}). {e.title}. {venue}, "
+            f"{e.citation_id or '권(호)·페이지 미확인'}."
+        )
+    if e.source_type == "patent":
+        applicant = e.publisher or "출원인 미확인"
+        return (
+            f"{applicant}({e.published_at or '출원연월 미확인'}). {e.title}, "
+            f"{e.citation_id or '특허번호 미확인'}, {e.url}"
+        )
     if e.source_type == "web":
         author = e.publisher or e.authors or "기관/작성자 미확인"
         site = e.site or "사이트 미확인"
@@ -131,17 +145,26 @@ def affiliation_marker(e):
     )
 
 
+TYPE_ORDER = {"paper": 0, "patent": 1, "web": 2, "fixture": 3}
+
+
 def reference_entries(sources):
     """One bibliographic entry per document; cited chunk IDs and pages stay traceable."""
     groups: dict[tuple, list] = {}
     for e in merge_evidence(sources):
         groups.setdefault((e.source_type, e.document_id or e.url), []).append(e)
-    ordered = sorted(groups.values(), key=lambda items: (items[0].source_type, items[0].title))
+    ordered = sorted(
+        groups.values(), key=lambda items: (TYPE_ORDER[items[0].source_type], items[0].title)
+    )
     lines = []
     for number, items in enumerate(ordered, 1):
         first = items[0]
         cited = ", ".join(f"[{e.id}]" + (f" p.{e.page}" if e.page else "") for e in items)
-        lines.append(f"{number}. {reference_text(first)} {affiliation_marker(first)} 인용: {cited}")
+        # The paper format carries no URL, so the source location follows the entry.
+        origin = f" 원문: {first.url}" if first.source_type == "paper" else ""
+        lines.append(
+            f"{number}. {reference_text(first)} {affiliation_marker(first)}{origin} 인용: {cited}"
+        )
     return lines
 
 
@@ -210,8 +233,9 @@ def _narrative(report_run, criterion, tech):
 
 
 def _control_rows(state, result_keys, techs):
+    """Design C.7 check items that code can count; the rest stays with human review."""
     rows = [
-        "| 노드 | 긍정·비판 양쪽 검색 완료 질문 | 인용 검증·수정·확인 불가 |",
+        "| 노드 | 긍정·비판 양쪽 검색 완료 질문 | 출처 없는 등급 · 인용 검증 · 수정 · 확인 불가 |",
         "| --- | --- | --- |",
     ]
     for role in ("tech", "market", "stakeholder", "domain"):
@@ -224,11 +248,13 @@ def _control_rows(state, result_keys, techs):
             <= {r.intent for r in run.searches if r.question_id == q and not r.error}
         )
         labels = Counter(c.label for c in run.checks)
-        unknown = sum(1 for a in run.result.assessments if a.judgment == "확인 불가")
+        items = run.result.assessments
+        unknown = sum(1 for a in items if a.judgment == "확인 불가")
+        unsourced = sum(1 for a in items if a.judgment != "확인 불가" and not a.evidence_ids)
         rows.append(
             f"| {ROLE_LABELS[role]} | {both}/{len(questions)} | "
-            f"supported {labels['supported']}/{sum(labels.values())}; 수정 {run.fix_count}회; "
-            f"확인 불가 {unknown}/{len(run.result.assessments)}; 상태 {run.status} |"
+            f"출처 없는 등급 {unsourced}건; supported {labels['supported']}/{sum(labels.values())}; "
+            f"수정 {run.fix_count}회; 확인 불가 {unknown}/{len(items)}; 상태 {run.status} |"
         )
     return rows
 
@@ -266,11 +292,12 @@ def assemble_report(state, result_keys, mode):
     for number, tech in enumerate(techs, 1):
         lines.append(f"## 3.{number} {tech}")
         lines.extend(_narrative(report, "overview", tech))
+        lines.extend(_claim_line(c) for c in tech_run.result.claims if c.technology == tech)
+    # Design E.1: the two-technology comparison table closes the section.
     lines.append(
         f"표 3-1 기술 조사 결과 비교 (기술 조사 노드 요약: {_cell(tech_run.result.summary)})"
     )
     lines.extend(_assessment_table(tech_run, techs))
-    lines.extend(_claim_line(c) for c in tech_run.result.claims)
 
     lines.append(f"## 3.{len(techs) + 1} 기술 성숙도(TRL)")
     lines.append(
@@ -310,7 +337,7 @@ def assemble_report(state, result_keys, mode):
 
     lines.append("# 4. 관점별 평가")
     lines.append(
-        "각 절은 보고서 노드의 서술, 해당 평가 노드의 요약, 두 기술 비교표, 검증된 근거 문장 순서로 구성한다. "
+        "각 절은 보고서 노드의 서술, 해당 평가 노드의 요약과 검증된 근거 문장, 절 끝의 두 기술 비교표 순서로 구성한다. "
         "등급은 관점별 평가이며 두 기술의 우열이 아니다."
     )
     for number, (role, heading) in enumerate(
@@ -320,17 +347,25 @@ def assemble_report(state, result_keys, mode):
         lines.append(f"## 4.{number} {heading}")
         for tech in techs:
             lines.extend(_narrative(report, role, tech))
-        lines.append(
-            f"표 4-{number} {heading} 비교 ({ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)})"
-        )
-        lines.extend(_assessment_table(run, techs))
+        lines.append(f"{ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)}")
         lines.extend(_claim_line(c) for c in run.result.claims)
+        lines.append(f"표 4-{number} {heading} 비교")
+        lines.extend(_assessment_table(run, techs))
 
     lines.append("# 5. 시사점")
     for tech in techs:
         lines.extend(_narrative(report, "implications", tech))
     lines.append("## 5.1 관점 간 상충 지점")
     lines.append(f"평가 종합 노드 요약: {_cell(synthesis.result.summary)}")
+    for a in synthesis.result.assessments:
+        if a.criterion == "consistency":
+            lines.append(
+                _cell(
+                    f"- {a.technology} {LABELS['consistency']}: {a.judgment}. "
+                    f"{a.rationale}{_ids(a.evidence_ids)}"
+                )
+            )
+    lines.append("표 5-1 관점×기술 교차표")
     lines.append(f"| 관점 | {' | '.join(techs)} |")
     lines.append(f"| --- |{' --- |' * len(techs)}")
     for role in ("tech", "market", "stakeholder", "domain"):
@@ -347,13 +382,6 @@ def assemble_report(state, result_keys, mode):
                 )
             )
         lines.append(f"| {ROLE_LABELS[role]} | {' | '.join(cells)} |")
-    for a in synthesis.result.assessments:
-        if a.criterion == "consistency":
-            lines.append(
-                _cell(
-                    f"- {a.technology} {LABELS['consistency']}: {a.judgment}. {a.rationale}{_ids(a.evidence_ids)}"
-                )
-            )
     lines.append("## 5.2 조건부 시사점과 보완 관계 가능성")
     for a in synthesis.result.assessments:
         if a.criterion != "consistency":
@@ -368,7 +396,8 @@ def assemble_report(state, result_keys, mode):
     lines.append("# 6. 한계점")
     lines.append("## 6.1 정보의 한계")
     lines.append(
-        "모든 판정은 공개 정보 기반 추정이다. 아래는 보고서 노드가 통합한 한계, 코드가 기록한 근거 부족(gaps), 노드별 한계와 미확인 사항이다."
+        "모든 판정은 공개 정보 기반 추정이다. 아래는 보고서 노드가 통합한 한계, "
+        "코드가 기록한 근거 부족(gaps), 노드별 한계와 미확인 사항이다."
     )
     lines.extend(f"- {s}" for s in report.result.limitations)
     lines.extend(f"- gap {g.role}/{g.criterion}: {g.reason}" for g in state["gaps"])
@@ -383,7 +412,10 @@ def assemble_report(state, result_keys, mode):
 
     lines.append("# REFERENCE")
     lines.append(
-        "보고서 작성에 실제로 인용한 자료만 기재한다. 형식: 논문 저자(YYYY). 제목. 학술지/학회명. URL / 웹페이지 기관명 또는 작성자(YYYY-MM-DD). 제목. 사이트명, URL."
+        "보고서 작성에 실제로 인용한 자료만 기재한다. 표기 형식: "
+        "논문 저자(YYYY). 논문제목. 학술지/학회명, 권(호), 페이지. / "
+        "특허 출원인(YYYY-MM). 특허명, 특허번호/공개번호, URL / "
+        "웹페이지 기관명 또는 작성자(YYYY-MM-DD). 제목. 사이트명, URL"
     )
     entries = reference_entries(state["sources"])
     lines.extend(entries or ["인용된 출처 없음"])

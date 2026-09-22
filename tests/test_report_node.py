@@ -97,7 +97,7 @@ def test_report_gate_rejects_long_summary_and_ranking_language():
     assert any("우열·추천 표현 검출" in p for p in problems)
 
 
-def test_reference_groups_chunks_per_document_in_guide_format():
+def test_reference_entries_follow_guide_formats_per_source_type():
     base = (
         load_input("tech")
         .evidence[0]
@@ -107,11 +107,25 @@ def test_reference_groups_chunks_per_document_in_guide_format():
                 "authors": "Zirui Liu et al.",
                 "year": 2024,
                 "venue": "ICML 2024",
+                "citation_id": "PMLR 235, 1-10",
                 "affiliation": "first_party",
             }
         )
     )
     chunk = base.model_copy(update={"id": "kivi-chunk-p3", "page": 3})
+    patent = Evidence(
+        id="patent-1",
+        text="x",
+        title="KV Cache Transform Coding",
+        url="https://patents.example.invalid/US-1-A1",
+        technology="KIVI",
+        source_type="patent",
+        scope="context",
+        publisher="Example Corp",
+        published_at="2025-03",
+        citation_id="US-XXXXXXX-A1",
+        affiliation="independent",
+    )
     web = Evidence(
         id="web-1",
         text="x",
@@ -126,16 +140,37 @@ def test_reference_groups_chunks_per_document_in_guide_format():
         retrieved_at="2026-09-22",
         affiliation="independent",
     )
-    entries = reference_entries([base, chunk, web])
-    assert len(entries) == 2
-    assert entries[0].startswith(
-        f"1. Zirui Liu et al.(2024). {base.title}. ICML 2024. {base.url} [자사 자료]"
-    )
-    assert f"[{base.id}] p.1, [kivi-chunk-p3] p.3" in entries[0]
-    assert entries[1] == (
-        "2. Example Org(2026-09-01). Example post. example.invalid, https://example.invalid/post "
-        "[독립 자료] 인용: [web-1]"
-    )
+    entries = reference_entries([web, patent, base, chunk])
+    assert entries == [
+        # 논문: 저자(YYYY). 논문제목. 학술지/학회명, 권(호), 페이지.
+        f"1. Zirui Liu et al.(2024). {base.title}. ICML 2024, PMLR 235, 1-10. [자사 자료] "
+        f"원문: {base.url} 인용: [{base.id}] p.1, [kivi-chunk-p3] p.3",
+        # 특허: 출원인(YYYY-MM). 특허명, 특허번호/공개번호, URL
+        "2. Example Corp(2025-03). KV Cache Transform Coding, US-XXXXXXX-A1, "
+        "https://patents.example.invalid/US-1-A1 [독립 자료] 인용: [patent-1]",
+        # 웹: 기관명 또는 작성자(YYYY-MM-DD). 제목. 사이트명, URL
+        "3. Example Org(2026-09-01). Example post. example.invalid, https://example.invalid/post "
+        "[독립 자료] 인용: [web-1]",
+    ]
+
+
+def test_comparison_tables_close_each_perspective_section():
+    state = mock_pipeline()
+    text = assemble_report(state, RESULT_KEYS, "mock")
+    for number, (start, stop) in enumerate(
+        [
+            ("## 4.1 시장성", "## 4.2 이해관계자"),
+            ("## 4.2 이해관계자", "## 4.3 도메인 적용"),
+            ("## 4.3 도메인 적용", "# 5. 시사점"),
+        ],
+        1,
+    ):
+        section = text[text.index(start) : text.index(stop)].rstrip()
+        assert f"표 4-{number}" in section
+        assert section.splitlines()[-1].startswith("| ")  # the table is the last content
+    overview = text[text.index("# 3. 기술 개요") : text.index("## 3.3 기술 성숙도(TRL)")].rstrip()
+    assert overview.splitlines()[-1].startswith("| ") and "표 3-1" in overview
+    assert "출처 없는 등급 0건" in text
 
 
 def test_report_pdf_renders_every_table_width(tmp_path):
