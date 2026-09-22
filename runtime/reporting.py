@@ -18,6 +18,14 @@ def used_ids(run):
     }
 
 
+def report_sources(state, result_keys):
+    """Keep the cumulative ledger, but only publish citations in current results."""
+    used = set().union(*(used_ids(state[key]) for key in result_keys.values()))
+    for estimate in state.get("trl_result", {}).values():
+        used.update(estimate.get("evidence_ids", []))
+    return [e for e in merge_evidence(state["sources"]) if e.id in used]
+
+
 def collect_gaps(runs, settings):
     gaps = []
     for role, run in runs.items():
@@ -155,7 +163,7 @@ def assemble_report(state, result_keys, mode):
     for key in result_keys.values():
         lines.extend(f"- {state[key].node}: {s}" for s in state[key].result.limitations)
     lines.append("# REFERENCE")
-    for e in merge_evidence(state["sources"]):
+    for e in report_sources(state, result_keys):
         lines.append(
             f"- [{e.id}] {reference_text(e)} (출처 관계: {e.affiliation}; {e.affiliation_reason or '미확인'}; 입장: {e.stance})"
         )
@@ -166,7 +174,7 @@ def validate_report(state, result_keys, text, mode):
     problems = []
     if mode == "mock":
         problems.append("mock은 제출 보고서가 아닙니다")
-    evidence = {e.id: e for e in merge_evidence(state["sources"])}
+    evidence = {e.id: e for e in report_sources(state, result_keys)}
     for key in result_keys.values():
         run = state[key]
         if run.status != "completed":
