@@ -159,18 +159,20 @@ GitHub Actions는 API 키 없이 동일한 검사와 mock 전체 파이프라인
 
 ## Contributors
 
-| 팀원 | GitHub |
-| --- | --- |
-| 김계원 | [wonn2k](https://github.com/wonn2k) |
-| 박유진 | [youjin09222](https://github.com/youjin09222) |
-| 윤동현 | [dh610](https://github.com/dh610) |
-| 인수연 | [1nyeonart](https://github.com/1nyeonart) |
-| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) |
+| 팀원 | GitHub | 배정 역할 |
+| --- | --- | --- |
+| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 평가 (`tech`) |
+| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 (`stakeholder`) |
+| 윤동현 | [dh610](https://github.com/dh610) | 로컬 논문 RAG 및 성능 테스트 |
+| 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 평가 (`market`) |
+| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | 웹 검색 및 서브그래프 |
 
-공통 기반 담당과 관점별 담당이 같은 저장소를 사용합니다. 실제 개인별 세부 역할은 팀에서 확정해 기입합니다.
+2026-09-22 팀 역할 배정을 반영했습니다. 담당자별 수정 경로와 공동 검토 파일은 [협업 계약](docs/team-contract.md#4-수정-범위와-역할-분담)을 기준으로 합니다.
+`domain`·`synthesis`·`report`의 최종 내용 책임자는 아직 미정이며, 다른 담당자에게 자동 배정하지 않습니다.
 협업자 Write 권한은 저장소 초대를 수락하면 활성화됩니다. GitHub의 기여자 통계는 이후 반영된 커밋에 따라 집계됩니다.
 공유 코드보다 담당 프롬프트·rubric·fixture를 우선 수정하고 작은 PR로 합칩니다.
-[충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다.
+**파일 수정 전 개인 작업 브랜치를 준비하고, main에 직접 수정·커밋·push하지 않습니다.**
+[충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다. 에이전트는 [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)부터 읽습니다.
 
 노드 인수 전에는 `--case acceptance`로 현재 rubric의 모든 항목을 요청하고
 `python -m app.check_handoff --node market --result outputs/local/RUN/result.json`으로 누락·더미·출처를 점검합니다.
