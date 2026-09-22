@@ -26,11 +26,11 @@ class Models(SettingsModel):
 class Limits(SettingsModel):
     search: int = Field(ge=1, le=3)
     questions: int = Field(ge=1, le=12)
-    fix: Literal[0] = 0
+    fix: int = Field(default=1, ge=0, le=1)
     supplement: Literal[0] = 0
 
 
-# Only the simplified execution contract is implemented in this foundation.
+# Post-synthesis automatic supplementation remains disabled by the user decision.
 
 
 class Retrieval(SettingsModel):
@@ -53,13 +53,56 @@ class Retrieval(SettingsModel):
         return self
 
 
+class Evaluation(SettingsModel):
+    samples: int = Field(default=30, ge=2)
+    per_technology: int = Field(default=15, ge=1)
+    language: Literal["ko"] = "ko"
+    acronym_numeric_fraction: float = Field(default=1 / 3, ge=0, le=1)
+    tie_mrr: float = Field(default=0.05, ge=0)
+    min_hit5: float = Field(default=0.80, ge=0, le=1)
+    min_mrr: float = Field(default=0.60, ge=0, le=1)
+    candidates: list[str] = Field(
+        default_factory=lambda: [
+            "BAAI/bge-m3",
+            "intfloat/multilingual-e5-large",
+            "Alibaba-NLP/gte-multilingual-base",
+        ]
+    )
+    remediation: list[str] = Field(
+        default_factory=lambda: ["chunking", "bilingual", "dense_sparse", "rerank"]
+    )
+
+    @model_validator(mode="after")
+    def registered_protocol(self):
+        if self.samples != 2 * self.per_technology:
+            raise ValueError("Evaluation samples must equal two technologies times per_technology")
+        if len(self.candidates) != 3 or len(set(self.candidates)) != 3:
+            raise ValueError("Evaluation requires three distinct candidate models")
+        if self.remediation != ["chunking", "bilingual", "dense_sparse", "rerank"]:
+            raise ValueError("Keep the registered remediation order")
+        return self
+
+
+class GapPolicy(SettingsModel):
+    unknown_fraction: float = Field(default=0.5, gt=0, le=1)
+    critical_criteria: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            "market": ["adoption"],
+            "domain": ["quality", "cost"],
+            "stakeholder": ["competitors"],
+        }
+    )
+
+
 class Settings(SettingsModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     target_techs: dict[str, str]
     domain: str
     models: Models
     limits: Limits
     retrieval: Retrieval
+    evaluation: Evaluation = Field(default_factory=Evaluation)
+    gap_policy: GapPolicy = Field(default_factory=GapPolicy)
 
 
 def load_settings() -> Settings:

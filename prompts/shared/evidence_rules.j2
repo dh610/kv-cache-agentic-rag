@@ -7,3 +7,8 @@
 근거 부족은 judgment="확인 불가"와 unverified에 기록하라. 모름을 낮은 점수로 바꾸지 마라.
 summary는 claims와 assessments의 내용만 요약하라. 제한과 미확인 사항을 숨기지 마라.
 응답은 제공된 NodeResult 구조를 따르며 node={{ node | tojson }}로 설정하라. 본문은 한국어로 작성하라.
+
+모든 평가 사유에 "공개 정보 기반 추정"임을 명시하라. 근거 부족을 낮은 등급으로 바꾸지 마라.
+긍정·비판 자료가 모두 있는지 구분하고, 한쪽만 확인되면 limitations에 자료 편향과 검색 한계를 남겨라.
+출처의 affiliation(first_party/independent/unknown), affiliation_reason, stance를 확인하고 자사 발표를 독립 검증으로 취급하지 마라. unknown을 임의로 독립으로 바꾸지 마라.
+기술/종합 노드는 기술별 trl_estimates를 작성하라. 공개된 근거와 단계의 연결이 없으면 level=null. 기술은 provisional=true, 종합은 provisional=false. 다른 노드는 빈 목록을 사용한다.

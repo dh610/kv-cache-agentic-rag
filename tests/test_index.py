@@ -108,7 +108,15 @@ def test_target_and_reference_filter():
     itme.document_role = "reference"
     assert not adapter.accepts(itme, question)
     adapter.node = "domain"
+    assert not adapter.accepts(itme, question)
+    assert adapter.accepts(kivi, question)
+    adapter.node = "market"
     assert adapter.accepts(itme, question)
+    adapter.node = "stakeholder"
+    assert not adapter.accepts(itme, question)
+    question.criterion = "competitors"
+    assert adapter.accepts(itme, question)
+    assert not adapter.accepts(kivi, question)
 
 
 def test_conflicting_citation_id_is_never_overwritten():

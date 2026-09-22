@@ -15,7 +15,7 @@ def main(argv=None) -> int:
     parser.add_argument("--mode", choices=("mock", "fixture", "live"), default="mock")
     args = parser.parse_args(argv)
     settings = load_settings()
-    inputs = {node: load_input(node) for node in NODES}
+    inputs = {node: load_input(node, "acceptance") for node in NODES}
     backend = MockBackend() if args.mode == "mock" else OpenAIBackend(settings)
     sources = live_sources(settings) if args.mode == "live" else None
     graph = build_main_graph(inputs, args.mode, settings, backend, sources)
