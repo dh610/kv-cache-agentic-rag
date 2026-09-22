@@ -22,6 +22,23 @@ KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 �
 - 도메인: 데이터센터·클라우드 LLM 서빙
 - 서로 다른 접근의 적용 조건을 비교합니다. 서로 다른 실험의 처리량 수치를 직접 우열로 해석하지 않습니다.
 
+## 처음 받았다면: 명령 하나로 보고서 생성
+
+macOS / Linux / WSL에서 clone 후 `.env.example`을 `.env`로 복사해 `OPENAI_API_KEY`와 `TAVILY_API_KEY`를 입력하세요. 이미 환경변수로 export한 키가 있으면 그대로 사용합니다. LangSmith는 선택 사항이며 켜면 개인 키·프로젝트 이름도 필요합니다.
+
+```bash
+./run-report.sh
+```
+
+uv·Python 3.11·의존성, 등록 판본 PDF 네 편, BGE-M3 임베딩과 FAISS 인덱스를 필요한 만큼 준비하고 실제 조사 파이프라인을 실행합니다. PDF는 자동 다운로드하고, 기존 파일은 덮어쓰지 않습니다. 변경·손상된 인덱스는 재생성합니다. 첫 준비는 모델 다운로드로 시간이 걸리며 실제 실행에는 LLM·검색 API 비용이 발생합니다.
+
+```bash
+./run-report.sh --prepare-only  # 키/API 호출 없이 자료·모델·인덱스 준비
+./run-report.sh --mock          # 키·논문·임베딩 없이 연결 점검용 보고서 생성
+```
+
+결과 경로가 터미널에 표시됩니다: `outputs/local/<실행 ID>/report.pdf`, `report.md`, `state.json`. 종료 코드 2는 초안은 생성됐지만 검증·근거 보완이 필요하다는 뜻입니다. 자동 실행이 최종 제출 승인을 뜻하지는 않습니다. [설치·실행 상세와 오류 해결](docs/one-command-report.md)을 참고하세요.
+
 ## Usage
 
 main에 공통 기초 환경이 반영되어 있습니다.

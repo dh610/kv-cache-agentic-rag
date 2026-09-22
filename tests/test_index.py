@@ -6,6 +6,7 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 import rag.local_index as local_index
+from app.run_report import index_current
 from rag.evidence import merge_evidence
 from rag.local_index import Catalog, Paper, PaperSource, corpus_signature, read_chunks
 from runtime.runner import load_input
@@ -165,15 +166,18 @@ def test_index_roundtrip_and_stale_detection_with_fake_encoder(corpus, monkeypat
     settings = load_settings()
     manifest = local_index.build_index(settings, FakeEncoder())
     assert manifest["resolved_revision"] == "test-revision"
+    assert index_current(settings, catalog, root)
     source = PaperSource(settings, "tech")
     found = source.search(load_input("tech").questions[0], 1)
     assert found and all(e.technology == "KIVI" for e in found)
     # Tampering or an interrupted rebuild must never yield a mismatched catalog/index.
     target = root / settings.retrieval.index_dir / "chunks.json"
     target.write_text(json.dumps([]))
+    assert not index_current(settings, catalog, root)
     with pytest.raises(ValueError, match="Incomplete/changed"):
         PaperSource(settings, "tech")
     local_index.build_index(settings, FakeEncoder())
     settings.retrieval.chunk_overlap += 1
+    assert not index_current(settings, catalog, root)
     with pytest.raises(ValueError, match="Paper/config changed"):
         PaperSource(settings, "tech")
