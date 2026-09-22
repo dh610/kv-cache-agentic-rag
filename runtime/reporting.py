@@ -407,14 +407,11 @@ def assemble_report(state, result_keys, mode):
         shown: set[str] = set()
         lines.extend(_narrative(report, "overview", tech, shown))
         lines.extend(
-            _unique_claim_lines(
-                [c for c in tech_run.result.claims if c.technology == tech], shown
-            )
+            _unique_claim_lines([c for c in tech_run.result.claims if c.technology == tech], shown)
         )
     # Design E.1: the two-technology comparison table closes the section.
-    lines.append(
-        f"표 3-1 기술 조사 결과 비교 (기술 조사 노드 요약: {_cell(tech_run.result.summary)})"
-    )
+    lines.append(f"기술 조사 노드 요약: {_cell(tech_run.result.summary)}")
+    lines.append("표 3-1 기술 조사 결과 비교")
     lines.extend(_assessment_table(tech_run, techs))
 
     lines.append(f"## 3.{len(techs) + 1} 기술 성숙도(TRL)")
@@ -589,6 +586,15 @@ def validate_report(state, result_keys, text, mode):
     }
 
 
+def _rule(color, width):
+    from reportlab.platypus import Table, TableStyle
+
+    line = Table([[""]], colWidths=[width], rowHeights=[1])
+    line.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.9, color)]))
+    line.hAlign = "CENTER" if width < 300 else "LEFT"
+    return line
+
+
 def pdf_text(value: str) -> str:
     """CID 폰트에 없는 글자를 같은 뜻의 한글 문장부호로 바꾼다.
 
@@ -599,7 +605,7 @@ def pdf_text(value: str) -> str:
 
 
 def write_report(text, output: Path, meta=None, mode: str = "live"):
-    """설계서 표지와 같은 구성으로 조판한다. 한국어 CID 폰트로 팀 환경 차이를 없앤다."""
+    """설계서 표지·목차 구성으로 조판한다. 한국어 CID 폰트로 팀 환경 차이를 없앤다."""
     from datetime import date
 
     from reportlab.lib import colors
@@ -608,138 +614,203 @@ def write_report(text, output: Path, meta=None, mode: str = "live"):
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
     from reportlab.platypus import (
+        BaseDocTemplate,
+        Frame,
         LongTable,
         PageBreak,
+        PageTemplate,
         Paragraph,
-        SimpleDocTemplate,
         Spacer,
+        Table,
         TableStyle,
     )
+    from reportlab.platypus.tableofcontents import TableOfContents
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "report.md").write_text(text, encoding="utf-8")
-    pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
-    ink, rule, band = (
-        colors.HexColor("#1F2933"),
-        colors.HexColor("#B9C2CC"),
-        colors.HexColor("#EEF2F6"),
+    font = "HYSMyeongJo-Medium"
+    pdfmetrics.registerFont(UnicodeCIDFont(font))
+    ink = colors.HexColor("#1B2530")
+    accent = colors.HexColor("#2F5D8C")
+    faint = colors.HexColor("#8A97A6")
+    hair = colors.HexColor("#D7DDE4")
+    wash = colors.HexColor("#F4F7FA")
+
+    def style(name, **kw):
+        base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
+        return ParagraphStyle(name, **{**base, **kw})
+
+    normal = style("body", fontSize=9.5, leading=16, spaceAfter=8)
+    cellst = style("cell", fontSize=8.5, leading=13, spaceAfter=0)
+    cellhd = style("cellhead", fontSize=8.5, leading=13, spaceAfter=0, textColor=accent)
+    chapter = style(
+        "chapter", fontSize=16, leading=22, spaceBefore=22, spaceAfter=2, textColor=accent
     )
-    normal = ParagraphStyle(
-        "body",
-        fontName="HYSMyeongJo-Medium",
-        fontSize=9.5,
-        leading=15.5,
-        wordWrap="CJK",
-        alignment=TA_LEFT,
-        textColor=ink,
-        spaceAfter=7,
+    section = style("section", fontSize=11.5, leading=17, spaceBefore=15, spaceAfter=5)
+    caption = style(
+        "caption", fontSize=8.5, leading=13, spaceBefore=6, spaceAfter=3, textColor=faint
     )
-    cell = ParagraphStyle("cell", parent=normal, fontSize=8.5, leading=12.5, spaceAfter=0)
-    heading = ParagraphStyle(
-        "heading",
-        parent=normal,
-        fontSize=15,
-        leading=21,
-        spaceBefore=20,
-        spaceAfter=9,
-        textColor=colors.HexColor("#14202B"),
-        keepWithNext=True,
-    )
-    subheading = ParagraphStyle(
-        "subheading",
-        parent=normal,
-        fontSize=11.5,
-        leading=17,
-        spaceBefore=13,
-        spaceAfter=6,
-        keepWithNext=True,
-    )
-    centered = ParagraphStyle("centered", parent=normal, alignment=TA_CENTER, spaceAfter=0)
+
     story = []
     if meta:
-        big = ParagraphStyle("t", parent=centered, fontSize=20, leading=30)
-        mid = ParagraphStyle("s", parent=centered, fontSize=12, leading=20)
-        small = ParagraphStyle("m", parent=centered, fontSize=9.5, leading=17)
-        label = " ".join("R A G - O U T P U T 평 가  산 출 물".split())
+        big = style("t", alignment=TA_CENTER, fontSize=21, leading=32)
+        mid = style("s", alignment=TA_CENTER, fontSize=12, leading=21, textColor=faint)
+        small = style("m", alignment=TA_CENTER, fontSize=9.5, leading=18)
         story += [
-            Spacer(1, 120),
-            Paragraph(label, ParagraphStyle("l", parent=small, textColor=rule)),
-            Spacer(1, 26),
+            Spacer(1, 150),
+            Paragraph(
+                "R A G - O U T P U T",
+                style("l", alignment=TA_CENTER, fontSize=8.5, textColor=faint),
+            ),
+            Spacer(1, 24),
             Paragraph(pdf_text(meta.subtitle), mid),
             Paragraph(pdf_text(meta.title), big),
             Paragraph(pdf_text(meta.lead), mid),
-            Spacer(1, 60),
-            Paragraph(pdf_text(f"캠퍼스 · 반 {meta.campus}"), small),
-            Paragraph(pdf_text("조원 " + " · ".join(meta.members)), small),
-            Paragraph(f"작성 {date.today():%Y년 %-m월 %-d일}", small),
-            Spacer(1, 30),
+            Spacer(1, 18),
+            _rule(accent, 90),
+            Spacer(1, 54),
+            Paragraph(pdf_text(f"캠퍼스 · 반    {meta.campus}"), small),
+            Paragraph(pdf_text("조원    " + " · ".join(meta.members)), small),
+            Paragraph(f"작성    {date.today():%Y년 %m월 %d일}", small),
+            Spacer(1, 34),
             Paragraph(
                 "자동 생성 초안입니다. 모든 판정은 공개 정보 기반 추정이며 사람의 검토가 필요합니다.",
-                ParagraphStyle("d", parent=small, fontSize=8.5, textColor=rule),
+                style("d", alignment=TA_CENTER, fontSize=8, textColor=faint),
             ),
             PageBreak(),
         ]
+        toc = TableOfContents()
+        toc.levelStyles = [
+            style("toc0", fontSize=10, leading=20, spaceAfter=2),
+            style("toc1", fontSize=9, leading=17, leftIndent=16, textColor=faint),
+        ]
+        story += [Paragraph("목차", chapter), Spacer(1, 6), toc, PageBreak()]
+
     rows = []
 
     def flush():
         if not rows:
             return
         columns = len(rows[0])
-        first = min(80, 505 / columns)
+        first = min(84, 505 / columns)
         widths = (
             [505] if columns == 1 else [first] + [(505 - first) / (columns - 1)] * (columns - 1)
         )
         table = LongTable(rows, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
-        style = [
+        commands = [
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BACKGROUND", (0, 0), (-1, 0), band),
-            ("LINEBELOW", (0, 0), (-1, 0), 0.7, rule),
-            ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#DCE1E7")),
-            ("LINEABOVE", (0, 0), (-1, 0), 0.7, rule),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("BACKGROUND", (0, 0), (-1, 0), wash),
+            ("LINEABOVE", (0, 0), (-1, 0), 0.8, accent),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, hair),
+            ("LINEBELOW", (0, -1), (-1, -1), 0.8, accent),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
         ]
-        table.setStyle(TableStyle(style))
-        story.extend([Spacer(1, 2), table, Spacer(1, 12)])
+        for index in range(2, len(rows), 2):
+            commands.append(("BACKGROUND", (0, index), (-1, index), colors.HexColor("#FAFBFD")))
+        for index in range(1, len(rows)):
+            commands.append(("LINEBELOW", (0, index), (-1, index), 0.25, hair))
+        table.setStyle(TableStyle(commands))
+        story.extend([Spacer(1, 3), table, Spacer(1, 14)])
         rows.clear()
 
+    def summary_box(lines):
+        body = [Paragraph(pdf_text(line), normal) for line in lines]
+        box = Table([[body]], colWidths=[505])
+        box.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), wash),
+                    ("LINEBEFORE", (0, 0), (0, -1), 2.2, accent),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                    ("TOPPADDING", (0, 0), (-1, -1), 12),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        story.extend([box, Spacer(1, 16)])
+
+    pending_summary, in_summary = [], False
     for line in text.splitlines():
         if not line.strip():
             continue
         if line.startswith("|"):
             if line.startswith("| ---"):
                 continue
-            style = cell
-            rows.append([Paragraph(pdf_text(c.strip()), style) for c in line.strip("|").split("|")])
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            first_row = not rows
+            rows.append([Paragraph(pdf_text(c), cellhd if first_row else cellst) for c in cells])
             continue
         flush()
-        style = (
-            subheading if line.startswith("## ") else heading if line.startswith("#") else normal
-        )
-        story.append(Paragraph(pdf_text(line.lstrip("# ").strip()), style))
+        if line.startswith("#"):
+            if in_summary and pending_summary:
+                summary_box(pending_summary)
+                pending_summary, in_summary = [], False
+            title = line.lstrip("# ").strip()
+            level = 1 if line.startswith("## ") else 0
+            paragraph = Paragraph(pdf_text(title), section if level else chapter)
+            paragraph._toc_level = level
+            story.append(paragraph)
+            if not level:
+                story.append(_rule(hair, 505))
+            in_summary = title == "SUMMARY"
+            continue
+        if in_summary:
+            pending_summary.append(line)
+            continue
+        style_for = caption if line.startswith("표 ") else normal
+        story.append(Paragraph(pdf_text(line), style_for))
+    if in_summary and pending_summary:
+        summary_box(pending_summary)
     flush()
+
     path = output / "report.pdf"
     label = meta.title if meta else "평가 보고서"
+    chapters = {}
 
     def footer(canvas, doc):
         canvas.saveState()
-        canvas.setStrokeColor(rule)
-        canvas.setLineWidth(0.3)
-        canvas.line(40, 38, 555, 38)
-        canvas.setFont("HYSMyeongJo-Medium", 7.5)
-        canvas.setFillColor(rule)
-        canvas.drawString(40, 26, label)
-        canvas.drawRightString(555, 26, str(doc.page))
+        canvas.setStrokeColor(hair)
+        canvas.setLineWidth(0.4)
+        canvas.line(45, 40, 550, 40)
+        canvas.setFont(font, 7.5)
+        canvas.setFillColor(faint)
+        canvas.drawString(45, 28, chapters.get(canvas.getPageNumber(), label))
+        canvas.drawRightString(550, 28, str(doc.page))
         canvas.restoreState()
 
-    def cover(canvas, doc):
-        return None
+    class Report(BaseDocTemplate):
+        def afterFlowable(self, flowable):
+            level = getattr(flowable, "_toc_level", None)
+            if level is None:
+                return
+            title = flowable.getPlainText()
+            self.notify("TOCEntry", (level, title, self.page))
+            if level == 0:
+                chapters.setdefault(self.page, title)
 
-    SimpleDocTemplate(
-        str(path), leftMargin=45, rightMargin=45, topMargin=48, bottomMargin=52, title=label
-    ).build(story, onFirstPage=cover if meta else footer, onLaterPages=footer)
+    from reportlab.lib.pagesizes import A4
+
+    doc = Report(
+        str(path),
+        pagesize=A4,
+        leftMargin=45,
+        rightMargin=45,
+        topMargin=50,
+        bottomMargin=56,
+        title=label,
+    )
+    frame = Frame(45, 56, 505, doc.height, id="body", showBoundary=0)
+    doc.addPageTemplates(
+        [
+            PageTemplate(id="cover", frames=[frame]),
+            PageTemplate(id="page", frames=[frame], onPage=footer),
+        ]
+    )
+    doc.multiBuild(story)
     if meta and meta.submission and mode != "mock":
         # 과제 제출 파일명으로 한 부 더 둔다. 실행 폴더의 원본은 그대로 남는다.
         submitted = ROOT / "outputs" / meta.submission
