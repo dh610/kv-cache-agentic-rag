@@ -1,6 +1,6 @@
 {
   "case_id": "stakeholder-acceptance",
-  "description": "구현 인수용 질문 범위: 두 기술 × 이해관계자 3주체(경쟁 기술 진영, 도입 기업·개발자, 투자·업계). 질문 text는 web 모드에서 '기술명 + text'가 그대로 검색어가 되므로 한국어와 영어 핵심어를 함께 둡니다. 기본 evidence는 저자 자기 평가 발췌일 뿐이라 실제 웹 근거로 교체해야 하며, 근거가 없으면 확인 불가를 숨기지 마세요.",
+  "description": "구현 인수용 질문 범위: 두 기술의 모든 현재 rubric 항목. 기본 evidence는 짧은 예시일 뿐이므로 실제 평가용 근거로 교체해야 합니다. 확인 불가를 숨기지 마세요.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -11,37 +11,37 @@
       "id": "kivi-competitors",
       "technology": "KIVI",
       "criterion": "competitors",
-      "text": "경쟁 기술 진영(TurboQuant, KVTC, MLA)이 KIVI의 2-bit asymmetric KV cache quantization(per-channel key, per-token value)을 어떻게 평가하는지 확인한다. KIVI comparison, limitation, accuracy drop, integration"
+      "text": "경쟁 기술 진영의 직접 반응. KIVI: TurboQuant/KVTC/MLA, ITME: NVIDIA CMX/삼성 CXL/PNM. 긍정=보완·통합·채택 언급, 중립=단순 비교/별개 문제, 부정=한계 명시. 반응이 없으면 확인 불가. 일반 분야 발언은 대상 기술 반응으로 전용하지 않는다."
     },
     {
       "id": "kivi-adopters",
       "technology": "KIVI",
       "criterion": "adopters",
-      "text": "도입 기업·개발자가 KIVI 방식의 2-bit quantized KV cache를 실제로 써 본 후기와 커뮤니티 평가를 확인한다. Hugging Face transformers KV cache quantization, vLLM, GitHub jy-yuan/KIVI issues, deployment experience, accuracy"
+      "text": "도입 기업·개발자의 원문 반응. 긍정=실사용 효과 확인, 중립=조건부/엇갈린 효과, 부정=도입 장벽/품질 저하가 주된 반응. 발언자·날짜·조건을 기록하고 근거가 없으면 확인 불가."
     },
     {
       "id": "kivi-industry",
       "technology": "KIVI",
       "criterion": "industry",
-      "text": "투자·업계·애널리스트·미디어가 KV cache quantization(KIVI 계열) 접근을 어떻게 전망하는지 확인한다. analyst, market outlook, LLM inference cost, investment"
+      "text": "투자·업계 반응. 긍정=성장 전망/투자·제휴, 중립=판단 없는 동향 소개, 부정=시기상조/비용 대비 효과 의문. 자사 발표와 독립 반응을 구분하고 원문 근거가 없으면 확인 불가."
     },
     {
       "id": "itme-competitors",
       "technology": "ITME",
       "criterion": "competitors",
-      "text": "경쟁 기술 진영(NVIDIA CMX Context Memory Storage/BlueField DPU, Samsung CXL CMM-H, PNM)이 ITME의 CXL-hybrid memory 기반 KV cache tiering을 어떻게 평가하는지 확인한다. ITME SK hynix comparison, limitation, disaggregated context storage"
+      "text": "경쟁 기술 진영의 직접 반응. KIVI: TurboQuant/KVTC/MLA, ITME: NVIDIA CMX/삼성 CXL/PNM. 긍정=보완·통합·채택 언급, 중립=단순 비교/별개 문제, 부정=한계 명시. 반응이 없으면 확인 불가. 일반 분야 발언은 대상 기술 반응으로 전용하지 않는다."
     },
     {
       "id": "itme-adopters",
       "technology": "ITME",
       "criterion": "adopters",
-      "text": "도입 기업·개발자가 CXL memory 기반 KV cache tiering(ITME 계열, SK hynix CMM)을 실제로 써 본 후기와 커뮤니티 평가를 확인한다. vLLM, LMCache, Mooncake, CXL memory expander, deployment experience"
+      "text": "도입 기업·개발자의 원문 반응. 긍정=실사용 효과 확인, 중립=조건부/엇갈린 효과, 부정=도입 장벽/품질 저하가 주된 반응. 발언자·날짜·조건을 기록하고 근거가 없으면 확인 불가."
     },
     {
       "id": "itme-industry",
       "technology": "ITME",
       "criterion": "industry",
-      "text": "투자·업계·애널리스트·미디어가 CXL memory for LLM inference(ITME 계열) 접근을 어떻게 전망하는지 확인한다. SK hynix CMM, Samsung CMM, CXL market outlook, analyst, investment"
+      "text": "투자·업계 반응. 긍정=성장 전망/투자·제휴, 중립=판단 없는 동향 소개, 부정=시기상조/비용 대비 효과 의문. 자사 발표와 독립 반응을 구분하고 원문 근거가 없으면 확인 불가."
     }
   ],
   "evidence": [

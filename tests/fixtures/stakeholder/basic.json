@@ -1,6 +1,6 @@
 {
   "case_id": "stakeholder-basic",
-  "description": "개발용 짧은 논문 발췌. 경쟁 기술 진영의 독립 반응이 들어 있지 않으므로 확인 불가가 정상입니다. 발췌는 저자 자기 평가입니다.",
+  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -11,13 +11,13 @@
       "id": "kivi-competitors",
       "technology": "KIVI",
       "criterion": "competitors",
-      "text": "경쟁 기술 진영(TurboQuant, KVTC, MLA)이 KIVI의 2-bit asymmetric KV cache quantization(per-channel key, per-token value)을 어떻게 평가하는지 확인한다. KIVI comparison, limitation, accuracy drop, integration"
+      "text": "경쟁 기술 진영의 직접 반응. KIVI: TurboQuant/KVTC/MLA, ITME: NVIDIA CMX/삼성 CXL/PNM. 긍정=보완·통합·채택 언급, 중립=단순 비교/별개 문제, 부정=한계 명시. 반응이 없으면 확인 불가. 일반 분야 발언은 대상 기술 반응으로 전용하지 않는다."
     },
     {
       "id": "itme-competitors",
       "technology": "ITME",
       "criterion": "competitors",
-      "text": "경쟁 기술 진영(NVIDIA CMX Context Memory Storage/BlueField DPU, Samsung CXL CMM-H, PNM)이 ITME의 CXL-hybrid memory 기반 KV cache tiering을 어떻게 평가하는지 확인한다. ITME SK hynix comparison, limitation, disaggregated context storage"
+      "text": "경쟁 기술 진영의 직접 반응. KIVI: TurboQuant/KVTC/MLA, ITME: NVIDIA CMX/삼성 CXL/PNM. 긍정=보완·통합·채택 언급, 중립=단순 비교/별개 문제, 부정=한계 명시. 반응이 없으면 확인 불가. 일반 분야 발언은 대상 기술 반응으로 전용하지 않는다."
     }
   ],
   "evidence": [
