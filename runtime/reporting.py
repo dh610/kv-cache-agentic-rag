@@ -478,20 +478,22 @@ def validate_report(state, result_keys, text, mode):
 
 
 def write_report(text, output: Path):
-    """Korean CID font avoids a platform-specific font path in team clones."""
+    """Embed the bundled Korean font so PDF viewers need no local CJK fonts."""
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "report.md").write_text(text, encoding="utf-8")
-    pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
+    pdfmetrics.registerFont(
+        TTFont("ReportKorean", str(ROOT / "assets/fonts/NanumGothic-Regular.ttf"))
+    )
     normal = ParagraphStyle(
         "body",
-        fontName="HYSMyeongJo-Medium",
+        fontName="ReportKorean",
         fontSize=9,
         leading=14,
         wordWrap="CJK",

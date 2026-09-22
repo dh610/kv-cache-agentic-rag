@@ -12,7 +12,7 @@
 | TRL 최종 상태 | `NodeResult.trl_estimates` 구조와 근거 검사, 종합 결과를 `trl_result`에 연결 | 기술 담당의 잠정 판단 + 종합 담당의 실제 원문/시장 근거 검토 필요. 빈 결과는 단계 추측 없이 확인 불가 |
 | report와 report_path | 기존 `report: NodeRun` 유지, 생성된 PDF 절대 경로를 `report_path`에 별도 기록 | 기존 호출자 호환; 문자열 경로와 평가 객체를 혼동하지 않음 |
 | 입력 초기화 / finish | `initialize`에서 공통 값 초기화, 기존 finish 대신 `check_report`가 검사·상태 집계·파일 출력 | 보고서 뒤 검사 노드가 실제 그래프에 포함됨 |
-| 공통 서브그래프 | `plan → search → check_sufficiency → write_draft → verify → return_result`, 조건부 `rewrite_query`, `fix`: 총 8개 | 충분성 부족/비판 검색 미수행 시 rewrite, 추가 근거 필요 시 남은 예산 안 재검색, 표현 오류는 1회 수정 후 재검증 |
+| 공통 서브그래프 | `plan → search → check_sufficiency → write_draft → verify → return_result`, 조건부 `rewrite_query`, `fix`: 총 8개 | 첫 계획의 긍정·비판 검색을 함께 수행한 뒤 충분성을 검사. 부족할 때 rewrite, 추가 근거 필요 시 남은 예산 안 재검색, 표현 오류는 1회 수정 후 재검증 |
 | Sub State | 설계서 10개 이름 보존 + 검색 이력·검증 메타데이터 확장 | `RAGSubState`; 목록 입력을 지원하므로 `search_count`는 질문 ID별 dict. 단일 전역 횟수로 합치지 않음 |
 | verdict | `통과 / 표현 오류 / 추가 근거 필요` | 주장별 label을 보존하고 코드가 노드 verdict를 집계; API/파싱 실패는 failed |
 | 질의 이중언어화 | 실제 planner가 질문별 긍정/비판 질의를 작성하고 부족한 근거 피드백으로 재작성 | 기존 고정 영어 접미사 제거. mock의 계획은 오프라인 테스트용 |
