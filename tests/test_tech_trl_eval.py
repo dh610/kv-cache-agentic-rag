@@ -215,9 +215,16 @@ def test_graph_rejects_regressions_after_bounded_fix(fault):
         "tech", data, "fixture", load_settings(), FixedBackend(), FixedEvidence(data)
     ).invoke({})
     output = state["output"]
-    assert output.fix_count == 1
-    assert output.status == "needs_revision"
-    assert output.validation_errors
-    assert not output.result.claims
-    assert all(a.judgment == "확인 불가" for a in output.result.assessments)
+    # 실패는 결함이 있는 항목에만 적용된다. 노드 전체를 덮어쓰면 보고서가 통째로 빈다.
     assert all(t.level is None for t in output.result.trl_estimates)
+    assert [c.id for c in output.result.claims] == ["maturity-fact"]
+    if fault == "unchecked_citation":
+        # Judge 가 확인하지 않은 인용만 지우면 계약을 만족하므로 재작성 없이 끝난다.
+        assert output.status == "completed"
+        assert output.result.assessments[0].evidence_ids == run.checks[0].evidence_ids
+    else:
+        # 과대 판정된 TRL 은 근거가 확인됐더라도 단계를 남기지 않는다.
+        assert output.fix_count == 1
+        assert output.status == "needs_revision"
+        assert output.validation_errors
+        assert all(a.judgment != "확인 불가" for a in output.result.assessments)

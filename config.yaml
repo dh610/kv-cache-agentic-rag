@@ -5,9 +5,9 @@ target_techs:
 domain: 데이터센터·클라우드 LLM 서빙
 models:
   generator: gpt-4.1-mini
-  judge: gpt-4.1-nano
+  judge: gpt-4.1-mini  # nano 는 claim 당 1개 check·근거 ID 규칙을 지키지 못했다
   temperature: 0
-  timeout_seconds: 60
+  timeout_seconds: 180  # 종합·보고서 생성이 60초를 넘겨 실패했다
   max_retries: 1
 limits:
   search: 3  # includes initial attempt; per question
@@ -24,6 +24,16 @@ retrieval:
   reranker: BAAI/bge-reranker-v2-m3
   candidates: 20
   index_dir: .cache/paper-index
+  web_excerpt_chars: 1200  # 질문 관련 문단만 남긴 웹 발췌 길이
+  web_context_terms:  # 동명 이슈 방지: 하나도 없는 문서는 무관한 대상으로 본다
+    - KV cache
+    - KV 캐시
+    - LLM
+    - inference
+    - quantization
+    - 양자화
+    - CXL
+    - GPU 메모리
 
 evaluation:
   samples: 30

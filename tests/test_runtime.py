@@ -146,7 +146,7 @@ def test_web_source_rejects_snippets_and_keeps_raw_content(monkeypatch):
                     {
                         "url": "https://example.invalid/raw",
                         "title": "Source",
-                        "raw_content": "Full evidence text",
+                        "raw_content": "Full evidence text on KV cache quantization for LLM inference.",
                     },
                 ]
             },
@@ -160,6 +160,6 @@ def test_web_source_rejects_snippets_and_keeps_raw_content(monkeypatch):
     first = source.search(kivi_question, 1)
     second = source.search(itme_question, 1)
     assert len(first) == len(second) == 1
-    assert first[0].text == "Full evidence text"
+    assert first[0].text == "Full evidence text on KV cache quantization for LLM inference."
     assert first[0].id != second[0].id  # Same page can contextualize different technologies.
     assert first[0].retrieved_at

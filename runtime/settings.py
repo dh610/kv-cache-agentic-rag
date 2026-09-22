@@ -41,6 +41,9 @@ class Retrieval(SettingsModel):
     reranker: str
     candidates: int = Field(ge=1, le=100)
     index_dir: str
+    # 웹 원문은 질문 관련 문단만 남겨 노드 입력이 생성 제한 시간을 넘기지 않게 한다.
+    web_excerpt_chars: int = Field(default=1200, ge=200, le=12000)
+    web_context_terms: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def valid_window(self):

@@ -5,7 +5,7 @@
 평가 기준:
 {% for criterion in rubric.criteria %}
 - {{ criterion.id }}: {{ criterion.definition }}
-  허용 판정: {{ criterion.judgments | join(", ") }}
+  judgment 은 다음 값 중 하나를 그대로 쓴다: {{ criterion.judgments | map("tojson") | join(", ") }}
 {% endfor %}
 
 보고서의 목적과 금지 사항 (실습 가이드 C·E, 설계서 E.1):

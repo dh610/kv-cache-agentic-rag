@@ -8,6 +8,7 @@ import httpx
 from langsmith import traceable
 
 from rag.annotations import annotate
+from rag.web_text import clean, focus, on_topic
 from runtime.settings import Settings, require_key
 from schemas.contracts import Evidence, Question
 
@@ -19,10 +20,14 @@ class WebSource:
         self.key = require_key("TAVILY_API_KEY")
         self.timeout = settings.models.timeout_seconds
         self.k = min(settings.retrieval.top_k, 5)
+        self.context_terms = list(settings.retrieval.web_context_terms)
+        self.excerpt_chars = settings.retrieval.web_excerpt_chars
 
     @traceable(run_type="retriever", name="web_search")
     def search(self, question: Question, attempt: int) -> list[Evidence]:
-        query = f"{question.technology} {question.text}"
+        # 기술명만 쓰면 같은 철자의 무관한 문서가 올라온다. 도메인 용어를 항상 덧붙인다.
+        anchor = " ".join(self.context_terms[:2])
+        query = f"{question.technology} {question.text} {anchor}".strip()
         # Client does not receive API key via trace arguments.
         response = httpx.post(
             "https://api.tavily.com/search",
@@ -39,16 +44,23 @@ class WebSource:
         out = []
         for item in response.json().get("results", []):
             # Snippets alone are not treated as verified page evidence.
-            text = item.get("raw_content")
-            if not text:
+            raw = item.get("raw_content")
+            if not raw:
                 continue
             url = item["url"]
+            title = item.get("title", url)
+            body = clean(raw)
+            if not body or not on_topic(body, title, self.context_terms):
+                continue
+            text = focus(body, f"{question.technology} {question.text}", self.excerpt_chars)
+            if not text:
+                continue
             out.append(
                 Evidence(
                     id="web-"
                     + hashlib.sha256((question.technology + url + text).encode()).hexdigest()[:16],
-                    text=text[:12000],
-                    title=item.get("title", url),
+                    text=text,
+                    title=title,
                     url=url,
                     technology=question.technology,
                     source_type="web",

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
+from runtime.aliases import alias, restore_result, split_absence_claims
 from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
-from runtime.validation import tech_trl_errors, verified_evidence_ids
+from runtime.validation import tech_trl_errors, trim_to_verified, verified_evidence_ids
 from schemas.contracts import (
     Coverage,
     Evidence,
@@ -337,7 +339,9 @@ def build_node_graph(node, data, mode, settings, backend, source):
         current.description += "\n근거 충분성 검사: " + str(
             [c.model_dump() for c in state.get("coverage", [])]
         )
-        system, user, digest = render(node, current, state["search_results"])
+        # 모델에는 E1.. 번호로 근거를 보여주고 받은 뒤 실제 ID 로 되돌린다.
+        labelled, back = alias(state["search_results"])
+        system, user, digest = render(node, current, labelled)
         if state.get("fatal"):
             return {
                 "draft": empty_result(node, "; ".join(state["errors"])),
@@ -346,9 +350,11 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 "rendered_user": user,
             }
         try:
-            draft = backend.generate(node, current, state["search_results"], system, user)
+            draft = backend.generate(node, current, labelled, system, user)
             return {
-                "draft": NodeResult.model_validate(draft),
+                "draft": split_absence_claims(
+                    restore_result(NodeResult.model_validate(draft), back)
+                )[0],
                 "prompt_hash": digest,
                 "rendered_system": system,
                 "rendered_user": user,
@@ -382,8 +388,11 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 if state["draft"].claims
                 else JudgeResult(checks=[])
             )
+            # Judge 가 확인해 준 근거만 남기고 계약을 검사한다. 확인되지 않은 인용을
+            # 지우는 것이므로 내용이 늘지 않는다.
+            draft = trim_to_verified(state["draft"], judge.checks, state["search_results"])
             errors = rule_errors + contract_errors(
-                node, data, state["draft"], state["search_results"], judge
+                node, data, draft, state["search_results"], judge
             )
             labels = {c.label for c in judge.checks}
             absent = bool(state["draft"].unverified) or (
@@ -402,7 +411,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 if expression_error
                 else "통과"
             )
-            return {"judge": judge, "errors": errors, "verdict": verdict}
+            return {"judge": judge, "draft": draft, "errors": errors, "verdict": verdict}
         except Exception as exc:
             return {
                 "judge": JudgeResult(checks=[]),
@@ -428,11 +437,17 @@ def build_node_graph(node, data, mode, settings, backend, source):
         current.description += (
             "\n검증 피드백: " + state["judge"].model_dump_json() + str(state["errors"])
         )
-        system, user, digest = render(node, current, state["search_results"])
+        labelled, back = alias(state["search_results"])
+        system, user, digest = render(node, current, labelled)
         try:
-            draft = NodeResult.model_validate(
-                backend.generate(node, current, state["search_results"], system, user)
-            )
+            draft = split_absence_claims(
+                restore_result(
+                    NodeResult.model_validate(
+                        backend.generate(node, current, labelled, system, user)
+                    ),
+                    back,
+                )
+            )[0]
             return {
                 "draft": draft,
                 "fix_count": state["fix_count"] + 1,
@@ -454,25 +469,61 @@ def build_node_graph(node, data, mode, settings, backend, source):
     def return_result(state):
         result = state["draft"].model_copy(deep=True)
         errors = list(state.get("errors", []))
-        rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
         for c in state["judge"].checks:
             if c.label != "supported":
                 errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
-        result.unverified.extend(c.text for c in result.claims if c.id in rejected)
-        result.claims = [c for c in result.claims if c.id not in rejected]
-        if state.get("errors") or state.get("fatal"):
-            result.unverified.extend(c.text for c in result.claims)
-            result.claims = []
-        if rejected or state.get("errors") or state.get("fatal"):
-            result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
-            for a in result.assessments:
+        # 주장은 자기 자신에 대한 supported check가 정확히 하나 있을 때만 살아남는다.
+        # 검증받지 못한 주장은 여전히 미확인으로 내려가지만, 노드 전체를 덮어쓰지는 않는다.
+        check_counts = Counter(c.claim_id for c in state["judge"].checks)
+        known_ids = {e.id for e in state["search_results"]}
+        cited_by = {c.id: set(c.evidence_ids) for c in result.claims}
+        confirmed = {
+            c.claim_id
+            for c in state["judge"].checks
+            if c.label == "supported"
+            and check_counts[c.claim_id] == 1
+            and cited_by.get(c.claim_id)
+            # Judge 는 판단에 쓴 근거만 적는다. 확인된 인용이 하나라도 있으면 주장은 유지하고,
+            # 확인되지 않은 인용에 기대던 등급만 뒤에서 확인 불가로 내린다.
+            and (cited_by[c.claim_id] & set(c.evidence_ids) & known_ids)
+        }
+        kept = [] if state.get("fatal") else [c for c in result.claims if c.id in confirmed]
+        keep_ids = {c.id for c in kept}
+        result.unverified.extend(c.text for c in result.claims if c.id not in keep_ids)
+        dropped = len(kept) != len(result.claims)
+        result.claims = kept
+        # 등급은 살아남은 주장에 다시 대조한다. 전제가 사라진 항목만 확인 불가로 내린다.
+        for a in result.assessments:
+            if a.judgment == "확인 불가":
+                continue
+            verified = verified_evidence_ids(
+                result, state["judge"].checks, state["search_results"], a.technology, a.criterion
+            )
+            if not verified or not set(a.evidence_ids).issubset(verified):
                 a.judgment, a.rationale, a.evidence_ids = (
                     "확인 불가",
                     "근거 검증 실패로 판정을 보류합니다.",
                     [],
                 )
-            for t in result.trl_estimates:
+        for t in result.trl_estimates:
+            if t.level is None:
+                continue
+            supported = verified_evidence_ids(
+                result, state["judge"].checks, state["search_results"], t.technology
+            )
+            if not t.evidence_ids or not set(t.evidence_ids).issubset(supported):
                 t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+        # TRL 이 같은 노드의 등급과 어긋나면 근거가 확인되더라도 그 기술의 단계는 남기지
+        # 않는다. 판정은 기술별로만 적용한다.
+        for name in {t.technology for t in result.trl_estimates}:
+            view = result.model_copy(deep=True)
+            view.trl_estimates = [t for t in view.trl_estimates if t.technology == name]
+            if tech_trl_errors(view):
+                for t in result.trl_estimates:
+                    if t.technology == name:
+                        t.level, t.evidence_ids, t.rationale = None, [], "등급과 불일치"
+        if dropped or state.get("errors") or state.get("fatal"):
+            result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
         errors.extend(
             f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
         )
