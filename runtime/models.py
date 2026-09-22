@@ -179,8 +179,11 @@ class OpenAIBackend:
         cited = {eid for c in result.claims for eid in c.evidence_ids}
         relevant = [e for e in evidence if e.id in cited]
         # This shared prompt has no variables; claim/evidence JSON is a separate message.
+        # claim_ids_to_check surfaces the exact checklist judge.j2 asks the model to
+        # count against, instead of leaving it to notice claims[].id buried in `result`.
         payload = json.dumps(
             {
+                "claim_ids_to_check": [c.id for c in result.claims],
                 "result": result.model_dump(),
                 "evidence": [e.model_dump() for e in relevant],
             },
