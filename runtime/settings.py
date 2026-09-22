@@ -149,6 +149,15 @@ def load_settings() -> Settings:
     for env, key in (("GENERATOR_MODEL", "generator"), ("JUDGE_MODEL", "judge")):
         if os.getenv(env):
             raw["models"][key] = os.environ[env]
+    # 빠른 점검용 1회 통과 실행: 재검색·수정·보완 재실행을 껐다 켤 수 있다.
+    # 한쪽 근거만 보고 판정하므로 확인 불가가 늘어난다. 제출본 설정은 config.yaml 이다.
+    for env, key in (
+        ("SEARCH_LIMIT", "search"),
+        ("FIX_LIMIT", "fix"),
+        ("SUPPLEMENT_LIMIT", "supplement"),
+    ):
+        if os.getenv(env):
+            raw["limits"][key] = int(os.environ[env])
     return Settings.model_validate(raw)
 
 
