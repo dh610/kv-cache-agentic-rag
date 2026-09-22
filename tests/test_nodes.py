@@ -257,6 +257,7 @@ class InventedIds(MockBackend):
 def test_sufficiency_judge_cannot_invent_question_ids():
     source = EmptySearch()
     result = run(backend=InventedIds(), source=source, mode="rag")
-    # 알 수 없는 id는 버려지므로 재검색 대상이 없고, 첫 검색 뒤 바로 작성으로 넘어간다.
-    assert len(source.calls) == 2
+    # 알 수 없는 id는 버려지므로 재검색 대상이 없고, 질문마다 첫 검색 1회 뒤 바로 작성으로 넘어간다.
+    assert len(source.calls) == len(load_input("tech").questions)
+    assert {attempt for _, attempt in source.calls} == {1}
     assert result.status == "needs_revision"
