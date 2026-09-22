@@ -142,17 +142,19 @@ def contract_errors(
         if item.technology not in techs or not criterion:
             errors.append("assessment has unknown technology/criterion")
         elif item.judgment not in criterion.judgments:
-            errors.append(f"{item.criterion}: judgment not allowed by rubric")
+            errors.append(f"{item.technology}/{item.criterion}: judgment not allowed by rubric")
         if not set(item.evidence_ids).issubset(known):
-            errors.append(f"{item.criterion}: assessment has unknown evidence")
+            errors.append(f"{item.technology}/{item.criterion}: assessment has unknown evidence")
         if item.judgment != "확인 불가" and not item.evidence_ids:
-            errors.append(f"{item.criterion}: assessment without evidence")
+            errors.append(f"{item.technology}/{item.criterion}: assessment without evidence")
         if item.judgment != "확인 불가":
             verified = verified_evidence_ids(
                 result, judge.checks, evidence, item.technology, item.criterion
             )
             if not verified or not set(item.evidence_ids).issubset(verified):
-                errors.append(f"{item.criterion}: assessment lacks verified claim premises")
+                errors.append(
+                    f"{item.technology}/{item.criterion}: assessment lacks verified claim premises"
+                )
     addressed = {(a.technology, a.criterion) for a in result.assessments}
     if len(addressed) != len(result.assessments):
         errors.append("Duplicate technology/criterion assessments")
@@ -612,33 +614,45 @@ def build_node_graph(
         result = state["draft"].model_copy(deep=True)
         errors = list(state.get("errors", []))
         claim_ids = {c.id for c in result.claims}
+        assessment_keys = {f"{a.technology}/{a.criterion}" for a in result.assessments}
         rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
         for c in state["judge"].checks:
             if c.label != "supported":
                 errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
-        # An error naming one of this draft's own claim IDs (e.g. "kivi-cost-1: missing/
-        # unknown evidence IDs") only invalidates that claim, same as a Judge rejection.
-        # An error naming nothing (Judge check-count mismatch, assessment/TRL-level,
-        # duplicate IDs, ...) means claim<->check correlation itself may be unreliable,
-        # so the whole batch is still withheld, as before.
-        claim_scoped = {cid for cid in claim_ids for e in errors if e.startswith(f"{cid}:")}
-        rejected |= claim_scoped
-        unscoped_errors = any(not any(e.startswith(f"{cid}:") for cid in claim_ids) for e in errors)
+        # An error naming one of this draft's own claim IDs or assessment (technology/
+        # criterion) keys only invalidates that one claim/assessment, same as a Judge
+        # claim rejection: the claim's own citation was independently verified, so it can
+        # stay in the report even if the separate, stricter assessment-level grade built on
+        # top of it can't be confirmed. An error naming neither (Judge check-count
+        # mismatch, duplicate IDs, TRL-level, tech/maturity consistency, "no assessment for
+        # requested criterion", ...) means the batch's internal correlations may be
+        # unreliable, so the whole result -- including TRL, which stays all-or-nothing -- is
+        # still withheld, as before.
+        scopes = claim_ids | assessment_keys
+        rejected |= {cid for cid in claim_ids for e in errors if e.startswith(f"{cid}:")}
+        assessment_scoped = {k for k in assessment_keys for e in errors if e.startswith(f"{k}:")}
+        unscoped_errors = any(not any(e.startswith(f"{s}:") for s in scopes) for e in errors)
         result.unverified.extend(c.text for c in result.claims if c.id in rejected)
         result.claims = [c for c in result.claims if c.id not in rejected]
         if unscoped_errors or state.get("fatal"):
             result.unverified.extend(c.text for c in result.claims)
             result.claims = []
-        if rejected or unscoped_errors or state.get("fatal"):
+        if rejected or assessment_scoped or unscoped_errors or state.get("fatal"):
             result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
             for a in result.assessments:
-                a.judgment, a.rationale, a.evidence_ids = (
-                    "확인 불가",
-                    "근거 검증 실패로 판정을 보류합니다.",
-                    [],
-                )
+                if (
+                    unscoped_errors
+                    or state.get("fatal")
+                    or f"{a.technology}/{a.criterion}" in assessment_scoped
+                ):
+                    a.judgment, a.rationale, a.evidence_ids = (
+                        "확인 불가",
+                        "근거 검증 실패로 판정을 보류합니다.",
+                        [],
+                    )
             for t in result.trl_estimates:
-                t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+                if unscoped_errors or state.get("fatal"):
+                    t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
         errors.extend(
             f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
         )

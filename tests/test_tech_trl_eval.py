@@ -218,6 +218,14 @@ def test_graph_rejects_regressions_after_bounded_fix(fault):
     assert output.fix_count == 1
     assert output.status == "needs_revision"
     assert output.validation_errors
-    assert not output.result.claims
     assert all(a.judgment == "확인 불가" for a in output.result.assessments)
     assert all(t.level is None for t in output.result.trl_estimates)
+    if fault == "conflicting_trl":
+        # TRL/maturity disagreement isn't attributable to one claim; the whole
+        # draft, claims included, stays withheld.
+        assert not output.result.claims
+    else:
+        # The claim's own citation was independently Judge-verified; only the
+        # stricter assessment-level grade built on top of it, which needs the
+        # trimmed (now-insufficient) evidence_ids, is withheld.
+        assert output.result.claims
