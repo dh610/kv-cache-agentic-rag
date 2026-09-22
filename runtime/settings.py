@@ -27,10 +27,8 @@ class Limits(SettingsModel):
     search: int = Field(ge=1, le=3)
     questions: int = Field(ge=1, le=12)
     fix: int = Field(default=1, ge=0, le=1)
-    supplement: Literal[0] = 0
-
-
-# Post-synthesis automatic supplementation remains disabled by the user decision.
+    # 설계서 표 13: 종합 뒤 보완 재실행 1라운드. 0으로 두면 루프를 끈다. mock 모드는 연결 점검이라 건너뛴다.
+    supplement: int = Field(default=1, ge=0, le=1)
 
 
 class Retrieval(SettingsModel):
