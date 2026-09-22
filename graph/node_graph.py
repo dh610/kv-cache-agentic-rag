@@ -6,6 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
 from runtime.node_rules import DRAFT_RULES
+from runtime.progress import ProgressLog
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
 from runtime.validation import tech_trl_errors, verified_evidence_ids
@@ -172,8 +173,9 @@ def contract_errors(
     return errors
 
 
-def build_node_graph(node, data, mode, settings, backend, source):
+def build_node_graph(node, data, mode, settings, backend, source, log: ProgressLog | None = None):
     """Eight bounded stages shared by every role; every question retains its own budget."""
+    log = log or ProgressLog(None)
     if not data.questions or len(data.questions) > settings.limits.questions:
         raise ValueError(f"Provide 1..{settings.limits.questions} questions")
     criteria = {c.id for c in load_rubric(node).criteria}
@@ -208,6 +210,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
             initial["queries"] = {p.question_id: p for p in pairs}
         except Exception as exc:
             initial.update(fatal=True, errors=[f"Planning failed: {type(exc).__name__}"])
+        log.emit("plan", node=node, ok=not initial["fatal"], errors=initial["errors"])
         return initial
 
     def search(state):
@@ -253,6 +256,20 @@ def build_node_graph(node, data, mode, settings, backend, source):
                         error=f"Search failed: {type(exc).__name__}",
                     )
                 )
+        log.emit(
+            "search",
+            node=node,
+            round_attempts=[
+                {
+                    "question_id": r.question_id,
+                    "intent": r.intent,
+                    "found": len(r.evidence_ids),
+                    "error": r.error,
+                }
+                for r in records[len(state["searches"]) :]
+            ],
+            total_evidence=len(evidence),
+        )
         return {
             "search_results": evidence,
             "search_count": counts,
@@ -266,6 +283,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
         if not state["search_results"]:
             # Nothing to judge: record insufficiency without a model call so an
             # empty search stays "insufficient evidence" instead of an execution failure.
+            log.emit("sufficiency", node=node, sufficient=False, reason="근거 없음")
             return {
                 "coverage": [
                     Coverage(
@@ -285,11 +303,18 @@ def build_node_graph(node, data, mode, settings, backend, source):
             # 부분적 형식 실수(빠진 질문, 모르는 id, 다른 기술 근거 인용)는 실행 실패가 아니다.
             # 설계서 D.3: 근거 부족은 실행 실패와 구분한다. 정리한 뒤 부족으로 처리하고 계속 진행한다.
             coverage = normalize_coverage(review, data.questions, state["search_results"])
+            log.emit(
+                "sufficiency",
+                node=node,
+                sufficient=all(c.sufficient for c in coverage),
+                unmet=[c.question_id for c in coverage if not c.sufficient],
+            )
             return {
                 "coverage": coverage,
                 "is_sufficient": all(c.sufficient for c in coverage),
             }
         except Exception as exc:
+            log.emit("sufficiency", node=node, sufficient=False, error=type(exc).__name__)
             return {
                 "is_sufficient": False,
                 "fatal": True,
@@ -339,6 +364,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
         )
         system, user, digest = render(node, current, state["search_results"])
         if state.get("fatal"):
+            log.emit("draft", node=node, ok=False, reason="upstream fatal state")
             return {
                 "draft": empty_result(node, "; ".join(state["errors"])),
                 "prompt_hash": digest,
@@ -346,9 +372,12 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 "rendered_user": user,
             }
         try:
-            draft = backend.generate(node, current, state["search_results"], system, user)
+            draft = NodeResult.model_validate(
+                backend.generate(node, current, state["search_results"], system, user)
+            )
+            log.emit("draft", node=node, ok=True, claims=len(draft.claims))
             return {
-                "draft": NodeResult.model_validate(draft),
+                "draft": draft,
                 "prompt_hash": digest,
                 "rendered_system": system,
                 "rendered_user": user,
@@ -356,6 +385,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
             }
         except Exception as exc:
             reason = f"Generator failed: {type(exc).__name__}; check provider configuration"
+            log.emit("draft", node=node, ok=False, reason=reason)
             return {
                 "draft": empty_result(node, reason),
                 "prompt_hash": digest,
@@ -374,6 +404,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
             data, state["draft"], state["search_results"]
         )
         if rule_errors and state["fix_count"] < settings.limits.fix:
+            log.emit("verify", node=node, verdict="표현 오류", errors=rule_errors)
             return {"judge": JudgeResult(checks=[]), "errors": rule_errors, "verdict": "표현 오류"}
         try:
             # No claims means nothing to verify; never let a model invent checks for them.
@@ -402,8 +433,10 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 if expression_error
                 else "통과"
             )
+            log.emit("verify", node=node, verdict=verdict, errors=errors)
             return {"judge": judge, "errors": errors, "verdict": verdict}
         except Exception as exc:
+            log.emit("verify", node=node, verdict="추가 근거 필요", error=type(exc).__name__)
             return {
                 "judge": JudgeResult(checks=[]),
                 "fatal": True,
@@ -433,6 +466,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
             draft = NodeResult.model_validate(
                 backend.generate(node, current, state["search_results"], system, user)
             )
+            log.emit("fix", node=node, ok=True, fix_count=state["fix_count"] + 1)
             return {
                 "draft": draft,
                 "fix_count": state["fix_count"] + 1,
@@ -442,6 +476,13 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 "errors": [],
             }
         except Exception as exc:
+            log.emit(
+                "fix",
+                node=node,
+                ok=False,
+                fix_count=state["fix_count"] + 1,
+                error=type(exc).__name__,
+            )
             return {
                 "fatal": True,
                 "fix_count": state["fix_count"] + 1,
@@ -504,6 +545,16 @@ def build_node_graph(node, data, mode, settings, backend, source):
             else "needs_revision"
             if errors or result.unverified
             else "completed"
+        )
+        log.emit(
+            "result",
+            node=node,
+            status=status,
+            verdict=state["verdict"],
+            fix_count=state["fix_count"],
+            claims=len(result.claims),
+            unverified=len(result.unverified),
+            errors=len(errors),
         )
         return {
             "output": NodeRun(

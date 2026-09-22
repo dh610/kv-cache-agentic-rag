@@ -19,6 +19,7 @@ from graph.node_graph import build_node_graph
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
 from runtime.models import ModelBackend
+from runtime.progress import ProgressLog
 from runtime.reporting import assemble_report, collect_gaps, used_ids, validate_report, write_report
 from runtime.settings import Settings
 from schemas.contracts import NODES, Evidence, Gap, NodeInput, NodeRun
@@ -83,7 +84,9 @@ def build_main_graph(
     builder.add_node("initialize", initialize)
 
     def make_node(name):
-        def run(state):
+        def run(state, config: RunnableConfig):
+            log = ProgressLog(config.get("configurable", {}).get("output_dir"))
+            log.emit("node_start", node=name)
             data = inputs[name].model_copy(deep=True)
             if mode == "live":
                 data.evidence = []  # Never mix demo fixture excerpts with live search.
@@ -109,8 +112,16 @@ def build_main_graph(
                 if sources and name in sources
                 else FixedEvidence(data)
             )
-            graph = build_node_graph(name, data, mode, settings, backend, source)
+            graph = build_node_graph(name, data, mode, settings, backend, source, log=log)
             out = graph.invoke({}, config={"recursion_limit": 80})["output"]
+            log.emit(
+                "node_end",
+                node=name,
+                status=out.status,
+                verdict=out.verdict,
+                fix_count=out.fix_count,
+                claims=len(out.result.claims),
+            )
             cited = used_ids(out)
             delta = {RESULT_KEYS[name]: out, "sources": [e for e in out.evidence if e.id in cited]}
             if name == "synthesis":
@@ -140,15 +151,18 @@ def build_main_graph(
     for name in NODES:
         builder.add_node(name, runners[name])
 
-    def collect(state):
+    def collect(state, config: RunnableConfig):
         runs = {role: state[RESULT_KEYS[role]] for role in NODES[:4]}
         # Validate reducer entries before using them; concatenation alone is not deduplication.
         merge_evidence(state["sources"])
-        return {"gaps": collect_gaps(runs, settings)}
+        gaps = collect_gaps(runs, settings)
+        log = ProgressLog(config.get("configurable", {}).get("output_dir"))
+        log.emit("collect", gaps=len(gaps))
+        return {"gaps": gaps}
 
     builder.add_node("collect", collect)
 
-    def supplement(state):
+    def supplement(state, config: RunnableConfig):
         """보완 재실행 (표 12·13): gaps 의 담당 역할만 1라운드 재실행하고 결과 키를 교체한다.
 
         기술 조사 결과가 바뀌면 그것을 참고한 세 평가도 다시 돈다. 결과 수집을 거치지 않고 synthesis 로 복귀한다.
@@ -160,19 +174,22 @@ def build_main_graph(
         working = dict(state)
         updates = {"supplement_round": state["supplement_round"] + 1}
         new_sources: list[Evidence] = []
+        log = ProgressLog(config.get("configurable", {}).get("output_dir"))
+        log.emit("supplement_start", round=updates["supplement_round"], roles=sorted(roles))
         for name in [n for n in NODES[:4] if n in roles]:
             # 재실행 입력은 첫 실행과 같은 상위 결과만 본다: 기술은 없음, 평가는 기술 결과만.
             allowed = () if name == "tech" else ("tech_result",)
             view = {
                 k: v for k, v in working.items() if k not in RESULT_KEYS.values() or k in allowed
             }
-            delta = runners[name](view)
+            delta = runners[name](view, config)
             working[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             updates[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             new_sources.extend(delta["sources"])
         runs = {role: working[RESULT_KEYS[role]] for role in NODES[:4]}
         updates["gaps"] = collect_gaps(runs, settings)
         updates["sources"] = new_sources
+        log.emit("supplement_end", round=updates["supplement_round"], gaps=len(updates["gaps"]))
         return updates
 
     builder.add_node("supplement", supplement)
@@ -202,6 +219,12 @@ def build_main_graph(
             else "needs_revision"
             if "needs_revision" in statuses or (mode != "mock" and not validation["ready"])
             else "completed"
+        )
+        ProgressLog(folder).emit(
+            "check_report",
+            status=status,
+            ready=validation["ready"],
+            problems=len(validation["problems"]),
         )
         return {"run_status": status, "report_path": path, "report_check": validation}
 
