@@ -258,6 +258,32 @@ def test_every_upstream_unverified_item_must_survive_runtime_validation():
     assert any("tech: upstream unverified item" in e and "second unresolved" in e for e in errors)
 
 
+def test_synthesis_repairs_missing_upstream_items_even_when_other_gaps_remain():
+    class DropsOneThenPreserves(MockBackend):
+        calls = 0
+
+        def generate(self, node, data, evidence, system, user):
+            self.calls += 1
+            result = super().generate(node, data, evidence, system, user)
+            if self.calls == 1:
+                role, prior = next((r, p) for r, p in data.prior_results.items() if p.unverified)
+                result.unverified.remove(f"{role}: {prior.unverified[0]}")
+            return result
+
+    data = load_input("synthesis", "acceptance")
+    backend = DropsOneThenPreserves()
+    run = build_node_graph(
+        "synthesis", data, "fixture", load_settings(), backend, FixedEvidence(data)
+    ).invoke({})["output"]
+    assert backend.calls == 2 and run.fix_count == 1
+    assert run.status == "needs_revision" and not run.validation_errors
+    assert all(
+        f"{role}: {item}" in run.result.unverified
+        for role, prior in data.prior_results.items()
+        for item in prior.unverified
+    )
+
+
 def test_dropped_upstream_item_fails_and_unknown_is_inconclusive():
     case, data = load_case("paper_only")
     result, checks = synthesis_result(data, preserve=False)

@@ -6,3 +6,10 @@
 <evidence_json>
 {{ evidence_json }}
 </evidence_json>
+
+각 질문의 (technology, criterion)마다 assessment를 정확히 하나 작성하라. KIVI와 ITME의 근거를 섞지 말고, 각 claim에 해당 기술의 evidence ID를 붙여라.
+질문의 technology와 같은 technology이며 scope=target인 근거만 판정의 직접 근거로 사용하라. scope=context 또는 technology=other 자료는 배경으로만 쓰고 그 자료만으로 확인 불가가 아닌 판정을 내리지 마라.
+수치를 인용할 때는 모델·하드웨어·워크로드·기준선을 conditions에 적고, 논문 실험 규모와 데이터센터 규모의 차이를 rationale에 남겨라.
+prior_results.tech가 있으면 기술 사실과 모순되지 않게 작성하되 원문 evidence ID만 인용하라.
+근거가 없거나 상충으로 등급을 정할 수 없는 항목은 낮은 등급이 아니라 확인 불가로 두고 unverified에 필요한 자료를 적어라.
+근거 본문이 직접 말하는 사실만 한 문장짜리 긍정문 claim으로 쓰고, 근거의 부재나 대조 절("~하였으나 …않았다")은 claim에 넣지 말고 unverified에 적어라. 직접 근거가 없는 항목에는 claim을 만들지 마라. 기준선·지표는 원문 표현 그대로 옮겨라.

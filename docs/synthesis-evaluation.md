@@ -51,7 +51,7 @@
 - `graph/node_graph.py`: `contract_errors` 끝에 synthesis 전용 검사 호출 한 줄. 다른 노드의 검사·재시도·근거 ID·실패 전파는 그대로입니다.
 - `runtime/models.py` `MockBackend`: synthesis일 때만 상위 unverified를 `"<role>: ..."`로 옮기고 잠정 TRL마다 `level=null, provisional=false`를 반환합니다. 다른 노드의 mock 출력은 변하지 않습니다.
 - `graph/main_graph.py`: synthesis 입력 description에 `state["gaps"]`를 JSON으로 덧붙입니다. 프롬프트 해시가 synthesis에서만 바뀝니다.
-- 알려진 공통 동작: `verify`는 `unverified`가 있으면 verdict를 “추가 근거 필요”로 두므로 종합 노드는 상위 미확인 항목을 보존하는 한 “통과”가 되지 않고, 계약 오류가 있어도 `fix` 단계가 실행되지 않습니다. 검색 예산이 없는 종합 노드는 그대로 `return_result`로 가서 판정이 확인 불가로 보류됩니다. 순서 변경은 서브그래프 담당과 별도 논의가 필요합니다.
+- PR #15 이후 공통 동작: 상위 미확인 항목이 있어도 계약·표현 오류가 함께 있고 수정 예산이 남으면 먼저 `fix`를 최대 1회 실행합니다. 수정 후 남은 미확인은 계속 “추가 근거 필요”이며 성공으로 승격하지 않습니다. 종합의 항목 누락 복구와 수정 한도를 통합 회귀 테스트로 확인했습니다.
 
 ## 4. 고정 입력과 검토자 사례
 

@@ -3,6 +3,7 @@
 import re
 
 from graph.node_graph import contract_errors
+from runtime.node_rules import HANDOFF_RULES
 from runtime.prompts import load_rubric
 from schemas.contracts import Evidence, JudgeResult, NodeInput, NodeRun
 
@@ -47,6 +48,7 @@ def check_handoff(data: NodeInput, run: NodeRun) -> dict:
     problems.extend(
         contract_errors(run.node, data, run.result, run.evidence, JudgeResult(checks=run.checks))
     )
+    problems.extend(HANDOFF_RULES.get(run.node, lambda d, r: [])(data, run))
     if any(c.label != "supported" for c in run.checks):
         problems.append("claim verification did not pass")
     if any(s.error for s in run.searches):
