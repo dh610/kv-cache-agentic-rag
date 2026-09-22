@@ -1,5 +1,7 @@
 # 기술 조사 TRL 평가 사례
 
+공통 런타임과 채점기는 `runtime/validation.py`의 검사를 공유합니다. 필수 TRL 근거는 claim뿐 아니라 해당 claim의 유일한 supported Judge 검사에도 포함되어야 합니다. 제공된 `trl_estimates`와 기술 노드의 `maturity.judgment`가 다른 경우(확인 불가/null 불일치 포함) 실패합니다. 기존 사례처럼 빈 `trl_estimates`는 허용합니다. 입력·반환 JSON 구조는 변경하지 않았습니다.
+
 `tests/fixtures/tech/trl_eval/`에는 KIVI와 ITME 원문을 검토해 만든 두 개의 근거 제한 사례와 근거 없음 사례가 있습니다. `evidence.text`는 **원문을 그대로 복사한 발췌가 아니라 검토자의 요약**이며 `source_type=fixture`입니다. 원문 페이지와 URL을 함께 남겼지만, 이 입력이나 채점 결과를 최종 기술 판정 또는 보고서의 원문 인용으로 사용하지 않습니다.
 
 검토 출처:
