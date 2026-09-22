@@ -1,7 +1,9 @@
 {
   "case_id": "stakeholder-eval-industry-approach-level",
   "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자가 공개 기사를 읽고 쓴 한국어 요약이다. 기사는 CXL 메모리 접근 전반을 다루며 ITME라는 이름은 등장하지 않는다. 접근 전반 근거를 conditions에 표시하고 등급을 매기는지 확인한다.",
-  "target_techs": {"hw": "ITME"},
+  "target_techs": {
+    "hw": "ITME"
+  },
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
@@ -23,7 +25,10 @@
       "document_role": "target",
       "publisher": "NewKerala (ANI)",
       "site": "www.newkerala.com",
-      "published_at": "2026-07-20"
+      "published_at": "2026-07-20",
+      "affiliation": "independent",
+      "affiliation_reason": "ITME/SK hynix와 무관한 뉴스 매체(ANI 보도 전재). 단, 인용된 삼성·SK hynix 발표는 자사 발표",
+      "stance": "positive"
     }
   ],
   "prior_results": {}

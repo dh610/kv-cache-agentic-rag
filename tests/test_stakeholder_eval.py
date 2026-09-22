@@ -70,6 +70,38 @@ def sample_run(case_id: str, judgment: str, conditions=None) -> tuple[dict, obje
     return case, data, run
 
 
+def test_grounding_checks_reject_cross_technology_and_fabricated_quotes():
+    from app.evaluate_stakeholder import grounding_errors
+    from runtime.runner import load_input
+
+    data = load_input("tech")
+    by_id = {e.id: e for e in data.evidence}
+    kivi, itme = data.evidence[0], data.evidence[1]
+    assert kivi.technology == "KIVI" and itme.technology == "ITME"
+
+    def claim(text, *ids, technology="KIVI"):
+        return Claim(
+            id="c", technology=technology, criterion="adopters", text=text,
+            kind="fact", evidence_ids=list(ids), conditions=[],
+        )  # fmt: skip
+
+    assert any("cites ITME" in e for e in grounding_errors(claim("x", itme.id), by_id))
+    assert grounding_errors(claim(f"「{kivi.text}」 — 저자", kivi.id), by_id) == []
+    spaced = claim("「" + kivi.text.replace(" ", "\n ") + "」", kivi.id)
+    assert grounding_errors(spaced, by_id) == []
+    fabricated = claim("「KIVI는 2.6배 메모리를 줄인다」 — 커뮤니티", kivi.id)
+    assert any("not verbatim" in e for e in grounding_errors(fabricated, by_id))
+    words = kivi.text.split()
+    joined = claim(f"「{' '.join(words[:2])} ... {' '.join(words[-2:])}」", kivi.id)
+    assert grounding_errors(joined, by_id) == []
+    tampered = claim(f"「{' '.join(words[:2])} … not in the source」", kivi.id)
+    assert any("not verbatim" in e for e in grounding_errors(tampered, by_id))
+    # Markdown emphasis and links in the source must not break a faithful quote.
+    styled = kivi.model_copy(update={"text": f"**{words[0]}** [{' '.join(words[1:])}](https://x)"})
+    assert grounding_errors(claim(f"「{kivi.text}」", kivi.id), {kivi.id: styled}) == []
+    assert grounding_errors(claim("paraphrase only", kivi.id), by_id) == []
+
+
 def test_every_case_input_matches_its_label_and_rubric():
     from runtime.prompts import load_rubric
 

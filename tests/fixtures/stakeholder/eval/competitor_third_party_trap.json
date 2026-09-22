@@ -1,13 +1,15 @@
 {
-  "case_id": "stakeholder-eval-competitor-third-party-trap",
+  "case_id": "stakeholder-eval-competitors-third-party-trap",
   "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자 요약이다. 스스로 '독립 사이트'라고 밝힌 제3자 비교 페이지를 경쟁 기술 진영의 발언으로 오인하지 않는지 확인한다.",
-  "target_techs": {"sw": "KIVI"},
+  "target_techs": {
+    "sw": "KIVI"
+  },
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-competitor",
+      "id": "kivi-competitors",
       "technology": "KIVI",
-      "criterion": "competitor",
+      "criterion": "competitors",
       "text": "경쟁 기술 진영(TurboQuant, KVTC, MLA)이 KIVI의 2-bit asymmetric KV cache quantization(per-channel key, per-token value)을 어떻게 평가하는지 확인한다. KIVI comparison, limitation, accuracy drop, integration"
     }
   ],
@@ -22,7 +24,10 @@
       "scope": "context",
       "document_role": "target",
       "publisher": "TurboQuant Tools (독립 사이트, Google과 무관)",
-      "site": "turbo-quant.com"
+      "site": "turbo-quant.com",
+      "affiliation": "independent",
+      "affiliation_reason": "페이지가 스스로 'Google 또는 Alphabet Inc.와 무관'이라고 밝힌 제3자 비교 사이트. 경쟁 진영(Google)이 아님",
+      "stance": "neutral"
     }
   ],
   "prior_results": {}

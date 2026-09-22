@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import httpx
 from langsmith import traceable
 
+from rag.annotations import annotate
 from runtime.settings import Settings, require_key
 from schemas.contracts import Evidence, Question
 
@@ -22,8 +23,6 @@ class WebSource:
     @traceable(run_type="retriever", name="web_search")
     def search(self, question: Question, attempt: int) -> list[Evidence]:
         query = f"{question.technology} {question.text}"
-        if attempt > 1:
-            query += " limitations evidence official" if attempt == 2 else " deployment evaluation"
         # Client does not receive API key via trace arguments.
         response = httpx.post(
             "https://api.tavily.com/search",
@@ -61,4 +60,4 @@ class WebSource:
                     site=urlparse(url).hostname,
                 )
             )
-        return out
+        return [annotate(e) for e in out]

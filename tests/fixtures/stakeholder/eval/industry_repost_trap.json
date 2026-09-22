@@ -1,7 +1,9 @@
 {
   "case_id": "stakeholder-eval-industry-repost-trap",
   "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자 요약이다. 논문 게시·요약 사이트만 근거로 주어졌을 때 투자·업계 등급을 만들지 않고 확인 불가로 남기는지 확인한다.",
-  "target_techs": {"sw": "KIVI"},
+  "target_techs": {
+    "sw": "KIVI"
+  },
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
@@ -22,7 +24,10 @@
       "scope": "context",
       "document_role": "target",
       "publisher": "alphaXiv",
-      "site": "www.alphaxiv.org"
+      "site": "www.alphaxiv.org",
+      "affiliation": "first_party",
+      "affiliation_reason": "저자 초록의 재게시이므로 저자 자기 평가와 동일하게 취급",
+      "stance": "positive"
     }
   ],
   "prior_results": {}

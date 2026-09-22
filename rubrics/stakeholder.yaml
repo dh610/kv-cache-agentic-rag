@@ -3,7 +3,7 @@ objective: 경쟁 기술 진영, 도입 기업·개발자, 투자·업계가 KIV
   저장 계층으로 쓰는 접근의 대표)에 실제로 보인 반응을 긍정·중립·부정으로 구분하고, 각 주체가 왜 그렇게 보는지 입장을 근거와 함께
   기록한다. 두 기술의 우열은 판정하지 않는다.
 criteria:
-- id: competitor
+- id: competitors
   definition: 경쟁 기술 진영의 반응.
     KIVI의 경쟁 진영은 TurboQuant(Google)·KVTC(NVIDIA, KV cache transform coding)·MLA(DeepSeek),
     ITME의 경쟁 진영은 NVIDIA CMX(NVMe 기반 context memory storage)·삼성 CXL(CMM)·PNM(CXL 기반 근접 메모리 처리)이다.
@@ -15,7 +15,7 @@ criteria:
   - 중립
   - 부정
   - 확인 불가
-- id: adopter
+- id: adopters
   definition: 도입 기업·개발자의 반응.
     실사용 후기, 커뮤니티 평가, 프레임워크 이슈·토론이 대상이며 저자 자신의 발표는 제외한다.
     긍정=실사용 후기·커뮤니티 평가에서 효과를 확인했다는 사례가 있음 / 중립=관심·시도 사례는 있으나 효과 평가가 엇갈리거나
@@ -35,6 +35,8 @@ criteria:
   - 중립
   - 부정
   - 확인 불가
-source_policy: 웹 검색이 주 경로이며 새 논문 RAG는 하지 않는다.
-  기술 조사 노드에서 전달된 논문 원문은 저자의 자기 평가이므로 독립 반응과 구분해 표시한다. document_role=reference 문서는 competitor 항목에서만 인용한다.
+source_policy: 웹 검색이 주 경로이며 이해관계자 노드가 대상 논문을 새로 RAG 검색하지는 않는다. 실행기가 competitors 질문에 한해
+  reference 논문(경쟁 기술 논문)을 보조로 넘겨주면 그 기준에서만 인용한다. evidence의 affiliation(first_party/independent/unknown)과
+  stance를 확인해 자사 발표를 독립 검증으로 취급하지 않고, unknown을 임의로 독립으로 바꾸지 않는다.
+  기술 조사 노드에서 전달된 논문 원문은 저자의 자기 평가이므로 독립 반응과 구분해 표시한다. document_role=reference 문서는 competitors 항목에서만 인용한다.
   선정 기술을 직접 언급한 근거와 접근 전반(KV cache 양자화, CXL 메모리 계층)에 대한 배경 근거를 구분해 기록하고, 근거가 없으면 추정하지 않고 확인 불가로 남긴다.

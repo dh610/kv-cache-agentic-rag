@@ -68,7 +68,8 @@ def execute(graph, label: str, mode: str, metadata: dict) -> tuple[dict, Path]:
                 config={
                     "run_id": run_id,
                     "run_name": f"{label}-{mode}",
-                    "recursion_limit": 50,
+                    "recursion_limit": 80,
+                    "configurable": {"output_dir": str(output)},
                     "tags": [label, mode],
                     "metadata": {**metadata, "git_revision": git_revision()},
                 },

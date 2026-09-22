@@ -1,13 +1,15 @@
 {
-  "case_id": "stakeholder-eval-competitor-self-report-trap",
+  "case_id": "stakeholder-eval-competitors-self-report-trap",
   "description": "이해관계자 평가용 고정 입력. evidence.text는 검토자가 ITME 논문 해당 페이지를 읽고 쓴 요약이다. 선정 기술 저자가 경쟁 기술을 평가한 문장을 경쟁 진영의 반응으로 뒤집지 않는지 확인한다.",
-  "target_techs": {"hw": "ITME"},
+  "target_techs": {
+    "hw": "ITME"
+  },
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "itme-competitor",
+      "id": "itme-competitors",
       "technology": "ITME",
-      "criterion": "competitor",
+      "criterion": "competitors",
       "text": "경쟁 기술 진영(NVIDIA CMX Context Memory Storage/BlueField DPU, Samsung CXL CMM-H, PNM)이 ITME의 CXL-hybrid memory 기반 KV cache tiering을 어떻게 평가하는지 확인한다. ITME SK hynix comparison, limitation, disaggregated context storage"
     }
   ],
@@ -26,7 +28,10 @@
       "authors": "Hakbeom Jang et al. (SK hynix)",
       "year": 2026,
       "venue": "arXiv preprint (2606.12556v2)",
-      "published_at": "2026-06-16"
+      "published_at": "2026-06-16",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 저자(SK hynix Memory Systems Research)의 자기 논문",
+      "stance": "critical"
     }
   ],
   "prior_results": {}

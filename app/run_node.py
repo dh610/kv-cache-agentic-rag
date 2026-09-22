@@ -44,7 +44,7 @@ def main(argv=None) -> int:
     run = final["output"]
     save_json(output / "input.json", data)
     save_json(output / "result.json", run)
-    system, user, _ = render(args.node, data, run.evidence)
+    system, user = final["rendered_system"], final["rendered_user"]
     (output / "system.txt").write_text(system, encoding="utf-8")
     (output / "user.txt").write_text(user, encoding="utf-8")
     return show_run(output, run.status)

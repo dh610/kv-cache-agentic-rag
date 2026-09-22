@@ -4,13 +4,44 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
-from graph.node_graph import grounding_errors
 from runtime.settings import ROOT
-from schemas.contracts import NodeInput, NodeRun
+from schemas.contracts import Claim, Evidence, NodeInput, NodeRun
 
 DATASET = ROOT / "tests/fixtures/stakeholder/eval"
+QUOTE = re.compile(r"「(.+?)」", re.S)
+ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[\.\.\.\]|\(\.\.\.\))\s*")
+MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+
+def _squash(text: str) -> str:
+    """Compare quotes without markdown emphasis/links or whitespace differences."""
+    text = MD_LINK.sub(r"\1", text)
+    return " ".join(text.replace("*", "").replace("#", "").split())
+
+
+def _fragments(quote: str) -> list[str]:
+    """A quote may join non-adjacent passages with an ellipsis; each part must be verbatim."""
+    return [_squash(part) for part in ELLIPSIS.split(quote) if part.strip()]
+
+
+def grounding_errors(claim: Claim, evidence_by_id: dict[str, Evidence]) -> list[str]:
+    """Deterministic checks the LLM Judge has been observed to miss (stakeholder harness only)."""
+    errors = []
+    for eid in claim.evidence_ids:
+        item = evidence_by_id.get(eid)
+        # "other" marks shared context (e.g. reference papers) usable by any technology.
+        if item and item.technology not in (claim.technology, "other"):
+            errors.append(f"{claim.id}: cites {item.technology} evidence for {claim.technology}")
+    cited = [_squash(evidence_by_id[e].text) for e in claim.evidence_ids if e in evidence_by_id]
+    for quote in QUOTE.findall(claim.text):
+        for needle in _fragments(quote):
+            if not any(needle in text for text in cited):
+                errors.append(f"{claim.id}: quoted text is not verbatim in cited evidence")
+                break
+    return errors
 
 
 def load_labels(dataset: Path = DATASET) -> dict:

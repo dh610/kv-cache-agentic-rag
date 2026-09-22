@@ -8,15 +8,15 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-competitor",
+      "id": "kivi-competitors",
       "technology": "KIVI",
-      "criterion": "competitor",
+      "criterion": "competitors",
       "text": "경쟁 기술 진영(TurboQuant, KVTC, MLA)이 KIVI의 2-bit asymmetric KV cache quantization(per-channel key, per-token value)을 어떻게 평가하는지 확인한다. KIVI comparison, limitation, accuracy drop, integration"
     },
     {
-      "id": "kivi-adopter",
+      "id": "kivi-adopters",
       "technology": "KIVI",
-      "criterion": "adopter",
+      "criterion": "adopters",
       "text": "도입 기업·개발자가 KIVI 방식의 2-bit quantized KV cache를 실제로 써 본 후기와 커뮤니티 평가를 확인한다. Hugging Face transformers KV cache quantization, vLLM, GitHub jy-yuan/KIVI issues, deployment experience, accuracy"
     },
     {
@@ -26,15 +26,15 @@
       "text": "투자·업계·애널리스트·미디어가 KV cache quantization(KIVI 계열) 접근을 어떻게 전망하는지 확인한다. analyst, market outlook, LLM inference cost, investment"
     },
     {
-      "id": "itme-competitor",
+      "id": "itme-competitors",
       "technology": "ITME",
-      "criterion": "competitor",
+      "criterion": "competitors",
       "text": "경쟁 기술 진영(NVIDIA CMX Context Memory Storage/BlueField DPU, Samsung CXL CMM-H, PNM)이 ITME의 CXL-hybrid memory 기반 KV cache tiering을 어떻게 평가하는지 확인한다. ITME SK hynix comparison, limitation, disaggregated context storage"
     },
     {
-      "id": "itme-adopter",
+      "id": "itme-adopters",
       "technology": "ITME",
-      "criterion": "adopter",
+      "criterion": "adopters",
       "text": "도입 기업·개발자가 CXL memory 기반 KV cache tiering(ITME 계열, SK hynix CMM)을 실제로 써 본 후기와 커뮤니티 평가를 확인한다. vLLM, LMCache, Mooncake, CXL memory expander, deployment experience"
     },
     {

@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import re
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
-from rag.interface import EvidenceSource
-from runtime.models import ModelBackend
 from runtime.prompts import load_rubric, render
-from runtime.settings import Settings
 from schemas.contracts import (
     Evidence,
     JudgeResult,
@@ -17,55 +13,37 @@ from schemas.contracts import (
     NodeName,
     NodeResult,
     NodeRun,
+    QueryPlan,
     SearchRecord,
+    SufficiencyResult,
     empty_result,
 )
 
-QUOTE = re.compile(r"「(.+?)」", re.S)
-ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[\.\.\.\]|\(\.\.\.\))\s*")
 
-
-MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
-
-
-def _squash(text: str) -> str:
-    """Compare quotes without markdown emphasis/links or whitespace differences."""
-    text = MD_LINK.sub(r"\1", text)
-    return " ".join(text.replace("*", "").replace("#", "").split())
-
-
-def _fragments(quote: str) -> list[str]:
-    """A quote may join non-adjacent passages with an ellipsis; each part must be verbatim."""
-    return [_squash(part) for part in ELLIPSIS.split(quote) if part.strip()]
-
-
-def grounding_errors(claim, evidence_by_id: dict[str, Evidence]) -> list[str]:
-    """Deterministic checks the LLM Judge has been observed to miss."""
-    errors = []
-    for eid in claim.evidence_ids:
-        item = evidence_by_id.get(eid)
-        # "other" marks shared context (e.g. reference papers) usable by any technology.
-        if item and item.technology not in (claim.technology, "other"):
-            errors.append(f"{claim.id}: cites {item.technology} evidence for {claim.technology}")
-    cited = [_squash(evidence_by_id[e].text) for e in claim.evidence_ids if e in evidence_by_id]
-    for quote in QUOTE.findall(claim.text):
-        for needle in _fragments(quote):
-            if not any(needle in text for text in cited):
-                errors.append(f"{claim.id}: quoted text is not verbatim in cited evidence")
-                break
-    return errors
-
-
-class WorkState(TypedDict, total=False):
-    evidence: list[Evidence]
-    searches: list[SearchRecord]
-    attempts: dict[str, int]
+class RAGSubState(TypedDict, total=False):
+    role: str
+    questions: list
+    current_query: str
+    search_results: list[Evidence]
+    is_sufficient: bool
     draft: NodeResult
+    verdict: str
+    search_count: dict[str, int]  # per-question, never a shared batch counter
+    fix_count: int
+    output: NodeRun
+    # Execution metadata extends the design's ten public keys.
+    queries: dict
+    coverage: list
+    searches: list[SearchRecord]
     judge: JudgeResult
     errors: list[str]
     fatal: bool
     prompt_hash: str
-    output: NodeRun
+    rendered_system: str
+    rendered_user: str
+
+
+WorkState = RAGSubState
 
 
 def contract_errors(
@@ -94,13 +72,11 @@ def contract_errors(
             errors.append(f"{check.claim_id}: Judge cited evidence not supplied by claim")
         if check.label == "supported" and not check.evidence_ids:
             errors.append(f"{check.claim_id}: supported without evidence")
-    by_id = {e.id: e for e in evidence}
     for claim in result.claims:
         if claim.technology not in techs or claim.criterion not in rubric:
             errors.append(f"{claim.id}: unknown technology/criterion")
         if not claim.evidence_ids or not set(claim.evidence_ids).issubset(known):
             errors.append(f"{claim.id}: missing/unknown evidence IDs")
-        errors.extend(grounding_errors(claim, by_id))
     for item in result.assessments:
         criterion = rubric.get(item.criterion)
         if item.technology not in techs or not criterion:
@@ -130,18 +106,27 @@ def contract_errors(
     for q in data.questions:
         if (q.technology, q.criterion) not in addressed:
             errors.append(f"{q.id}: no assessment for requested criterion")
+    for estimate in result.trl_estimates:
+        if estimate.technology not in techs or not set(estimate.evidence_ids).issubset(known):
+            errors.append("TRL has unknown technology/evidence")
+        if estimate.level is not None:
+            supported = {
+                eid
+                for c in result.claims
+                if c.technology == estimate.technology
+                for check in judge.checks
+                if check.claim_id == c.id and check.label == "supported"
+                for eid in check.evidence_ids
+            }
+            if not estimate.evidence_ids or not set(estimate.evidence_ids).issubset(supported):
+                errors.append("TRL lacks verified claim premises")
+    if len({t.technology for t in result.trl_estimates}) != len(result.trl_estimates):
+        errors.append("Duplicate TRL technologies")
     return errors
 
 
-def build_node_graph(
-    node: NodeName,
-    data: NodeInput,
-    mode: str,
-    settings: Settings,
-    backend: ModelBackend,
-    source: EvidenceSource,
-):
-    """One shared bounded graph, injected backend/source and node-owned prompts."""
+def build_node_graph(node, data, mode, settings, backend, source):
+    """Eight bounded stages shared by every role; every question retains its own budget."""
     if not data.questions or len(data.questions) > settings.limits.questions:
         raise ValueError(f"Provide 1..{settings.limits.questions} questions")
     criteria = {c.id for c in load_rubric(node).criteria}
@@ -149,24 +134,64 @@ def build_node_graph(
         raise ValueError("Input question criterion is missing from the node rubric")
     if any(q.technology not in data.target_techs.values() for q in data.questions):
         raise ValueError("Question technology is not one of target_techs")
+    live_search = source.retryable and mode not in ("mock", "fixture")
 
-    def search(state: WorkState):
-        evidence = list(state.get("evidence", []))
-        attempts = dict(state.get("attempts", {}))
-        records = list(state.get("searches", []))
+    def plan(state):
+        initial = {
+            "role": node,
+            "questions": data.questions,
+            "search_count": {},
+            "fix_count": 0,
+            "search_results": [],
+            "searches": [],
+            "errors": [],
+            "coverage": [],
+            "fatal": False,
+            "current_query": "",
+            "queries": {},
+        }
+        try:
+            pairs = QueryPlan.model_validate(backend.plan(data, [])).queries
+            if len(pairs) != len(data.questions) or {p.question_id for p in pairs} != {
+                q.id for q in data.questions
+            }:
+                raise ValueError("Query plan must cover each question exactly once")
+            if any(not p.positive.strip() or not p.critical.strip() for p in pairs):
+                raise ValueError("Empty planned query")
+            initial["queries"] = {p.question_id: p for p in pairs}
+        except Exception as exc:
+            initial.update(fatal=True, errors=[f"Planning failed: {type(exc).__name__}"])
+        return initial
+
+    def search(state):
+        if state.get("fatal"):
+            return {}
+        evidence = list(state["search_results"])
+        counts, records = dict(state["search_count"]), list(state["searches"])
+        last_query = ""
         for q in data.questions:
-            count = attempts.get(q.id, 0)
+            count = counts.get(q.id, 0)
             if count >= settings.limits.search:
                 continue
-            attempts[q.id] = count + 1
+            count += 1
+            counts[q.id] = count
+            intent = (
+                ("positive" if count == 1 else "critical" if count == 2 else "followup")
+                if live_search
+                else "fixture"
+            )
+            pair = state["queries"][q.id]
+            last_query = pair.critical if intent == "critical" else pair.positive
+            searched = q.model_copy(update={"text": last_query}) if live_search else q
             try:
-                found = source.search(q, count + 1)
+                found = source.search(searched, count)
                 evidence = merge_evidence(evidence, found)
                 records.append(
                     SearchRecord(
                         question_id=q.id,
-                        attempt=count + 1,
-                        query=q.text,
+                        attempt=count,
+                        query=searched.text,
+                        intent=intent,
                         evidence_ids=[e.id for e in found],
                     )
                 )
@@ -174,23 +199,110 @@ def build_node_graph(
                 records.append(
                     SearchRecord(
                         question_id=q.id,
-                        attempt=count + 1,
-                        query=q.text,
+                        attempt=count,
+                        query=searched.text,
+                        intent=intent,
                         evidence_ids=[],
                         error=f"Search failed: {type(exc).__name__}",
                     )
                 )
-        return {"evidence": evidence, "attempts": attempts, "searches": records}
+        return {
+            "search_results": evidence,
+            "search_count": counts,
+            "searches": records,
+            "current_query": last_query,
+        }
 
-    def generate(state: WorkState):
-        # Render even in mock mode so broken templates fail the offline check.
-        system, user, digest = render(node, data, state["evidence"])
+    def check_sufficiency(state):
+        if state.get("fatal"):
+            return {"is_sufficient": False}
         try:
-            draft = backend.generate(node, data, state["evidence"], system, user)
+            review = SufficiencyResult.model_validate(
+                backend.sufficiency(data, state["search_results"])
+            )
+            ids = {q.id for q in data.questions}
+            if len(review.items) != len(ids) or {c.question_id for c in review.items} != ids:
+                raise ValueError("Sufficiency must cover all questions")
+            evidence_by_id = {e.id: e for e in state["search_results"]}
+            technologies = {q.id: q.technology for q in data.questions}
+            for c in review.items:
+                if not set(c.evidence_ids).issubset(evidence_by_id):
+                    raise ValueError("Unknown sufficiency citation")
+                if c.sufficient and (
+                    not c.evidence_ids
+                    or any(
+                        evidence_by_id[eid].technology not in (technologies[c.question_id], "other")
+                        for eid in c.evidence_ids
+                    )
+                ):
+                    raise ValueError("Sufficiency needs relevant evidence")
+            return {
+                "coverage": review.items,
+                "is_sufficient": all(c.sufficient for c in review.items),
+            }
+        except Exception as exc:
+            return {
+                "is_sufficient": False,
+                "fatal": True,
+                "errors": [f"Sufficiency failed: {type(exc).__name__}"],
+            }
+
+    def remaining(state):
+        return live_search and any(
+            state["search_count"].get(q.id, 0) < settings.limits.search for q in data.questions
+        )
+
+    def enough_route(state):
+        if state.get("fatal"):
+            return "write_draft"
+        both_sides = all(
+            {r.intent for r in state["searches"] if r.question_id == q.id and not r.error}
+            >= {"positive", "critical"}
+            for q in data.questions
+        )
+        if remaining(state) and (not state["is_sufficient"] or not both_sides):
+            return "rewrite_query"
+        return "write_draft"
+
+    def rewrite_query(state):
+        try:
+            feedback = [c.model_dump() for c in state.get("coverage", [])]
+            feedback += [
+                c.model_dump()
+                for c in state.get("judge", JudgeResult(checks=[])).checks
+                if c.label != "supported"
+            ]
+            pairs = QueryPlan.model_validate(backend.plan(data, feedback)).queries
+            if (
+                len(pairs) != len(data.questions)
+                or {p.question_id for p in pairs} != {q.id for q in data.questions}
+                or any(not p.positive.strip() or not p.critical.strip() for p in pairs)
+            ):
+                raise ValueError("Invalid rewrite coverage")
+            return {"queries": {p.question_id: p for p in pairs}}
+        except Exception as exc:
+            return {"fatal": True, "errors": [f"Rewrite failed: {type(exc).__name__}"]}
+
+    def write_draft(state):
+        current = data.model_copy(deep=True)
+        current.description += "\n근거 충분성 검사: " + str(
+            [c.model_dump() for c in state.get("coverage", [])]
+        )
+        system, user, digest = render(node, current, state["search_results"])
+        if state.get("fatal"):
+            return {
+                "draft": empty_result(node, "; ".join(state["errors"])),
+                "prompt_hash": digest,
+                "rendered_system": system,
+                "rendered_user": user,
+            }
+        try:
+            draft = backend.generate(node, current, state["search_results"], system, user)
             return {
                 "draft": NodeResult.model_validate(draft),
                 "prompt_hash": digest,
-                "fatal": False,
+                "rendered_system": system,
+                "rendered_user": user,
                 "errors": [],
             }
         except Exception as exc:
@@ -198,73 +310,134 @@ def build_node_graph(
             return {
                 "draft": empty_result(node, reason),
                 "prompt_hash": digest,
+                "rendered_system": system,
+                "rendered_user": user,
                 "fatal": True,
                 "errors": [reason],
             }
 
-    def verify(state: WorkState):
+    def verify(state):
         if state.get("fatal"):
-            return {"judge": JudgeResult(checks=[])}
+            return {"judge": JudgeResult(checks=[]), "verdict": "추가 근거 필요"}
         try:
-            judge = JudgeResult.model_validate(backend.judge(state["draft"], state["evidence"]))
-            errors = contract_errors(node, data, state["draft"], state["evidence"], judge)
-            return {"judge": judge, "errors": errors}
+            judge = JudgeResult.model_validate(
+                backend.judge(state["draft"], state["search_results"])
+            )
+            errors = contract_errors(node, data, state["draft"], state["search_results"], judge)
+            labels = {c.label for c in judge.checks}
+            absent = bool(state["draft"].unverified) or (
+                mode != "mock"
+                and any(a.judgment == "확인 불가" for a in state["draft"].assessments)
+            )
+            verdict = (
+                "추가 근거 필요"
+                if "unsupported" in labels or absent
+                else "표현 오류"
+                if "misstated" in labels or errors
+                else "통과"
+            )
+            return {"judge": judge, "errors": errors, "verdict": verdict}
         except Exception as exc:
             return {
                 "judge": JudgeResult(checks=[]),
                 "fatal": True,
+                "verdict": "추가 근거 필요",
                 "errors": [f"Judge failed: {type(exc).__name__}"],
             }
 
-    def route(state: WorkState):
-        unsupported = any(c.label == "unsupported" for c in state["judge"].checks)
-        absent = (
-            not state["evidence"]
-            or bool(state["draft"].unverified)
-            or any(a.judgment == "확인 불가" for a in state["draft"].assessments)
-        )
-        remaining = any(
-            state["attempts"].get(q.id, 0) < settings.limits.search for q in data.questions
-        )
-        if not state.get("fatal") and source.retryable and remaining and (unsupported or absent):
-            return "search"
-        return "finalize"
+    def verify_route(state):
+        if not state.get("fatal"):
+            if state["verdict"] == "표현 오류" and state["fix_count"] < settings.limits.fix:
+                return "fix"
+            if state["verdict"] == "추가 근거 필요" and remaining(state):
+                return "rewrite_query"
+        return "return_result"
 
-    def finalize(state: WorkState):
+    def fix(state):
+        current = data.model_copy(deep=True)
+        current.description += (
+            "\n기존 근거만 사용해 표현/형식 오류를 수정하라. 새 사실을 만들지 마라.\n이전 결과: "
+            + state["draft"].model_dump_json()
+        )
+        current.description += (
+            "\n검증 피드백: " + state["judge"].model_dump_json() + str(state["errors"])
+        )
+        system, user, digest = render(node, current, state["search_results"])
+        try:
+            draft = NodeResult.model_validate(
+                backend.generate(node, current, state["search_results"], system, user)
+            )
+            return {
+                "draft": draft,
+                "fix_count": state["fix_count"] + 1,
+                "prompt_hash": digest,
+                "rendered_system": system,
+                "rendered_user": user,
+                "errors": [],
+            }
+        except Exception as exc:
+            return {
+                "fatal": True,
+                "fix_count": state["fix_count"] + 1,
+                "errors": [f"Fix failed: {type(exc).__name__}"],
+                "prompt_hash": digest,
+                "rendered_system": system,
+                "rendered_user": user,
+            }
+
+    def return_result(state):
         result = state["draft"].model_copy(deep=True)
         errors = list(state.get("errors", []))
         rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
         for c in state["judge"].checks:
             if c.label != "supported":
                 errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
-        for c in result.claims:
-            if c.id in rejected:
-                result.unverified.append(f"{c.id}: {c.text}")
+        result.unverified.extend(c.text for c in result.claims if c.id in rejected)
         result.claims = [c for c in result.claims if c.id not in rejected]
-        # A malformed Judge response or contract violation is not accepted as verified output.
-        if state.get("errors"):
+        if state.get("errors") or state.get("fatal"):
             result.unverified.extend(c.text for c in result.claims)
             result.claims = []
-        if rejected or state.get("errors"):
-            result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다. unverified와 validation_errors를 확인하세요."
-            for assessment in result.assessments:
-                assessment.judgment = "확인 불가"
-                assessment.rationale = "근거 검증 실패로 판정을 보류합니다."
-                assessment.evidence_ids = []
-        for record in state["searches"]:
-            if record.error:
-                errors.append(f"{record.question_id} attempt {record.attempt}: {record.error}")
-        if not state["evidence"]:
+        if rejected or state.get("errors") or state.get("fatal"):
+            result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
+            for a in result.assessments:
+                a.judgment, a.rationale, a.evidence_ids = (
+                    "확인 불가",
+                    "근거 검증 실패로 판정을 보류합니다.",
+                    [],
+                )
+            for t in result.trl_estimates:
+                t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+        errors.extend(
+            f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
+        )
+        if not state["search_results"]:
             errors.append("No evidence available")
-        for assessment in result.assessments:
-            if assessment.judgment == "확인 불가" and mode != "mock":
-                result.unverified.append(
-                    f"{assessment.technology}/{assessment.criterion}: 확인 불가"
+        if mode != "mock":
+            for a in result.assessments:
+                if a.judgment == "확인 불가":
+                    result.unverified.append(f"{a.technology}/{a.criterion}: 확인 불가")
+            for q in data.questions:
+                intents = {
+                    r.intent for r in state["searches"] if r.question_id == q.id and not r.error
+                }
+                if not {"positive", "critical"}.issubset(intents) and node in (
+                    "tech",
+                    "market",
+                    "stakeholder",
+                    "domain",
+                ):
+                    result.limitations.append(f"{q.id}: 긍정·비판 양쪽 실제 검색 미완료")
+            stances = {e.stance for e in state["search_results"]}
+            if not ({"positive", "critical"}.issubset(stances) or "mixed" in stances):
+                result.limitations.append(
+                    "긍정·비판 양쪽 자료의 원문 분류가 확인되지 않음. 검색 수행과 자료의 실제 입장은 다릅니다."
                 )
         status = (
             "failed"
             if state.get("fatal")
-            else ("needs_revision" if errors or result.unverified else "completed")
+            else "needs_revision"
+            if errors or result.unverified
+            else "completed"
         )
         return {
             "output": NodeRun(
@@ -272,21 +445,39 @@ def build_node_graph(
                 mode=mode,
                 status=status,
                 result=result,
-                evidence=state["evidence"],
+                evidence=state["search_results"],
                 checks=state["judge"].checks,
                 validation_errors=errors,
                 searches=state["searches"],
                 prompt_hash=state["prompt_hash"],
                 model=backend.name,
+                verdict=state["verdict"],
+                fix_count=state["fix_count"],
+                coverage=state.get("coverage", []),
             )
         }
 
-    builder = StateGraph(WorkState)
-    for fn in (search, generate, verify, finalize):
+    builder = StateGraph(RAGSubState)
+    for fn in (
+        plan,
+        search,
+        check_sufficiency,
+        rewrite_query,
+        write_draft,
+        verify,
+        fix,
+        return_result,
+    ):
         builder.add_node(fn.__name__, fn)
-    builder.add_edge(START, "search")
-    builder.add_edge("search", "generate")
-    builder.add_edge("generate", "verify")
-    builder.add_conditional_edges("verify", route, ["search", "finalize"])
-    builder.add_edge("finalize", END)
+    builder.add_edge(START, "plan")
+    builder.add_edge("plan", "search")
+    builder.add_edge("search", "check_sufficiency")
+    builder.add_conditional_edges(
+        "check_sufficiency", enough_route, ["rewrite_query", "write_draft"]
+    )
+    builder.add_edge("rewrite_query", "search")
+    builder.add_edge("write_draft", "verify")
+    builder.add_conditional_edges("verify", verify_route, ["fix", "rewrite_query", "return_result"])
+    builder.add_edge("fix", "verify")
+    builder.add_edge("return_result", END)
     return builder.compile()

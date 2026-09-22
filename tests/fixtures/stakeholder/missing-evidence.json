@@ -8,15 +8,15 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-competitor",
+      "id": "kivi-competitors",
       "technology": "KIVI",
-      "criterion": "competitor",
+      "criterion": "competitors",
       "text": "경쟁 기술 진영(TurboQuant, KVTC, MLA)이 KIVI의 2-bit asymmetric KV cache quantization(per-channel key, per-token value)을 어떻게 평가하는지 확인한다. KIVI comparison, limitation, accuracy drop, integration"
     },
     {
-      "id": "itme-competitor",
+      "id": "itme-competitors",
       "technology": "ITME",
-      "criterion": "competitor",
+      "criterion": "competitors",
       "text": "경쟁 기술 진영(NVIDIA CMX Context Memory Storage/BlueField DPU, Samsung CXL CMM-H, PNM)이 ITME의 CXL-hybrid memory 기반 KV cache tiering을 어떻게 평가하는지 확인한다. ITME SK hynix comparison, limitation, disaggregated context storage"
     }
   ],
