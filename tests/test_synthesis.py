@@ -275,7 +275,8 @@ def test_synthesis_repairs_missing_upstream_items_even_when_other_gaps_remain():
     run = build_node_graph(
         "synthesis", data, "fixture", load_settings(), backend, FixedEvidence(data)
     ).invoke({})["output"]
-    assert backend.calls == 2 and run.fix_count == 1
+    # 상위 미확인 이월은 코드가 보장하므로 재작성 없이 한 번에 끝난다.
+    assert backend.calls == 1 and run.fix_count == 0
     assert run.status == "needs_revision" and not run.validation_errors
     assert all(
         f"{role}: {item}" in run.result.unverified

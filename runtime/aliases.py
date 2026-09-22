@@ -101,6 +101,27 @@ def drop_cross_technology(result: NodeResult, evidence: list[Evidence]) -> NodeR
     return out
 
 
+def carry_forward_unverified(result: NodeResult, data) -> NodeResult:
+    """상위 노드의 미확인 항목을 코드가 그대로 이어 붙인다.
+
+    설계서는 상위 결과의 미확인 사항 보존을 요구한다. 그런데 이를 모델이 40여 건씩
+    옮겨 적게 하면 한두 건만 빠져도 계약 위반이 되어 종합 결과 전체가 기각된다
+    (live 점검에서 실제로 발생). 보존은 판단이 아니라 이월이므로 코드가 보장한다.
+    """
+    if result.node != "synthesis":
+        # 보고서는 6장에서 State 의 결과를 직접 싣는다. 이월은 종합의 계약이다.
+        return result
+    out = result.model_copy(deep=True)
+    present = set(out.unverified)
+    for role, prior in (data.prior_results or {}).items():
+        for item in prior.unverified:
+            line = f"{role}: {item}"
+            if line not in present:
+                present.add(line)
+                out.unverified.append(line)
+    return out
+
+
 def restore_coverage(items: list[Coverage], back: dict[str, str]) -> list[Coverage]:
     return [c.model_copy(update={"evidence_ids": _ids(c.evidence_ids, back)}) for c in items]
 

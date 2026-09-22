@@ -11,6 +11,7 @@ from rag.evidence import merge_evidence
 from rag.interface import PartialSearch, search_source, supports_scope
 from runtime.aliases import (
     alias,
+    carry_forward_unverified,
     drop_cross_technology,
     restore_result,
     split_absence_claims,
@@ -602,9 +603,12 @@ def build_node_graph(
                 draft = backend.generate(node, current, prompt_evidence, system, user)
             return {
                 "draft": split_absence_claims(
-                    drop_cross_technology(
-                        restore_result(NodeResult.model_validate(draft), back),
-                        state["search_results"],
+                    carry_forward_unverified(
+                        drop_cross_technology(
+                            restore_result(NodeResult.model_validate(draft), back),
+                            state["search_results"],
+                        ),
+                        data,
                     )
                 )[0],
                 "prompt_hash": digest,
@@ -703,14 +707,17 @@ def build_node_graph(
         system, user, digest = render(node, current, labelled)
         try:
             draft = split_absence_claims(
-                drop_cross_technology(
-                    restore_result(
-                        NodeResult.model_validate(
-                            backend.generate(node, current, labelled, system, user)
+                carry_forward_unverified(
+                    drop_cross_technology(
+                        restore_result(
+                            NodeResult.model_validate(
+                                backend.generate(node, current, labelled, system, user)
+                            ),
+                            back,
                         ),
-                        back,
+                        state["search_results"],
                     ),
-                    state["search_results"],
+                    data,
                 )
             )[0]
             return {
