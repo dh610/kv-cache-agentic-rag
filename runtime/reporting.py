@@ -88,6 +88,7 @@ def report_sources(state, result_keys):
 
 
 def collect_gaps(runs, settings):
+    """역할별 보완 대상. 같은 사유가 여러 번 쌓이면 보고서 6장이 같은 줄로 채워진다."""
     gaps = []
     for role, run in runs.items():
         items = run.result.assessments
@@ -118,7 +119,14 @@ def collect_gaps(runs, settings):
                 gaps.append(Gap(role=role, criterion=question, reason="긍정·비판 양쪽 검색 미완료"))
         if not questions:
             gaps.append(Gap(role=role, criterion="search", reason="검색 이력 없음"))
-    return gaps
+    unique, seen = [], set()
+    for gap in gaps:
+        key = (gap.role, gap.criterion, gap.reason)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(gap)
+    return unique
 
 
 def reference_text(e):
@@ -205,7 +213,8 @@ def reference_entries(sources):
 
 INTERNAL = re.compile(
     r"\s*[\(\[]\s*E\d+(\s*[,;·]\s*E\d+)*\s*[\)\]]"  # (E1, E3) 같은 임시 근거 번호
-    r"|\b(tech|market|stakeholder|domain|synthesis|report)/[A-Za-z]+/[a-z]+\s*:\s*"  # 내부 키
+    r"|\b(tech|market|stakeholder|domain|synthesis|report)/[A-Za-z]+/[a-z_]+"
+    r"(\s*[·,]\s*[a-z_]+)*\s*:?\s*"  # 내부 키 경로(나열 포함)
 )
 
 
@@ -276,11 +285,11 @@ def _claim_line(c):
 def _basis(assessment, evidence) -> str:
     """설계서 A.4: 평가 단위는 접근 전반이므로 칸마다 판정 기준과 직접 근거 유무를 함께 적는다."""
     if assessment.judgment == "확인 불가":
-        return "기준 없음, 직접 근거 없음"
+        return "기준 없음 · 직접 근거 없음"
     scopes = {e.scope for e in evidence if e.id in set(assessment.evidence_ids)}
     direct = "직접 근거 있음" if "target" in scopes else "직접 근거 없음"
     basis = "선정 기술 기준" if scopes == {"target"} else "접근 전반 기준"
-    return f"{basis}, {direct}"
+    return f"{basis} · {direct}"
 
 
 def _assessment_table(run, techs):
@@ -299,10 +308,13 @@ def _assessment_table(run, techs):
             )
             cells.append(
                 _cell(
-                    f"{a.judgment} ({_basis(a, run.evidence)}): {a.rationale}{_ids(a.evidence_ids)}"
+                    f'<font color="#2F5D8C">{a.judgment}</font><br/>'
+                    f"{_basis(a, run.evidence)}<br/>"
+                    f"{a.rationale}{_ids(a.evidence_ids)}"
                 )
                 if a
-                else "확인 불가 (기준 없음, 직접 근거 없음): 결과 누락"
+                else '<font color="#2F5D8C">확인 불가</font><br/>'
+                "기준 없음 · 직접 근거 없음<br/>결과 누락"
             )
         rows.append(f"| {LABELS.get(criterion, criterion)} | {' | '.join(cells)} |")
     return rows
@@ -513,16 +525,75 @@ def assemble_report(state, result_keys, mode):
     lines.append("# 6. 한계점")
     lines.append("## 6.1 정보의 한계")
     lines.append(
-        "모든 판정은 공개 정보 기반 추정이다. 아래는 보고서 노드가 통합한 한계, "
-        "코드가 기록한 근거 부족(gaps), 노드별 한계와 미확인 사항이다."
+        "모든 판정은 공개 정보 기반 추정이다. 먼저 관점별로 무엇이 확인되지 않았는지 세고, "
+        "이어서 그 사유를 관점별로 적는다. 근거가 없어 확인 불가로 남긴 항목은 삭제하지 않는다."
     )
-    lines.extend(f"- {s}" for s in report.result.limitations)
-    lines.extend(f"- gap {g.role}/{g.criterion}: {g.reason}" for g in state["gaps"])
-    for role in ("tech", "market", "stakeholder", "domain", "synthesis"):
+    roles = ("tech", "market", "stakeholder", "domain", "synthesis")
+    lines.append("표 6-1 관점별 확인 불가 현황")
+    lines.append("| 관점 | 확인 불가 / 전체 | 미확인 기록 | 근거 부족 | 상태 |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    for role in roles:
         run = state[result_keys[role]]
-        lines.extend(f"- {ROLE_LABELS[role]} 한계: {s}" for s in run.result.limitations)
-        lines.extend(f"- {ROLE_LABELS[role]} 미확인: {s}" for s in run.result.unverified)
-    lines.extend(f"- 보고서 생성 미확인: {s}" for s in report.result.unverified)
+        items = run.result.assessments
+        unknown = sum(1 for a in items if a.judgment == "확인 불가")
+        shortfall = sum(
+            1 for g in state["gaps"] if g.role == role and g.criterion != "verification"
+        )
+        lines.append(
+            f"| {ROLE_LABELS[role]} | {unknown}/{len(items)} | {len(run.result.unverified)}건 | "
+            f"{shortfall}건 | {run.status} |"
+        )
+    # 같은 문장이 여러 노드에서 반복되고, 질문마다 같은 기록이 쌓인다. 한 번만 싣는다.
+    printed: set[str] = set()
+    ROUTINE = (
+        ("긍정·비판 양쪽 실제 검색 미완료", "긍정·비판 양쪽 검색을 마치지 못한 질문"),
+        ("확인 불가", "확인 불가로 남은 항목"),
+    )
+
+    def bullets(label, values):
+        out, grouped = [], {}
+        for value in values:
+            text = _cell(str(value))
+            if not text:
+                continue
+            # 같은 형태의 기록은 항목 이름만 모아 한 줄로 싣는다.
+            for marker, title in ROUTINE:
+                if text.endswith(marker) and ":" in text:
+                    grouped.setdefault(title, []).append(text.split(":")[0].strip())
+                    break
+            else:
+                key = f"{label}|{text[:60]}"  # 끝부분만 다른 반복 문장도 한 번만 싣는다.
+                if key in printed:
+                    continue
+                printed.add(key)
+                out.append(f"- {label}: {text}")
+        for title, items in grouped.items():
+            key = f"{label}|{title}"
+            if key in printed:
+                continue
+            printed.add(key)
+            names = ", ".join(dict.fromkeys(items))
+            out.append(f"- {label}: {title} — {names}")
+        return out
+
+    lines.extend(bullets("보고서 통합 한계", report.result.limitations))
+    for role in roles:
+        run = state[result_keys[role]]
+        lines.extend(bullets(f"{ROLE_LABELS[role]} 한계", run.result.limitations))
+        lines.extend(bullets(f"{ROLE_LABELS[role]} 확인 필요", run.result.unverified))
+        shortfall = [g for g in state["gaps"] if g.role == role and g.criterion != "verification"]
+        lines.extend(bullets(f"{ROLE_LABELS[role]} 근거 부족", [g.reason for g in shortfall]))
+    lines.extend(bullets("보고서 생성 확인 필요", report.result.unverified))
+    checks = [g for g in state["gaps"] if g.criterion == "verification"]
+    if checks:
+        lines.append(
+            "아래는 자동 검사가 남긴 기록이다. 판정 내용이 아니라 인용·형식 검사 결과이며, "
+            "해당 항목은 위 표에서 확인 불가로 처리했다."
+        )
+        for role in roles:
+            reasons = [g.reason for g in checks if g.role == role]
+            if reasons:
+                lines.extend(bullets(f"{ROLE_LABELS[role]} 검사 기록", reasons))
     lines.append("## 6.2 확증편향 방지 조치")
     lines.append(sections.controls(mode=mode))
     lines.extend(_control_rows(state, result_keys, techs))
@@ -596,8 +667,15 @@ def _rule(color, width):
 
 
 def pdf_text(value: str) -> str:
-    """Escape markup; the embedded font includes the original middle-dot glyph."""
-    return escape(value)
+    """표 칸에서 쓰는 최소 서식만 남기고 나머지는 이스케이프한다.
+
+    내장 글꼴이 가운뎃점을 제대로 그리므로 문자 치환은 하지 않는다. 표 칸은 등급·판단
+    기준·사유를 줄로 나누고 등급에 색을 주기 위해 <br/> 와 <font> 만 통과시킨다.
+    """
+    out = escape(value)
+    for tag in ("<br/>", '<font color="#2F5D8C">', "</font>"):
+        out = out.replace(escape(tag), tag)
+    return out
 
 
 def write_report(text, output: Path, meta=None, mode: str = "live"):

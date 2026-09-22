@@ -86,7 +86,7 @@ def build_main_graph(
     builder.add_node("initialize", initialize)
 
     def make_node(name):
-        def run(state, previous=None, refresh_technologies=None):
+        def run(state, config: RunnableConfig, previous=None, refresh_technologies=None):
             data = inputs[name].model_copy(deep=True)
             if mode == "live":
                 data.evidence = []  # Never mix demo fixture excerpts with live search.
@@ -146,6 +146,13 @@ def build_main_graph(
             out = graph.invoke({}, config={"recursion_limit": 80})["output"]
             cited = used_ids(out)
             delta = {RESULT_KEYS[name]: out, "sources": [e for e in out.evidence if e.id in cited]}
+            # 노드가 끝나는 즉시 저장한다. 뒤 단계가 실패해도 여기까지의 조사 결과는 남는다
+            # (live 점검에서 마지막 집계 오류로 35분치 호출이 통째로 사라졌다).
+            folder = config.get("configurable", {}).get("output_dir")
+            if folder:
+                path = Path(folder) / "nodes"
+                path.mkdir(parents=True, exist_ok=True)
+                (path / f"{name}.json").write_text(out.model_dump_json(indent=2), encoding="utf-8")
             if name == "synthesis":
                 estimates = {
                     t.technology: t.model_dump()
@@ -181,7 +188,7 @@ def build_main_graph(
 
     builder.add_node("collect", collect)
 
-    def supplement(state):
+    def supplement(state, config: RunnableConfig):
         """보완 재실행 (표 12·13): gaps 의 담당 역할만 1라운드 재실행하고 결과 키를 교체한다.
 
         기술 조사 결과가 바뀌면 그것을 참고한 세 평가도 다시 돈다. 결과 수집을 거치지 않고 synthesis 로 복귀한다.
@@ -203,6 +210,7 @@ def build_main_graph(
             previous = working[RESULT_KEYS[name]]
             delta = runners[name](
                 view,
+                config,
                 previous=previous,
                 refresh_technologies=changed_techs,
             )

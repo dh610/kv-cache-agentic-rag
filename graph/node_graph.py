@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import hashlib
+import operator
 from collections import Counter
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 from langchain_core.runnables.config import ContextThreadPoolExecutor
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
-from rag.interface import search_source, supports_scope
-from runtime.aliases import alias, restore_result, split_absence_claims
+from rag.interface import PartialSearch, search_source, supports_scope
+from runtime.aliases import (
+    alias,
+    carry_forward_unverified,
+    drop_cross_technology,
+    restore_result,
+    split_absence_claims,
+)
 from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
@@ -52,6 +59,7 @@ class RAGSubState(TypedDict, total=False):
     searches: list[SearchRecord]
     judge: JudgeResult
     errors: list[str]
+    plan_errors: Annotated[list[str], operator.add]  # 초안 재작성으로 지워지지 않게 누적한다
     fatal: bool
     prompt_hash: str
     rendered_system: str
@@ -127,6 +135,15 @@ def contract_errors(
     known = {e.id for e in evidence}
     techs = set(data.target_techs.values())
     rubric = {c.id: c for c in load_rubric(node).criteria}
+    # 평가 종합의 일은 관점 간 대조다. 등급은 자기 루브릭(consistency·implications)만 쓰지만,
+    # 개별 주장은 대조 대상인 상위 관점의 항목명을 그대로 가리킬 수 있어야 한다.
+    claim_criteria = set(rubric)
+    if node == "synthesis":
+        claim_criteria |= {
+            c.id
+            for role in ("tech", "market", "stakeholder", "domain")
+            for c in load_rubric(role).criteria
+        }
     if result.node != node:
         errors.append(f"node mismatch: expected {node}")
     ids = [c.id for c in result.claims]
@@ -148,7 +165,7 @@ def contract_errors(
         if check.label == "supported" and not check.evidence_ids:
             errors.append(f"{check.claim_id}: supported without evidence")
     for claim in result.claims:
-        if claim.technology not in techs or claim.criterion not in rubric:
+        if claim.technology not in techs or claim.criterion not in claim_criteria:
             errors.append(
                 f"{claim.id}: unknown technology/criterion ({claim.technology}/{claim.criterion})"
             )
@@ -371,7 +388,12 @@ def build_node_graph(
         def fetch(job):
             q, count, intent, scope = job
             try:
-                found = search_source(source, q, count, scope)
+                partial = None
+                try:
+                    found = search_source(source, q, count, scope)
+                except PartialSearch as exc:
+                    # 공급자 하나가 실패해도 나머지 근거는 버리지 않는다 (설계서 D.3).
+                    found, partial = exc.found, str(exc)
                 return found, SearchRecord(
                     question_id=q.id,
                     attempt=count,
@@ -379,6 +401,7 @@ def build_node_graph(
                     intent=intent,
                     scope=scope,
                     evidence_ids=[e.id for e in found],
+                    error=f"Search partly failed: {partial}" if partial else None,
                 )
             except Exception as exc:
                 return [], SearchRecord(
@@ -532,7 +555,10 @@ def build_node_graph(
             ]
             return {"queries": planned(questions, feedback)}
         except Exception as exc:
-            return {"fatal": True, "errors": [f"Rewrite failed: {type(exc).__name__}"]}
+            # 질의 재작성 한 번이 실패했다고 노드를 죽이지 않는다. 설계서 D.3: 근거 부족은
+            # 실행 실패와 구분한다. 기존 질의로 남은 예산만큼 계속하고 사실만 기록한다
+            # (live 점검에서 이해관계자 노드가 이 한 줄로 통째로 failed 가 됐다).
+            return {"plan_errors": [f"Rewrite failed: {type(exc).__name__}; 기존 검색어 유지"]}
 
     def write_draft(state):
         current = data.model_copy(deep=True)
@@ -582,7 +608,13 @@ def build_node_graph(
                 draft = backend.generate(node, current, prompt_evidence, system, user)
             return {
                 "draft": split_absence_claims(
-                    restore_result(NodeResult.model_validate(draft), back)
+                    carry_forward_unverified(
+                        drop_cross_technology(
+                            restore_result(NodeResult.model_validate(draft), back),
+                            state["search_results"],
+                        ),
+                        data,
+                    )
                 )[0],
                 "prompt_hash": digest,
                 "rendered_system": system,
@@ -680,11 +712,17 @@ def build_node_graph(
         system, user, digest = render(node, current, labelled)
         try:
             draft = split_absence_claims(
-                restore_result(
-                    NodeResult.model_validate(
-                        backend.generate(node, current, labelled, system, user)
+                carry_forward_unverified(
+                    drop_cross_technology(
+                        restore_result(
+                            NodeResult.model_validate(
+                                backend.generate(node, current, labelled, system, user)
+                            ),
+                            back,
+                        ),
+                        state["search_results"],
                     ),
-                    back,
+                    data,
                 )
             )[0]
             return {
@@ -810,6 +848,7 @@ def finalize_node(node, data, mode, state, model):
                     t.level, t.evidence_ids, t.rationale = None, [], "등급과 불일치"
     if dropped or state.get("errors") or state.get("fatal"):
         result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
+    errors.extend(state.get("plan_errors", []))
     errors.extend(
         f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
     )

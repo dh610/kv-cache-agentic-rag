@@ -46,7 +46,7 @@ SW의 **KIVI**와 HW의 **ITME**를 대상으로, **데이터센터·클라우�
 | LLM / Generator | `gpt-4.1-mini` — 답변 생성·수정 및 검색 계획 |
 | LLM / Judge | `gpt-4.1-mini` — 근거 충분성 및 주장·인용 검증 |
 | Retrieval | FAISS, 정규화된 dense 벡터의 내적 검색, 기본 Top-K = 5 |
-| Retrieval Metrics | **정량 검색 평가 미수행 — Hit@5·MRR 실측 결과 없음**. 설정의 Hit@5 ≥ 0.80, MRR ≥ 0.60은 향후 평가 목표이며 달성 수치가 아님 |
+| Retrieval Metrics | 30문항 실측: **Hit@1 0.433 / Hit@3 0.733 / Hit@5 0.800 / MRR 0.600** (BGE-M3, dense, 리랭커 없음). 사전 등록 기준 Hit@5 ≥ 0.80·MRR ≥ 0.60 충족 |
 | Embedding | 오픈소스 `BAAI/bge-m3` — 기본 서비스 검색에는 dense 임베딩 사용 |
 | Chunking | 1,200자, overlap 200자 |
 | Web Search | Tavily API — 웹 원문과 URL·수집일 등 출처 메타데이터 |
@@ -60,15 +60,27 @@ SW의 **KIVI**와 HW의 **ITME**를 대상으로, **데이터센터·클라우�
 
 BGE-M3는 한국어 질문과 영어 기술 논문을 함께 다루는 다국어 검색, 오픈소스 사용, 로컬 실행 조건을 고려해 기본 모델로 선택했습니다. FAISS에 연결하는 dense 검색부터 구성하고, sparse 결합과 리랭커는 필요 시 평가하는 옵션으로 두었습니다. 이 선택은 **구현을 위한 초기 선정**이며 비교 실험으로 최적 모델임을 입증한 결과는 아닙니다.
 
-**현재 BGE-M3를 기본 적용했으며, 정량 검색 평가와 후보 모델 비교 실험은 수행하지 않았습니다.** 저장소에는 평가 실행 코드와 설정, 평가셋 작성 안내가 있지만, 사람이 원문과 대조한 30문항 평가셋과 3모델 비교 결과는 없습니다. RAG 실행·보고서 생성 점검은 이 정량 평가와 별개입니다.
+**30문항 평가셋([data/eval/retrieval_qa.json](data/eval/retrieval_qa.json))으로 후보 모델을 실측했습니다.** 각 정답 문장은 색인된 원문 청크와 대조해 확인했고(기술별 15문항, 약어·수치 19문항, 전부 한국어 질문), BGE-M3가 리랭커 없이 사전 등록 기준을 충족해 기본 설정을 그대로 유지합니다.
 
-향후 평가 계획은 한국어 30문항(기술별 15개, 약어·수치 포함 10개 이상)을 준비해 BGE-M3, multilingual-e5-large, gte-multilingual-base를 동일 조건에서 비교하는 것입니다. 설정에는 기준 미달 시 청킹 → 이중언어 질의 → dense+sparse → 리랭커를 평가하는 절차가 마련돼 있지만, **이 개선 실험도 수행하지 않았습니다.** 현재 서비스의 기본 리랭커는 꺼져 있습니다. 평가 코드의 MRR은 전체 검색 순위 기준이며 MRR@5와 구분합니다.
+| 임베딩 모델 | Hit@1 | Hit@3 | Hit@5 | MRR | 기준 |
+| --- | --- | --- | --- | --- | --- |
+| **BAAI/bge-m3** (선정) | 0.433 | 0.733 | **0.800** | **0.600** | 통과 |
+| intfloat/multilingual-e5-large | 0.333 | 0.600 | 0.700 | 0.512 | 미달 |
+| Alibaba-NLP/gte-multilingual-base | — | — | — | — | 측정 불가 |
+
+gte-multilingual-base는 로딩에 커스텀 원격 코드 실행(`trust_remote_code=True`)이 필요해 측정하지 않았고, 사유를 산출물([docs/retrieval_eval.json](docs/retrieval_eval.json))에 기록했습니다. 기준 미달 시 청킹 → 이중언어 질의 → dense+sparse → 리랭커 순으로 재평가하는 절차가 있으나, 기준선에서 통과해 실행하지 않았습니다. 서비스의 기본 리랭커는 꺼진 상태입니다. 평가 코드의 MRR은 전체 검색 순위 기준이며 MRR@5와 구분합니다.
+
+```bash
+uv run --extra rag python -m app.evaluate_retrieval \
+  --dataset data/eval/retrieval_qa.json --run --remediate \
+  --output outputs/retrieval_eval.json
+```
 
 | 구분 | 의미·현재 상태 |
 | --- | --- |
-| Hit@5 | 상위 5개 검색 결과에 정답 청크가 포함된 질문의 비율. 미측정 |
-| MRR | 첫 정답 청크 순위의 역수를 질문 전체에 대해 평균한 값. 정답 미검색은 0으로 처리하며 현재 미측정 |
-| 남은 검증 | 원문과 대조한 정답 평가셋 완성 → 동일 조건의 3모델 측정 → 선정 결과·설정·문항별 순위 기록 |
+| Hit@5 | 상위 5개 검색 결과에 정답 청크가 포함된 질문의 비율. BGE-M3 실측 0.800 |
+| MRR | 첫 정답 청크 순위의 역수를 질문 전체에 대해 평균한 값. 정답 미검색은 0으로 처리. BGE-M3 실측 0.600 |
+| 남은 검증 | gte-multilingual-base 측정(원격 코드 실행 검토 필요), 청킹 조정으로 Hit@1 개선 여지 |
 
 평가 입력과 실행 방법은 [검색 평가 안내](data/eval/README.md)에 있습니다. 자동 테스트·mock 실행·PDF 생성 성공은 검색 정확도나 보고서 사실성의 실측 결과를 대신하지 않습니다.
 

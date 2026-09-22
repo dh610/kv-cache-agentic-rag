@@ -50,11 +50,73 @@ def _ids(values: list[str], back: dict[str, str]) -> list[str]:
     return list(dict.fromkeys(back.get(value, value) for value in values))
 
 
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def clean_text(value: str) -> str:
+    return CONTROL.sub("", value).strip()
+
+
 def restore_result(result: NodeResult, back: dict[str, str]) -> NodeResult:
     restored = result.model_copy(deep=True)
+    # 원문 PDF·웹에서 옮겨 붙은 제어문자가 판정 값까지 오염시킨 적이 있다(live 점검).
+    restored.summary = clean_text(restored.summary)
+    restored.unverified = [clean_text(u) for u in restored.unverified]
+    restored.limitations = [clean_text(x) for x in restored.limitations]
+    for claim in restored.claims:
+        claim.text = clean_text(claim.text)
+        claim.conditions = [clean_text(c) for c in claim.conditions]
+    for item in restored.assessments:
+        item.judgment = clean_text(item.judgment)
+        item.rationale = clean_text(item.rationale)
+    for estimate in restored.trl_estimates:
+        estimate.rationale = clean_text(estimate.rationale)
     for item in [*restored.claims, *restored.assessments, *restored.trl_estimates]:
         item.evidence_ids = _ids(item.evidence_ids, back)
     return restored
+
+
+def drop_cross_technology(result: NodeResult, evidence: list[Evidence]) -> NodeResult:
+    """다른 기술의 근거를 인용한 항목에서 그 인용만 떼어낸다.
+
+    설계서 C.2: 다른 기술의 실험 결과를 대상 기술의 근거로 전용하지 않는다. 기술별로 나눠
+    생성해도 근거 번호는 전체 목록 기준이라, 모델이 자기 묶음에 없는 앞 번호를 적으면 다른
+    기술의 근거로 복원됐다(live 점검에서 ITME 도메인 판정이 전부 기각됨). 목록에 없는
+    ID(지어낸 인용)는 남겨 계약 검사가 잡게 한다.
+    """
+    by_id = {e.id: e for e in evidence}
+
+    def allowed(item, eid: str) -> bool:
+        found = by_id.get(eid)
+        if found is None:
+            return True
+        return found.technology in (item.technology, "other") or found.document_role == "reference"
+
+    out = result.model_copy(deep=True)
+    for item in [*out.claims, *out.assessments, *out.trl_estimates]:
+        item.evidence_ids = [eid for eid in item.evidence_ids if allowed(item, eid)]
+    return out
+
+
+def carry_forward_unverified(result: NodeResult, data) -> NodeResult:
+    """상위 노드의 미확인 항목을 코드가 그대로 이어 붙인다.
+
+    설계서는 상위 결과의 미확인 사항 보존을 요구한다. 그런데 이를 모델이 40여 건씩
+    옮겨 적게 하면 한두 건만 빠져도 계약 위반이 되어 종합 결과 전체가 기각된다
+    (live 점검에서 실제로 발생). 보존은 판단이 아니라 이월이므로 코드가 보장한다.
+    """
+    if result.node != "synthesis":
+        # 보고서는 6장에서 State 의 결과를 직접 싣는다. 이월은 종합의 계약이다.
+        return result
+    out = result.model_copy(deep=True)
+    present = set(out.unverified)
+    for role, prior in (data.prior_results or {}).items():
+        for item in prior.unverified:
+            line = f"{role}: {item}"
+            if line not in present:
+                present.add(line)
+                out.unverified.append(line)
+    return out
 
 
 def restore_coverage(items: list[Coverage], back: dict[str, str]) -> list[Coverage]:
