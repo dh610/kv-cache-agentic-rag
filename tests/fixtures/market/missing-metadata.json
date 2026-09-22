@@ -1,6 +1,6 @@
 {
-  "case_id": "market-missing-evidence",
-  "description": "근거가 전혀 없는 시장 6항목 테스트. 평가 기준일: 2026-09-22 (고정 예시). 제공되지 않은 자료나 검색 수행을 만들지 말고 요청된 항목을 모두 처리하라.",
+  "case_id": "market-missing-metadata",
+  "description": "[SYNTHETIC TEST ONLY] 아래 기관·제품·수치·사건은 모두 가상이다. 실제 KIVI·ITME 현황을 나타내지 않는다. 이 가상 시나리오의 제공 근거만으로 질문에 답하고 결과에도 합성 테스트임을 표시하라. 평가 기준일: 2026-09-22. 기준일 이후 자료·사건을 당시의 확인 근거로 사용하지 마라. 평가 기준일은 고정 예시이며 실제 평가에서는 기준일과 근거를 함께 교체한다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -44,6 +44,35 @@
       "text": "ITME를 지원하는 프레임워크·라이브러리·표준은 무엇인가? 지원 주체·버전/범위·확인 시점·정식/실험적 상태와 원 기술과의 관계를 확인하고, 일반적인 계열 기술 지원이나 지원 계획과 구분하여 평가하라."
     }
   ],
-  "evidence": [],
+  "evidence": [
+    {
+      "id": "synthetic-missing-metadata-kivi-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 커뮤니티 K의 유지관리 문서는 KIVI 원 논문과 동일한 구현을 가상 프레임워크 K의 버전 0.2 실험적 기능으로 제공한다고 명시한다. Linux 단일 노드를 지원하며 실제 기업 도입·시장 전망은 다루지 않는다. 문서 발행일과 기능 공개일은 기재하지 않았다.",
+      "title": "[SYNTHETIC] missing-metadata / KIVI / 1",
+      "url": "https://example.invalid/market/synthetic-missing-metadata-kivi-1",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 커뮤니티 K 유지관리자",
+      "site": "example.invalid",
+      "published_at": null,
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-missing-metadata-itme-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 커뮤니티 K의 유지관리 문서는 ITME 원 논문과 동일한 구현을 가상 프레임워크 K의 버전 0.2 실험적 기능으로 제공한다고 명시한다. Linux 단일 노드를 지원하며 실제 기업 도입·시장 전망은 다루지 않는다. 문서 발행일과 기능 공개일은 기재하지 않았다.",
+      "title": "[SYNTHETIC] missing-metadata / ITME / 1",
+      "url": "https://example.invalid/market/synthetic-missing-metadata-itme-1",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 커뮤니티 K 유지관리자",
+      "site": "example.invalid",
+      "published_at": null,
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    }
+  ],
   "prior_results": {}
 }

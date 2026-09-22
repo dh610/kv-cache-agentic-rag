@@ -24,7 +24,8 @@ def test_every_node_runs_independently(node):
     result = run(node)
     assert isinstance(result, NodeRun)
     assert result.status == "completed"
-    assert len(result.searches) == len(load_input(node).questions)
+    data = load_input(node)
+    assert Counter(s.question_id for s in result.searches) == Counter(q.id for q in data.questions)
     assert {c.technology for c in result.result.claims} == {"KIVI", "ITME"}
     assert result.prompt_hash
 
@@ -35,7 +36,8 @@ def test_empty_evidence_is_not_success(node):
     assert result.status == "needs_revision"
     assert not result.result.claims
     assert result.result.unverified
-    assert len(result.searches) == len(load_input(node, "missing-evidence").questions)
+    data = load_input(node, "missing-evidence")
+    assert Counter(s.question_id for s in result.searches) == Counter(q.id for q in data.questions)
 
 
 def test_live_prompt_cannot_see_stale_fixture_evidence():
@@ -158,6 +160,14 @@ def test_parallel_join_runs_once_and_preserves_upstream_sources():
     assert set(synthesis_input.prior_results) == {"tech", "market", "stakeholder", "domain"}
     assert len({e.id for e in sources}) == 10  # 4 upstream roles + synthesis fixture.
     assert set(backend.inputs["market"][0].prior_results) == {"tech"}
+    expected_market = {
+        (tech, criterion)
+        for tech in ("KIVI", "ITME")
+        for criterion in ("growth", "adoption", "ecosystem")
+    }
+    market_items = synthesis_input.prior_results["market"].assessments
+    assert len(market_items) == 6
+    assert {(a.technology, a.criterion) for a in market_items} == expected_market
 
 
 def test_parent_pipeline_preserves_failure_status():

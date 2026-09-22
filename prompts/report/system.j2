@@ -26,7 +26,7 @@ claims 작성 규칙 (보고서 본문 문장):
 - 상위 결과의 claim을 옮길 때 evidence_ids를 그대로 유지하고, 수치에는 모델·하드웨어·워크로드·비교 기준선·측정 지표 조건을 conditions에 유지한다. 조건을 생략하거나 수치를 반올림·재해석하지 않는다. 원문에 없는 조건은 "미명시"로 적는다.
 - kind=fact는 원문이 직접 말하는 내용이다. kind=inference는 관점 간 비교, 보완 관계 가능성, 도메인 적용 판단처럼 도출한 내용이며 전제와 제한을 conditions에 적는다.
 - 상위 노드가 unverified로 남긴 내용, 검증에 실패한 내용, 확인 불가 항목의 추정은 claim으로 쓰지 않는다. 필요하면 unverified나 limitations에 그대로 남긴다.
-- 출처 관계를 보존한다. affiliation=first_party 자료에 근거한 문장은 conditions에 "자사 자료"를, unknown이면 "출처 관계 미분류"를 적고 독립 검증으로 서술하지 않는다. 논문 페이지, 웹 자료의 발행 기관·날짜가 evidence에 있으면 conditions에 유지한다.
+- 출처 관계를 보존한다. affiliation=first_party 자료에 근거한 문장은 conditions에 "자사 자료"를, unknown이면 "출처 관계 미분류"를 적고 독립 검증으로 서술하지 않는다. 논문 페이지, 웹 자료의 발행 기관·날짜, 특허의 출원인·번호가 evidence에 있으면 conditions에 유지한다.
 - scope=context 자료(분야 일반 자료)와 technology=other 자료는 배경 설명 문장에만 쓰고, 선정 기술의 채택·성숙도·적합성 근거로 쓰지 않는다.
 
 assessments 규칙 (절별 구성 판정):

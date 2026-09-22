@@ -1,0 +1,57 @@
+{
+  "rubric": "설계서 C.3(TRL 확정)·C.7(상충 보존)·E.2 5장(시사점), 평가 가이드 C.5 종합 의견, rubrics/synthesis.yaml",
+  "scope": "제공된 고정 상위 결과와 검토자 요약 근거에 한정한 종합 판단의 회귀 점검. 실제 시장·이해관계자 자료가 없으므로 시장 직접 근거에 의한 TRL 상향은 이 사례에서 검증하지 않는다. 검색 품질 측정값이 아니다.",
+  "cases": [
+    {
+      "id": "paper_only",
+      "input": "../acceptance.json",
+      "allow_unknown": true,
+      "expectations": {
+        "KIVI": {
+          "consistency": ["상충"],
+          "implications": ["조건부 시사점", "판정 유보"],
+          "trl_range": [3, 4],
+          "required_consistency_evidence_ids": ["kivi-review-p6-quality", "kivi-review-p1-abstract"]
+        },
+        "ITME": {
+          "consistency": ["일치"],
+          "implications": ["조건부 시사점", "판정 유보"],
+          "trl_range": [4, 5],
+          "required_consistency_evidence_ids": ["itme-review-p8-fpga"]
+        }
+      },
+      "reason": "KIVI: 기술 조사의 limitations(p.6, Falcon-7B 2비트 정확도 저하)와 도메인의 quality=적합(p.1 초록 요약)이 같은 측면(정확도)에서 엇갈리므로 상충이며 양쪽 ID를 인용해야 한다. ITME: 기술 조사의 mechanism·limitations와 도메인의 operations·performance·scalability가 특정 하드웨어 의존과 논문 자체 평가 범위에서 같은 방향이므로 일치. TRL: 시장 결과가 전부 확인 불가이므로 잠정 단계(KIVI 4, ITME 5)를 넘을 수 없고, 잠정 근거 해석에 따라 한 단계 낮출 수 있다. level=null은 보류로 보고 inconclusive로 처리한다.",
+      "manual_review": [
+        "KIVI 상충의 원인이 초록 수준 요약과 세부 실험의 차이라는 점을 inference로 분리했는가",
+        "ITME 성능 수치가 FPGA 시제품이 아닌 CMM 플랫폼 측정임을 보존했는가",
+        "시장·이해관계자 12개 확인 불가 항목과 도메인 3개 확인 불가 항목이 unverified에 그대로 남았는가",
+        "summary에 추천·우열 표현이 없고 공개 정보 기반 추정임이 명시됐는가",
+        "보완 가능성을 적었다면 양쪽 원문 근거를 인용한 inference인가"
+      ]
+    },
+    {
+      "id": "no_prior",
+      "input": "no_prior.json",
+      "allow_unknown": true,
+      "expectations": {
+        "KIVI": {
+          "consistency": [],
+          "implications": [],
+          "trl_range": null,
+          "required_consistency_evidence_ids": []
+        },
+        "ITME": {
+          "consistency": [],
+          "implications": [],
+          "trl_range": null,
+          "required_consistency_evidence_ids": []
+        }
+      },
+      "reason": "상위 관점 결과가 없으므로 일치·상충·시사점을 만들 수 없고 TRL도 확정할 수 없다. 모든 항목 확인 불가와 level=null(또는 추정 없음)만 통과다.",
+      "manual_review": [
+        "초록 요약만으로 판정을 만들어내지 않았는가",
+        "unverified에 확인 불가 사유가 남았는가"
+      ]
+    }
+  ]
+}

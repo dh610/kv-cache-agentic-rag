@@ -34,6 +34,12 @@
 
 ## 팀원이 맞춰야 할 인터페이스
 
+시장 브랜치 이관 시 적용한 차이: 사용자 지정 제출 설계서 `(2).pdf`의 C.2·C.4·표 8을 우선해
+시장 rubric은 출처 수와 축소 전망이 충돌하면 낮은 등급과 상충 기록을 유지합니다.
+이는 위의 main 병합 당시 확인 불가 보류 해석을 팀 전체가 변경했다는 뜻이 아닙니다.
+시장 6질문과 합성 기대값을 보존했고, 공통 계약 v2의 State·검색·수정·검증 구조는 그대로 사용합니다.
+구체적인 시장 이관 내용은 [시장 변경 기록](final-design-review.md#시장-계약-v2-병합-현황)에 있습니다.
+
 - `config.yaml.schema_version=2`; `uv sync --frozen` 재실행. 실제 검색/평가는 `uv sync --frozen --extra rag`.
 - 공개 입력 `NodeInput.questions` 목록과 반환 `NodeRun`은 유지. 내부 State 이름/단계가 바뀌었으므로 기존 graph 코드를 통째로 덮어쓰지 않습니다.
 - `ModelBackend`를 직접 구현한 경우 `plan(data, feedback) -> QueryPlan`, `sufficiency(data, evidence) -> SufficiencyResult`도 구현합니다. 출력은 런타임에서 다시 검증합니다.

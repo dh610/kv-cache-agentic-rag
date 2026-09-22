@@ -93,7 +93,15 @@ def test_required_bibliographic_fields_and_unknown_web_dates():
     paper = load_input("tech").evidence[0].model_copy(update={"source_type": "paper"})
     assert any("authors" in s for s in reference_issues(paper))
     paper.authors, paper.year, paper.venue = "Test author", 2024, "Test conference"
+    assert any("citation_id" in s for s in reference_issues(paper))  # 권(호)·페이지
+    paper.citation_id = "12(3), 45-67"
     assert reference_issues(paper) == []
+    patent = paper.model_copy(update={"source_type": "patent", "citation_id": None})
+    assert {"publisher", "published_at", "citation_id"} <= {
+        s.split("missing ")[1] for s in reference_issues(patent)
+    }
+    patent.publisher, patent.published_at, patent.citation_id = "Test Corp", "2025-03", "US-1-A1"
+    assert reference_issues(patent) == []
     web = paper.model_copy(
         update={
             "source_type": "web",

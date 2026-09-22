@@ -1,6 +1,6 @@
 {
   "case_id": "synthesis-acceptance",
-  "description": "구현 인수용 질문 범위: 두 기술의 모든 현재 rubric 항목. 기본 evidence는 짧은 예시일 뿐이므로 실제 평가용 근거로 교체해야 합니다. 확인 불가를 숨기지 마세요.",
+  "description": "구현 인수 및 종합 판단 회귀 점검용 입력: 두 기술 × 현재 rubric 전체 항목. evidence.text는 원문 인용이 아니라 검토자가 KIVI·ITME 논문 해당 페이지에서 작성한 한국어 요약이며(기술 담당의 trl_eval 사례를 재사용, 초록 요약 2건은 설계서 A.2 표 1과 대조), prior_results는 그 근거만으로 네 관점이 냈을 법한 결과를 검토자가 구성한 것이다. 시장·이해관계자 결과는 웹 자료가 없어 전부 확인 불가이며, 도메인의 KIVI 품질 판정은 초록 요약에만 근거해 기술 조사의 한계와 상충하도록 구성했다. 실제 종합 평가나 보고서 근거로 제출하지 않는다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -11,52 +11,430 @@
       "id": "kivi-consistency",
       "technology": "KIVI",
       "criterion": "consistency",
-      "text": "기존 결과의 일치와 상충, 미확인 사항을 보존한다. 의견을 맞추려는 재조사는 금지한다. 기존 근거만 사용한다. 기술의 잠정 TRL을 시장 직접 근거와 대조하고 trl_estimates에 기술별 최종 단계·사유·근거·추정 한계를 기록한다. 증거가 부족하면 level=null."
+      "text": "KIVI에 대한 기술·시장·이해관계자·도메인 결과에서 같은 측면(품질·정확도, 성능 조건, 하드웨어 의존, 비용, 채택 근거)의 판정과 한계가 어디서 일치하고 어디서 엇갈리는지 원문 근거 ID로 대조한다. 기술 조사의 잠정 TRL을 시장 직접 근거와 대조해 최종 TRL 또는 level=null과 추정 한계를 기록한다."
     },
     {
       "id": "kivi-implications",
       "technology": "KIVI",
       "criterion": "implications",
-      "text": "특정 기술을 추천하거나 우열을 판정하지 않는다. 기술×관점 비교에서 조건과 상충을 설명하는 시사점을 제시한다."
+      "text": "KIVI가 어떤 조건(모델·하드웨어·워크로드·규모·도메인 요구)에서 각 관점의 평가가 성립하고 어디서 갈리는지 정리한다. ITME와의 보완 가능성은 양쪽 원문 근거가 있을 때만 추론으로 적고, 추천이나 우열은 쓰지 않는다."
     },
     {
       "id": "itme-consistency",
       "technology": "ITME",
       "criterion": "consistency",
-      "text": "기존 결과의 일치와 상충, 미확인 사항을 보존한다. 의견을 맞추려는 재조사는 금지한다. 기존 근거만 사용한다. 기술의 잠정 TRL을 시장 직접 근거와 대조하고 trl_estimates에 기술별 최종 단계·사유·근거·추정 한계를 기록한다. 증거가 부족하면 level=null."
+      "text": "ITME에 대한 기술·시장·이해관계자·도메인 결과에서 같은 측면(성능 조건, 하드웨어·인프라 의존, 비용, 품질, 채택 근거)의 판정과 한계가 어디서 일치하고 어디서 엇갈리는지 원문 근거 ID로 대조한다. 기술 조사의 잠정 TRL을 시장 직접 근거와 대조해 최종 TRL 또는 level=null과 추정 한계를 기록한다."
     },
     {
       "id": "itme-implications",
       "technology": "ITME",
       "criterion": "implications",
-      "text": "특정 기술을 추천하거나 우열을 판정하지 않는다. 기술×관점 비교에서 조건과 상충을 설명하는 시사점을 제시한다."
+      "text": "ITME가 어떤 조건(모델·하드웨어·워크로드·규모·도메인 요구)에서 각 관점의 평가가 성립하고 어디서 갈리는지 정리한다. KIVI와의 보완 가능성은 양쪽 원문 근거가 있을 때만 추론으로 적고, 추천이나 우열은 쓰지 않는다."
     }
   ],
   "evidence": [
     {
-      "id": "kivi-abstract-fixture",
-      "text": "the value cache should be quantized per-token.",
-      "title": "KIVI — abstract excerpt (limited fixture)",
-      "url": "https://arxiv.org/abs/2402.02750v2",
+      "id": "kivi-review-p1-abstract",
+      "text": "검토자 요약: 초록은 KIVI가 Llama·Falcon·Mistral 모델에서 거의 동일한 품질을 유지하면서 최대 메모리 사용량을 약 2.6배 줄이고, 배치를 최대 4배 키워 처리량을 2.35~3.47배 높였다고 요약한다. 모델별 예외 조건은 초록에 나오지 않는다. 설계서 A.2 표 1의 요약과 대조함.",
+      "title": "KIVI p.1 초록 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
       "technology": "KIVI",
       "source_type": "fixture",
       "scope": "target",
       "document_role": "target",
       "page": 1,
-      "document_id": "kivi"
+      "document_id": "kivi",
+      "affiliation": "first_party",
+      "affiliation_reason": "선정 기술의 원 저자 논문이며 독립 검증 자료가 아님",
+      "stance": "positive"
     },
     {
-      "id": "itme-abstract-fixture",
-      "text": "demonstrating its functional feasibility through an FPGA-based hardware prototype.",
-      "title": "ITME — abstract excerpt (limited fixture)",
-      "url": "https://arxiv.org/abs/2606.12556v2",
+      "id": "kivi-review-p2-method",
+      "text": "검토자 요약: KIVI는 Key cache를 채널별, Value cache를 토큰별로 2비트 양자화한다. 일부 잔여 토큰은 전정밀도로 유지한다.",
+      "title": "KIVI p.2 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 2,
+      "document_id": "kivi",
+      "affiliation": "first_party",
+      "affiliation_reason": "선정 기술의 원 저자 논문이며 독립 검증 자료가 아님",
+      "stance": "neutral"
+    },
+    {
+      "id": "kivi-review-p6-quality",
+      "text": "검토자 요약: 논문은 Llama-2, Falcon, Mistral의 생성 과제를 FP16 기준과 비교한다. Falcon-7B에서는 2비트 KIVI의 정확도 저하가 커서 4비트 설정이 필요하다고 보고한다.",
+      "title": "KIVI p.6 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 6,
+      "document_id": "kivi",
+      "affiliation": "first_party",
+      "affiliation_reason": "선정 기술의 원 저자 논문이며 독립 검증 자료가 아님",
+      "stance": "mixed"
+    },
+    {
+      "id": "kivi-review-p8-efficiency",
+      "text": "검토자 요약: 처리량 실험은 Llama-2-7B, 단일 NVIDIA A100 80GB, ShareGPT에서 합성한 요청과 FP16 기준을 사용한다. 배치 크기, 최대 메모리, 처리량을 비교한다.",
+      "title": "KIVI p.8 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 8,
+      "document_id": "kivi",
+      "affiliation": "first_party",
+      "affiliation_reason": "선정 기술의 원 저자 논문이며 독립 검증 자료가 아님",
+      "stance": "positive"
+    },
+    {
+      "id": "itme-review-p1-abstract",
+      "text": "검토자 요약: 초록은 ITME를 SSD에 DRAM 캐시를 결합한 CXL 하이브리드 메모리 기반 계층형 메모리 확장으로 소개하고, FPGA 하드웨어 시제품으로 기능 실현 가능성을 보였으며, vLLM 위 구현으로 NVMe-oF 스토리지 대비 처리량 1.80배, CPU 오프로딩 대비 최대 35.7% 향상을 보고한다. 설계서 A.2 표 1의 요약과 대조함.",
+      "title": "ITME p.1 초록 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
       "technology": "ITME",
       "source_type": "fixture",
       "scope": "target",
       "document_role": "target",
       "page": 1,
-      "document_id": "itme"
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "positive"
+    },
+    {
+      "id": "itme-review-p8-fpga",
+      "text": "검토자 요약: 기능 검증용 ITME 시제품은 Intel Agilex 7 FPGA에 32GB DDR4 DRAM 캐시와 SK Hynix PCIe Gen5 NVMe SSD 두 개를 결합해 하드웨어 제어와 소프트웨어 prefetcher를 검증한다.",
+      "title": "ITME p.8 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 8,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "neutral"
+    },
+    {
+      "id": "itme-review-p8-cmm",
+      "text": "검토자 요약: 성능 잠재력은 별도 플랫폼의 SK Hynix CMM과 KIOXIA PCIe Gen5 SSD 두 개로 평가한다. 이 측정치를 FPGA 시제품의 측정치로 표현하면 안 된다.",
+      "title": "ITME p.8 CMM 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 8,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "neutral"
+    },
+    {
+      "id": "itme-review-p9-workload",
+      "text": "검토자 요약: 성능 평가는 ShareGPT 기반 128개 동시 대화, 최대 5턴의 워크로드와 Llama-3.1 8B·70B를 사용하며 GPU 메모리 및 오프로딩 기준과 비교한다.",
+      "title": "ITME p.9 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 9,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "positive"
+    },
+    {
+      "id": "itme-review-p10-prototype",
+      "text": "검토자 요약: 논문은 FPGA 시제품의 성능을 별도 CMM 플랫폼과 같은 조건으로 비교한다. FPGA 측정에는 하드웨어 오버헤드가 있다.",
+      "title": "ITME p.10 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 10,
+      "document_id": "itme",
+      "affiliation": "first_party",
+      "affiliation_reason": "ITME 제안자(SK hynix)의 자사 연구 논문",
+      "stance": "mixed"
     }
   ],
-  "prior_results": {}
+  "prior_results": {
+    "tech": {
+      "node": "tech",
+      "summary": "KIVI는 학습 없는 2비트 비대칭 KV 양자화이며 단일 A100·Llama-2-7B 실험과 Falcon-7B 품질 제약이 확인된다. ITME는 CXL 하이브리드 메모리 계층 확장이며 FPGA 기능 시제품과 별도 CMM 플랫폼 성능 평가가 확인된다. TRL은 공개 정보 기반 잠정 추정이다.",
+      "claims": [
+        {
+          "id": "tech-kivi-mechanism",
+          "technology": "KIVI",
+          "criterion": "mechanism",
+          "text": "KIVI는 Key를 채널별, Value를 토큰별로 2비트 양자화하고 일부 잔여 토큰은 전정밀도로 유지한다.",
+          "kind": "fact",
+          "evidence_ids": ["kivi-review-p2-method"],
+          "conditions": ["학습 없는 사후 양자화", "잔여 토큰은 전정밀도 유지"]
+        },
+        {
+          "id": "tech-kivi-maturity",
+          "technology": "KIVI",
+          "criterion": "maturity",
+          "text": "처리량 실험은 Llama-2-7B, 단일 A100 80GB, ShareGPT 합성 요청과 FP16 기준으로 배치 크기·최대 메모리·처리량을 비교한다.",
+          "kind": "fact",
+          "evidence_ids": ["kivi-review-p8-efficiency"],
+          "conditions": ["Llama-2-7B", "단일 NVIDIA A100 80GB", "ShareGPT 합성 요청", "FP16 기준선"]
+        },
+        {
+          "id": "tech-kivi-limitations",
+          "technology": "KIVI",
+          "criterion": "limitations",
+          "text": "Falcon-7B에서는 2비트 KIVI의 정확도 저하가 커서 4비트 설정이 필요하다.",
+          "kind": "fact",
+          "evidence_ids": ["kivi-review-p6-quality"],
+          "conditions": ["Falcon-7B", "2비트 설정", "FP16 기준 생성 과제"]
+        },
+        {
+          "id": "tech-itme-mechanism",
+          "technology": "ITME",
+          "criterion": "mechanism",
+          "text": "기능 검증용 ITME 시제품은 Agilex 7 FPGA에 32GB DDR4 캐시와 PCIe Gen5 NVMe SSD 두 개를 결합해 하드웨어 제어와 prefetcher를 검증한다.",
+          "kind": "fact",
+          "evidence_ids": ["itme-review-p8-fpga"],
+          "conditions": ["Intel Agilex 7 FPGA", "32GB DDR4 DRAM 캐시", "PCIe Gen5 NVMe SSD 2개"]
+        },
+        {
+          "id": "tech-itme-maturity",
+          "technology": "ITME",
+          "criterion": "maturity",
+          "text": "성능은 별도 CMM 플랫폼에서 vLLM 위 구현으로 Llama-3.1 8B·70B와 ShareGPT 기반 128 동시 대화 워크로드로 평가하며 GPU 메모리·오프로딩 기준과 비교한다.",
+          "kind": "fact",
+          "evidence_ids": ["itme-review-p1-abstract", "itme-review-p8-cmm", "itme-review-p9-workload"],
+          "conditions": ["성능은 FPGA 시제품이 아닌 별도 CMM 플랫폼 측정", "Llama-3.1 8B·70B", "ShareGPT 128 동시 대화 최대 5턴", "NVMe-oF·CPU 오프로딩 기준선"]
+        },
+        {
+          "id": "tech-itme-limitations",
+          "technology": "ITME",
+          "criterion": "limitations",
+          "text": "FPGA 시제품 측정에는 하드웨어 오버헤드가 있으며 성능 비교는 별도 CMM 플랫폼과 같은 조건으로 수행된다.",
+          "kind": "fact",
+          "evidence_ids": ["itme-review-p10-prototype"],
+          "conditions": ["FPGA 측정 하드웨어 오버헤드", "CMM 플랫폼과의 조건 일치는 논문 서술에 의존"]
+        }
+      ],
+      "assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "mechanism",
+          "judgment": "원리 확인",
+          "rationale": "채널별 Key·토큰별 Value 2비트 양자화와 잔여 토큰 전정밀도 유지를 원문에서 확인. 공개 정보 기반 추정.",
+          "evidence_ids": ["kivi-review-p2-method"]
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "maturity",
+          "judgment": "TRL 4",
+          "rationale": "실제 GPU·모델 실험(단일 A100, Llama-2-7B)과 재현 가능한 설정이 확인되나 서빙 프레임워크 통합·실제 운용 근거는 없다. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": ["kivi-review-p8-efficiency"]
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "limitations",
+          "judgment": "제약 확인",
+          "rationale": "Falcon-7B 2비트 정확도 저하와 4비트 설정 필요를 원문에서 확인. 공개 정보 기반 추정.",
+          "evidence_ids": ["kivi-review-p6-quality"]
+        },
+        {
+          "technology": "ITME",
+          "criterion": "mechanism",
+          "judgment": "원리 확인",
+          "rationale": "FPGA 시제품의 DRAM 캐시·NVMe SSD 결합과 prefetcher 구성을 원문에서 확인. 공개 정보 기반 추정.",
+          "evidence_ids": ["itme-review-p8-fpga"]
+        },
+        {
+          "technology": "ITME",
+          "criterion": "maturity",
+          "judgment": "TRL 5",
+          "rationale": "vLLM 위 구현과 ShareGPT 기반 워크로드 평가가 확인되나 성능 수치는 FPGA 시제품이 아닌 CMM 플랫폼이며 실제 운용 환경 시연 근거는 없다. 5~6단계 경계는 검토 필요. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": ["itme-review-p1-abstract", "itme-review-p8-cmm", "itme-review-p9-workload"]
+        },
+        {
+          "technology": "ITME",
+          "criterion": "limitations",
+          "judgment": "제약 확인",
+          "rationale": "FPGA 측정 오버헤드와 CMM 플랫폼 비교 조건 의존을 원문에서 확인. 공개 정보 기반 추정.",
+          "evidence_ids": ["itme-review-p10-prototype"]
+        }
+      ],
+      "unverified": [],
+      "limitations": [
+        "원 저자 논문(first_party)만 사용했으며 독립 검증 자료가 없다",
+        "ITME 성능 수치는 FPGA 시제품이 아닌 별도 CMM 플랫폼 측정이다",
+        "kivi-maturity: 긍정·비판 양쪽 실제 검색 미완료 (고정 근거 입력)"
+      ],
+      "trl_estimates": [
+        {
+          "technology": "KIVI",
+          "level": 4,
+          "rationale": "실제 GPU·모델 실험과 코드 수준 재현 근거까지 확인. 프레임워크 통합·실제 운용 근거 없음. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": ["kivi-review-p8-efficiency"],
+          "provisional": true
+        },
+        {
+          "technology": "ITME",
+          "level": 5,
+          "rationale": "실제 서빙 프레임워크(vLLM) 위 구현과 실제 워크로드 평가 확인. 성능 플랫폼과 FPGA 시제품이 다르며 실제 운용 시연 근거 없음. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": ["itme-review-p8-cmm", "itme-review-p9-workload"],
+          "provisional": true
+        }
+      ]
+    },
+    "market": {
+      "node": "market",
+      "summary": "고정 입력에 시장 자료가 없어 두 기술의 시장 3항목을 모두 확인 불가로 보류한다. 공개 정보 기반 추정.",
+      "claims": [],
+      "assessments": [
+        {"technology": "KIVI", "criterion": "growth", "judgment": "확인 불가", "rationale": "검색 한도 내 시장 규모·성장 전망 자료 없음 (고정 근거 입력). 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "KIVI", "criterion": "adoption", "judgment": "확인 불가", "rationale": "실제 도입·정식 출시 근거 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "KIVI", "criterion": "ecosystem", "judgment": "확인 불가", "rationale": "프레임워크 정식 지원 여부를 원문 링크·버전으로 확인하지 못함. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "growth", "judgment": "확인 불가", "rationale": "CXL 메모리 시장 자료 없음 (고정 근거 입력). 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "adoption", "judgment": "확인 불가", "rationale": "프리프린트 단계로 도입·출시 근거 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "ecosystem", "judgment": "확인 불가", "rationale": "프레임워크·표준 채택 근거 없음. 공개 정보 기반 추정.", "evidence_ids": []}
+      ],
+      "unverified": [
+        "KIVI/growth: 확인 불가",
+        "KIVI/adoption: 확인 불가",
+        "KIVI/ecosystem: 확인 불가 — 프레임워크 통합 여부는 원문 링크·버전 확인 필요",
+        "ITME/growth: 확인 불가",
+        "ITME/adoption: 확인 불가",
+        "ITME/ecosystem: 확인 불가"
+      ],
+      "limitations": [
+        "웹 검색 근거 없음 (고정 근거 입력)",
+        "ITME는 프리프린트로 개별 시장 자료가 거의 없어 CXL 메모리 접근 전반을 대상으로 해야 함 (설계서 A.4)"
+      ],
+      "trl_estimates": []
+    },
+    "stakeholder": {
+      "node": "stakeholder",
+      "summary": "고정 입력에 이해관계자 반응 자료가 없어 세 주체 모두 확인 불가로 보류한다. 공개 정보 기반 추정.",
+      "claims": [],
+      "assessments": [
+        {"technology": "KIVI", "criterion": "competitors", "judgment": "확인 불가", "rationale": "경쟁 진영(TurboQuant·KVTC·MLA)의 직접 반응 자료 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "KIVI", "criterion": "adopters", "judgment": "확인 불가", "rationale": "도입 기업·개발자 후기 자료 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "KIVI", "criterion": "industry", "judgment": "확인 불가", "rationale": "투자·업계 반응 자료 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "competitors", "judgment": "확인 불가", "rationale": "경쟁 진영(NVIDIA CMX·삼성 CXL·PNM)의 직접 반응 자료 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "adopters", "judgment": "확인 불가", "rationale": "도입 기업·개발자 반응 자료 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "industry", "judgment": "확인 불가", "rationale": "투자·업계 반응 자료 없음. 공개 정보 기반 추정.", "evidence_ids": []}
+      ],
+      "unverified": [
+        "KIVI/competitors: 확인 불가",
+        "KIVI/adopters: 확인 불가",
+        "KIVI/industry: 확인 불가",
+        "ITME/competitors: 확인 불가",
+        "ITME/adopters: 확인 불가",
+        "ITME/industry: 확인 불가"
+      ],
+      "limitations": ["웹 검색 근거 없음 (고정 근거 입력)", "ITME 원 논문은 SK hynix 자사 연구로 독립 반응이 아님"],
+      "trl_estimates": []
+    },
+    "domain": {
+      "node": "domain",
+      "summary": "KIVI는 소프트웨어만으로 적용 가능하나 성능·확장성은 단일 GPU 논문 실험에서만 확인된다. ITME는 특정 CXL 하이브리드 메모리 하드웨어가 필요하고 성능은 논문 자체 평가에 한정된다. 비용·품질 일부는 확인 불가. 공개 정보 기반 추정.",
+      "claims": [
+        {
+          "id": "domain-kivi-cost",
+          "technology": "KIVI",
+          "criterion": "cost",
+          "text": "KIVI는 소프트웨어 양자화만으로 적용되므로 추가 메모리 장비가 필요하지 않다.",
+          "kind": "inference",
+          "evidence_ids": ["kivi-review-p2-method"],
+          "conditions": ["원문은 하드웨어 요구를 명시하지 않음", "추가 장비 불필요는 방법 설명에서의 추론", "GPU 절감 수치 미확인"]
+        },
+        {
+          "id": "domain-kivi-performance",
+          "technology": "KIVI",
+          "criterion": "performance",
+          "text": "단일 A100 80GB·Llama-2-7B·ShareGPT 합성 요청에서 FP16 대비 배치 확대와 처리량 개선을 보고한다.",
+          "kind": "fact",
+          "evidence_ids": ["kivi-review-p8-efficiency"],
+          "conditions": ["논문 실험만 확인", "단일 GPU", "외부 사례 없음"]
+        },
+        {
+          "id": "domain-kivi-quality",
+          "technology": "KIVI",
+          "criterion": "quality",
+          "text": "초록은 Llama·Falcon·Mistral에서 거의 동일한 품질 유지를 보고한다.",
+          "kind": "fact",
+          "evidence_ids": ["kivi-review-p1-abstract"],
+          "conditions": ["초록 수준 요약", "모델별 예외 미기재"]
+        },
+        {
+          "id": "domain-kivi-scalability",
+          "technology": "KIVI",
+          "criterion": "scalability",
+          "text": "배치 크기 확대 효과는 단일 GPU 실험에서 확인됐다.",
+          "kind": "fact",
+          "evidence_ids": ["kivi-review-p8-efficiency"],
+          "conditions": ["단일 GPU", "다중 노드·사용자 규모 미검증"]
+        },
+        {
+          "id": "domain-itme-performance",
+          "technology": "ITME",
+          "criterion": "performance",
+          "text": "NVMe-oF 대비 1.80배, CPU 오프로딩 대비 최대 35.7% 처리량 향상을 보고한다.",
+          "kind": "fact",
+          "evidence_ids": ["itme-review-p1-abstract"],
+          "conditions": ["논문 자체 평가", "외부 사례 없음", "성능은 CMM 플랫폼 측정"]
+        },
+        {
+          "id": "domain-itme-operations",
+          "technology": "ITME",
+          "criterion": "operations",
+          "text": "CXL 하이브리드 메모리 장치(FPGA 시제품 또는 CMM)와 전용 prefetcher 소프트웨어가 필요하다.",
+          "kind": "fact",
+          "evidence_ids": ["itme-review-p8-fpga"],
+          "conditions": ["특정 하드웨어 필요", "소프트웨어 스택 변경 범위는 원문에서 미확인"]
+        },
+        {
+          "id": "domain-itme-scalability",
+          "technology": "ITME",
+          "criterion": "scalability",
+          "text": "128개 동시 대화와 Llama-3.1 70B까지 평가했다.",
+          "kind": "fact",
+          "evidence_ids": ["itme-review-p9-workload"],
+          "conditions": ["단일 서버 규모", "데이터센터 규모 미검증"]
+        }
+      ],
+      "assessments": [
+        {"technology": "KIVI", "criterion": "cost", "judgment": "적합", "rationale": "추가 장비 없이 소프트웨어로 적용 가능(방법 설명에서의 추론). GPU 절감 수치는 미확인. 공개 정보 기반 추정.", "evidence_ids": ["kivi-review-p2-method"]},
+        {"technology": "KIVI", "criterion": "performance", "judgment": "조건부 적합", "rationale": "논문 실험(단일 A100, Llama-2-7B, ShareGPT 합성 요청)에서만 확인. 외부 사례 없음. 공개 정보 기반 추정.", "evidence_ids": ["kivi-review-p8-efficiency"]},
+        {"technology": "KIVI", "criterion": "quality", "judgment": "적합", "rationale": "초록 기준 Llama·Falcon·Mistral에서 거의 동일한 품질. 공개 정보 기반 추정.", "evidence_ids": ["kivi-review-p1-abstract"]},
+        {"technology": "KIVI", "criterion": "operations", "judgment": "확인 불가", "rationale": "프레임워크 지원 여부에 대한 원문 근거 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "KIVI", "criterion": "scalability", "judgment": "조건부 적합", "rationale": "단일 GPU 배치 확대까지만 확인. 실제 데이터센터 규모와의 차이 기록. 공개 정보 기반 추정.", "evidence_ids": ["kivi-review-p8-efficiency"]},
+        {"technology": "ITME", "criterion": "cost", "judgment": "확인 불가", "rationale": "신규 CXL 하이브리드 메모리 인프라가 필요하나 절감 수치가 없음. 설계서 표 10의 부적합 조건은 해석 검토 대상으로 기록. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "performance", "judgment": "조건부 적합", "rationale": "논문 자체 평가(CMM 플랫폼)에서만 확인. 외부 사례 없음. 공개 정보 기반 추정.", "evidence_ids": ["itme-review-p1-abstract"]},
+        {"technology": "ITME", "criterion": "quality", "judgment": "확인 불가", "rationale": "정확도 영향에 대한 원문 근거 없음. 공개 정보 기반 추정.", "evidence_ids": []},
+        {"technology": "ITME", "criterion": "operations", "judgment": "조건부 적합", "rationale": "특정 하드웨어(CXL 하이브리드 메모리)와 prefetcher 소프트웨어 필요. 부적합 단정은 설계서 해석 검토 대상. 공개 정보 기반 추정.", "evidence_ids": ["itme-review-p8-fpga"]},
+        {"technology": "ITME", "criterion": "scalability", "judgment": "조건부 적합", "rationale": "128 동시 대화·70B까지 단일 서버 규모에서 확인. 데이터센터 규모와의 차이 기록. 공개 정보 기반 추정.", "evidence_ids": ["itme-review-p9-workload"]}
+      ],
+      "unverified": [
+        "KIVI/operations: 확인 불가",
+        "ITME/cost: 확인 불가 — 신규 인프라 필요하나 절감 수치 없음, 설계서 표 10 해석 검토 대상",
+        "ITME/quality: 확인 불가"
+      ],
+      "limitations": [
+        "논문 실험 규모(단일 GPU·단일 서버)와 실제 데이터센터 규모 차이",
+        "웹 도메인 사례 없음 (고정 근거 입력)"
+      ],
+      "trl_estimates": []
+    }
+  }
 }

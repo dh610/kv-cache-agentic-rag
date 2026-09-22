@@ -1,0 +1,190 @@
+{
+  "case_id": "market-two-independent-cases",
+  "description": "[SYNTHETIC TEST ONLY] 아래 기관·제품·수치·사건은 모두 가상이다. 실제 KIVI·ITME 현황을 나타내지 않는다. 이 가상 시나리오의 제공 근거만으로 질문에 답하고 결과에도 합성 테스트임을 표시하라. 평가 기준일: 2026-09-22. 기준일 이후 자료·사건을 당시의 확인 근거로 사용하지 마라. 평가 기준일은 고정 예시이며 실제 평가에서는 기준일과 근거를 함께 교체한다.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-adoption",
+      "technology": "KIVI",
+      "criterion": "adoption",
+      "text": "KIVI를 실제 적용한 조직·제품·서비스는 무엇인가? 적용 단계(도입 계획, 논문 실험·데모, 실제 파일럿, 정식 출시, 실제 운영), 사건 시점과 적용 조건을 구분하고 직접 근거로 채택 여부를 평가하라."
+    },
+    {
+      "id": "kivi-growth",
+      "technology": "KIVI",
+      "criterion": "growth",
+      "text": "KIVI와 관련된 시장은 무엇이며 기술과 어떻게 연결되는가? 시장 범위·지역·기준연도·규모·통화/단위·전망기간·성장률 또는 성장 방향을 확인하고, 관련 시장 전망과 선정 기술 자체의 매출·채택을 구분하여 평가하라."
+    },
+    {
+      "id": "kivi-ecosystem",
+      "technology": "KIVI",
+      "criterion": "ecosystem",
+      "text": "KIVI를 지원하는 프레임워크·라이브러리·표준은 무엇인가? 지원 주체·버전/범위·확인 시점·정식/실험적 상태와 원 기술과의 관계를 확인하고, 일반적인 계열 기술 지원이나 지원 계획과 구분하여 평가하라."
+    },
+    {
+      "id": "itme-adoption",
+      "technology": "ITME",
+      "criterion": "adoption",
+      "text": "ITME를 실제 적용한 조직·제품·서비스는 무엇인가? 적용 단계(도입 계획, 논문 실험·데모, 실제 파일럿, 정식 출시, 실제 운영), 사건 시점과 적용 조건을 구분하고 직접 근거로 채택 여부를 평가하라."
+    },
+    {
+      "id": "itme-growth",
+      "technology": "ITME",
+      "criterion": "growth",
+      "text": "ITME와 관련된 시장은 무엇이며 기술과 어떻게 연결되는가? 시장 범위·지역·기준연도·규모·통화/단위·전망기간·성장률 또는 성장 방향을 확인하고, 관련 시장 전망과 선정 기술 자체의 매출·채택을 구분하여 평가하라."
+    },
+    {
+      "id": "itme-ecosystem",
+      "technology": "ITME",
+      "criterion": "ecosystem",
+      "text": "ITME를 지원하는 프레임워크·라이브러리·표준은 무엇인가? 지원 주체·버전/범위·확인 시점·정식/실험적 상태와 원 기술과의 관계를 확인하고, 일반적인 계열 기술 지원이나 지원 계획과 구분하여 평가하라."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "synthetic-supported-kivi-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 서비스 A는 2026-09-01부터 KIVI 원 논문의 방법을 실제 운영에 사용한다. 적용 범위는 단일 테스트 지역 서비스이며 대규모 보급은 확인되지 않았다. 이 발표의 작성자는 해당 서비스를 운영하는 기업 A이다.",
+      "title": "[SYNTHETIC] supported / KIVI / 1",
+      "url": "https://example.invalid/market/synthetic-supported-kivi-1",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 서비스 운영사 A",
+      "site": "example.invalid",
+      "published_at": "2026-09-02",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-supported-kivi-2",
+      "text": "[SYNTHETIC TEST ONLY] 가상 조사 B는 KIVI의 관련 분야인 LLM 추론 메모리 최적화 시장을 한국의 기업용 서빙 시장으로 정의한다. 2025년 규모는 10억 USD, 2026~2028년 연평균 성장률 전망은 10%이다. 이는 KIVI 자체의 매출 전망이 아니다. 조사 B는 기술 개발·판매사와 관계없는 독립 조사 기관이다.",
+      "title": "[SYNTHETIC] supported / KIVI / 2",
+      "url": "https://example.invalid/market/synthetic-supported-kivi-2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "reference",
+      "publisher": "가상 독립 조사 B",
+      "site": "example.invalid",
+      "published_at": "2026-09-03",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-supported-kivi-3",
+      "text": "[SYNTHETIC TEST ONLY] 가상 시나리오의 주요 프레임워크 C의 유지관리자 공식 릴리스 문서: 버전 2.0에 KIVI 원 논문과 동일한 구현을 정식 기능으로 제공한다. 지원 범위는 Linux 단일 노드이다.",
+      "title": "[SYNTHETIC] supported / KIVI / 3",
+      "url": "https://example.invalid/market/synthetic-supported-kivi-3",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 프레임워크 C 유지관리자",
+      "site": "example.invalid",
+      "published_at": "2026-09-04",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-supported-itme-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 서비스 A는 2026-09-01부터 ITME 원 논문의 방법을 실제 운영에 사용한다. 적용 범위는 단일 테스트 지역 서비스이며 대규모 보급은 확인되지 않았다. 이 발표의 작성자는 해당 서비스를 운영하는 기업 A이다.",
+      "title": "[SYNTHETIC] supported / ITME / 1",
+      "url": "https://example.invalid/market/synthetic-supported-itme-1",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 서비스 운영사 A",
+      "site": "example.invalid",
+      "published_at": "2026-09-02",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-supported-itme-2",
+      "text": "[SYNTHETIC TEST ONLY] 가상 조사 B는 ITME의 관련 분야인 LLM 추론 메모리 최적화 시장을 한국의 기업용 서빙 시장으로 정의한다. 2025년 규모는 10억 USD, 2026~2028년 연평균 성장률 전망은 10%이다. 이는 ITME 자체의 매출 전망이 아니다. 조사 B는 기술 개발·판매사와 관계없는 독립 조사 기관이다.",
+      "title": "[SYNTHETIC] supported / ITME / 2",
+      "url": "https://example.invalid/market/synthetic-supported-itme-2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "reference",
+      "publisher": "가상 독립 조사 B",
+      "site": "example.invalid",
+      "published_at": "2026-09-03",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-supported-itme-3",
+      "text": "[SYNTHETIC TEST ONLY] 가상 시나리오의 주요 프레임워크 C의 유지관리자 공식 릴리스 문서: 버전 2.0에 ITME 원 논문과 동일한 구현을 정식 기능으로 제공한다. 지원 범위는 Linux 단일 노드이다.",
+      "title": "[SYNTHETIC] supported / ITME / 3",
+      "url": "https://example.invalid/market/synthetic-supported-itme-3",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 프레임워크 C 유지관리자",
+      "site": "example.invalid",
+      "published_at": "2026-09-04",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-two-independent-cases-kivi-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 기업 M은 2026-09-12부터 KIVI 원 기술을 별도 제품에 실제 적용했다. 기업 A와 다른 조직·제품·도입 사건이며 이 문서는 기업 M의 자사 발표다.",
+      "title": "[SYNTHETIC] two-independent-cases",
+      "url": "https://example.invalid/synthetic-two-independent-cases-kivi-1",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 기업 M",
+      "site": "example.invalid",
+      "published_at": "2026-09-02",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-two-independent-cases-kivi-2",
+      "text": "[SYNTHETIC TEST ONLY] 가상 독립 조사 N은 한국 기업용 LLM 추론 메모리 최적화 시장의 2025년 규모를 10억 USD, 2026~2028년 연평균 성장률을 12%로 전망한다. 조사 B와 동일 범위·기간을 독립 조사했으며 재인용이 아니다. KIVI 자체 매출은 다루지 않는다.",
+      "title": "[SYNTHETIC] two-independent-cases",
+      "url": "https://example.invalid/synthetic-two-independent-cases-kivi-2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "target",
+      "publisher": "가상 독립 조사 N",
+      "site": "example.invalid",
+      "published_at": "2026-09-02",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-two-independent-cases-itme-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 기업 M은 2026-09-12부터 ITME 원 기술을 별도 제품에 실제 적용했다. 기업 A와 다른 조직·제품·도입 사건이며 이 문서는 기업 M의 자사 발표다.",
+      "title": "[SYNTHETIC] two-independent-cases",
+      "url": "https://example.invalid/synthetic-two-independent-cases-itme-1",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 기업 M",
+      "site": "example.invalid",
+      "published_at": "2026-09-02",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-two-independent-cases-itme-2",
+      "text": "[SYNTHETIC TEST ONLY] 가상 독립 조사 N은 한국 기업용 LLM 추론 메모리 최적화 시장의 2025년 규모를 10억 USD, 2026~2028년 연평균 성장률을 12%로 전망한다. 조사 B와 동일 범위·기간을 독립 조사했으며 재인용이 아니다. ITME 자체 매출은 다루지 않는다.",
+      "title": "[SYNTHETIC] two-independent-cases",
+      "url": "https://example.invalid/synthetic-two-independent-cases-itme-2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "context",
+      "document_role": "target",
+      "publisher": "가상 독립 조사 N",
+      "site": "example.invalid",
+      "published_at": "2026-09-02",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    }
+  ],
+  "prior_results": {}
+}
