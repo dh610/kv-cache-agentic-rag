@@ -1,0 +1,17 @@
+# PDF 원문은 Git에 넣지 않습니다. 페이지는 PDF의 1-based 물리 페이지입니다.
+# 본문 범위는 팀 공유 ZIP의 설정을 계승합니다. 판본 변경 시 다시 확인하세요.
+documents:
+  - id: kivi
+    path: data/papers/kivi.pdf
+    title: "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache"
+    url: https://arxiv.org/abs/2402.02750
+    technology: KIVI
+    role: target
+    body_pages: [1, 9]
+  - id: itme
+    path: data/papers/itme.pdf
+    title: "Inference Tiered Memory Expansion with Disaggregated CXL-Hybrid Memories"
+    url: https://arxiv.org/abs/2606.12556
+    technology: ITME
+    role: target
+    body_pages: [1, 11]

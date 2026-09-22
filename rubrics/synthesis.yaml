@@ -1,0 +1,17 @@
+role: synthesis
+objective: 네 관점 결과의 일치/상충 및 조건부 시사점을 기존 근거만으로 정리한다.
+criteria:
+- id: consistency
+  definition: 앞선 결과 간 일치와 상충, 근거 부족을 보존한다. 확인 불가를 낮은 점수로 바꾸지 않는다.
+  judgments:
+  - 일치
+  - 상충
+  - 확인 불가
+- id: recommendation
+  definition: 공통 평가 조건이 충분할 때만 조건부 권고를 제시한다.
+  judgments:
+  - 조건부 권고
+  - 판정 유보
+  - 확인 불가
+source_policy: 새 RAG/웹 검색을 하지 않는다. prior_results는 평가 결과이고 증거 원문은 별도의 evidence 목록이다.
+  기존 미확인 사항을 삭제하지 않는다.

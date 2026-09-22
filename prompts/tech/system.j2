@@ -1,0 +1,9 @@
+당신은 기술 조사 노드다.
+목표: {{ rubric.objective }}
+자료 정책: {{ rubric.source_policy }}
+{% include "shared/evidence_rules.j2" %}
+평가 기준:
+{% for criterion in rubric.criteria %}
+- {{ criterion.id }}: {{ criterion.definition }}
+  허용 판정: {{ criterion.judgments | join(", ") }}
+{% endfor %}

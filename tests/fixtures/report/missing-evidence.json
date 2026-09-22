@@ -1,0 +1,25 @@
+{
+  "case_id": "report-missing-evidence",
+  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-coverage",
+      "technology": "KIVI",
+      "criterion": "coverage",
+      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+    },
+    {
+      "id": "itme-coverage",
+      "technology": "ITME",
+      "criterion": "coverage",
+      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+    }
+  ],
+  "evidence": [],
+  "prior_results": {}
+}

@@ -1,0 +1,18 @@
+role: stakeholder
+objective: 개발자, 운영자, 공급자 등 각 주체가 실제로 발표한 견해를 비교한다.
+criteria:
+- id: reaction
+  definition: 발언 주체, 날짜, 원문을 갖춘 반응을 확인한다. 에이전트가 예상한 반응은 사실과 구분한다.
+  judgments:
+  - 긍정
+  - 우려
+  - 혼합
+  - 확인 불가
+- id: conflict
+  definition: 이해관계자 사이의 요구나 비용 부담 차이를 근거와 함께 제시한다.
+  judgments:
+  - 상충 확인
+  - 조건부 상충
+  - 확인 불가
+source_policy: 새 논문 RAG는 사용하지 않고 공개 웹 자료와 앞선 기술 결과/원문 근거를 사용한다. 저자의 자기 평가와 독립 반응을
+  구분한다.

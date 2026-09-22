@@ -1,0 +1,26 @@
+schema_version: 1
+target_techs:
+  sw: KIVI
+  hw: ITME
+domain: 데이터센터·클라우드 LLM 서빙
+models:
+  generator: gpt-4.1-mini
+  judge: gpt-4.1-nano
+  temperature: 0
+  timeout_seconds: 60
+  max_retries: 1
+limits:
+  search: 3  # includes initial attempt; per question
+  questions: 6
+  fix: 0
+  supplement: 0
+retrieval:
+  model: BAAI/bge-m3
+  revision: main  # resolved model revision is recorded in index manifest
+  chunk_size: 1200  # characters, matching the shared starter's baseline
+  chunk_overlap: 200
+  top_k: 5
+  rerank: false  # opt-in, no unverified benchmark claim
+  reranker: BAAI/bge-reranker-v2-m3
+  candidates: 20
+  index_dir: .cache/paper-index

@@ -1,0 +1,31 @@
+# 공통 입출력 계약
+
+스키마의 원본은 `schemas/contracts.py`이며 모르는 필드는 거부합니다.
+
+| 형식 | 주요 필드 | 의미 |
+| --- | --- | --- |
+| NodeInput | case_id, target_techs, domain, questions, evidence, prior_results | 개별 노드 독립 실행에도 상위 결과 주입 가능 |
+| Question | id, technology, criterion, text | 모든 질문을 실행하며 검색 예산은 질문별로 계산 |
+| Evidence | id, text, title, url, technology, source_type, scope, document_role, page | 변경 불가능한 인용 대상; 페이지는 1-based |
+| Claim | id, technology, criterion, text, kind, evidence_ids, conditions | 사실/추론 분리 및 조건 보존 |
+| Assessment | technology, criterion, judgment, rationale, evidence_ids | rubric에 허용된 판정만 사용 |
+| NodeResult | node, summary, claims, assessments, unverified, limitations | 모델의 공통 반환 형식 |
+| NodeRun | status, result, evidence, checks, validation_errors, searches, prompt_hash, model | 공통 런타임이 붙이는 검증/추적 결과 |
+
+`NodeResult`는 모델이 생성하고, `NodeRun.status`는 코드가 결정합니다.
+누락된 근거, Judge 미응답, 잘못된 ID, 미지원 주장을 모델의 자기 선언만으로 성공 처리하지 않습니다.
+확인 불가가 아닌 판정은 같은 기술/기준의 supported claim을 근거로 가져야 합니다.
+이 검사는 인용과 전제 연결을 확인하는 것이며 rationale의 모든 의미나 평가 등급의 타당성을 증명하지 않습니다.
+summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니다.
+
+- completed: 실행 계약과 인용 검사를 통과했고 미확인 항목이 없음. mock에서는 연결 확인만 의미합니다.
+- needs_revision: 검색 실패/근거 부족/미확인/인용 검사 실패 등으로 검토 필요.
+- failed: Generator/Judge 호출 또는 출력 파싱에 실패.
+
+주장 검증 실패 시 해당 주장은 `unverified`에 남기고, 노드 판정은 보수적으로 `확인 불가`로 보류합니다.
+검색 중 발생한 오류는 이후 재시도 성공과 별개로 이력에 남고 검토 상태를 유지합니다.
+상위 노드 실패는 전체 상태에도 남습니다. 하위 노드를 계속 실행해 디버깅 결과는 얻지만 성공으로 승격하지 않습니다.
+
+메인 State 키는 팀 starter의 `tech_result`, `market_result`, `stakeholder_result`, `domain_result`, `synthesis`, `report`를 계승했습니다.
+값은 공통 `NodeRun`으로 정규화했습니다. 병렬 가지는 자기 결과 키만 쓰고, 세 가지가 끝난 뒤 한 번 합류합니다.
+이전 결과를 원문 근거로 대신 사용하지 않습니다. 원문 evidence를 따로 병합하고 같은 ID의 다른 내용은 덮어쓰지 않습니다.

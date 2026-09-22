@@ -1,0 +1,50 @@
+{
+  "case_id": "market-basic",
+  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-adoption",
+      "technology": "KIVI",
+      "criterion": "adoption",
+      "text": "공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다."
+    },
+    {
+      "id": "itme-adoption",
+      "technology": "ITME",
+      "criterion": "adoption",
+      "text": "공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "kivi-abstract-fixture",
+      "text": "the value cache should be quantized per-token.",
+      "title": "KIVI — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "kivi"
+    },
+    {
+      "id": "itme-abstract-fixture",
+      "text": "demonstrating its functional feasibility through an FPGA-based hardware prototype.",
+      "title": "ITME — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "itme"
+    }
+  ],
+  "prior_results": {}
+}
