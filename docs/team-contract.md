@@ -80,26 +80,32 @@ REFERENCE에는 검색한 모든 자료가 아니라 실제 인용된 ID만 넘�
 
 ## 4. 수정 범위와 역할 분담
 
-김계원님의 **평가 3명 + 검색 품질 1명 + 공통 기반 1명** 구조가 현재 플랫폼에 맞습니다.
-현재는 공통 기반이 돌아가므로 세 평가 담당자가 `.j2`·rubric·fixture를 독립적으로 작업할 수 있습니다.
-다음은 파일/산출물 기준 권장 분담이며, 개인 배정은 팀에서 확정합니다.
+역할 배정은 2026-09-22 09:54 김계원님의 팀 메시지를 반영했습니다.
+아래 파일 경계는 그 배정을 현재 저장소 구조에 대응한 작업 기준입니다. 평가 담당자는 `.j2`·rubric·fixture를 독립적으로 개발합니다.
 
-| 작업 묶음 | 담당 범위 | 책임 산출물 |
-| --- | --- | --- |
-| 시장 평가 1명 | `prompts/market`, `rubrics/market.yaml`, `tests/fixtures/market` | 두 기술 × 시장 3항목 결과 |
-| 이해관계자 평가 1명 | `prompts/stakeholder`, 해당 rubric/fixture | 주체별 실제 반응·출처·조건 |
-| 도메인 평가 1명 | `prompts/domain`, 해당 rubric/fixture | 클라우드 적용 조건·제약 비교 |
-| 검색 품질 + 기술 사실 1명 | `rag/local_index.py`, `data/documents.yaml`, 기술 prompt/rubric, 향후 `data/eval` | 원문/표 점검, 검색 평가, 기술 조사·TRL 잠정 근거 |
-| 공통 기반 + 종합/보고서 통합 1명 | `schemas`, `graph`, `runtime`, `rag/web.py`, 종합/보고서 prompt | 인터페이스, 웹/검증, 최종 인용·보고서 연결 |
+| 담당자 (GitHub) | 배정 역할 | 주 수정 범위 | 책임 산출물 |
+| --- | --- | --- | --- |
+| 김계원 (`wonn2k`) | 기술 | `prompts/tech/`, `rubrics/tech.yaml`, `tests/fixtures/tech/` | 두 기술의 원리·성숙도·실험 조건 평가 |
+| 인수연 (`1nyeonart`) | 시장성 | `prompts/market/`, `rubrics/market.yaml`, `tests/fixtures/market/` | 두 기술 × 시장 3항목 결과 |
+| 박유진 (`youjin09222`) | 이해관계자 | `prompts/stakeholder/`, `rubrics/stakeholder.yaml`, `tests/fixtures/stakeholder/` | 주체별 반응·출처·조건 평가 |
+| 윤동현 (`dh610`) | RAG 및 성능 테스트 | `rag/local_index.py`, `app/index.py`, `data/documents.yaml`, `tests/test_index.py`, 향후 `data/eval/` | 임베딩·청킹·논문 인덱싱, 정답 근거와 검색 품질 측정 |
+| 정재웅 (`Jae-Ung-Jeong`) | 검색 및 서브그래프 | `rag/web.py`, `graph/node_graph.py`, `graph/main_graph.py`, 관련 검색/그래프 테스트 | 웹 검색·재검색·질문 순회·검증·그래프 연결 |
 
-검색 품질은 임베딩·청킹·정답 라벨·Hit/MRR를, 공통 기반은 호출·재시도·웹 어댑터·State·상태 전파를 책임집니다.
-두 사람이 함께 `rag/` 전체를 수정하지 않도록 파일 경계를 나눕니다.
-기술 조사 책임을 검색 품질 담당에, 종합/보고서 통합 책임을 기반 담당에 미리 둬 빈 역할을 막습니다.
-종합/보고서는 먼저 결과 예시로 틀을 만들고, 먼저 끝난 팀원이 내용 검수에 합류하는 편이 안전합니다.
+윤동현은 로컬 논문 검색, 정재웅은 웹 검색과 그래프 실행 흐름을 우선 담당합니다.
+`rag/` 전체를 양쪽이 동시에 수정하지 않습니다. 기술 평가 프롬프트의 담당자는 김계원이며 RAG 담당에 포함하지 않습니다.
+`data/eval/`은 앞으로 만들 평가 자료 경로이며 아직 완성된 평가셋은 없습니다.
 
-`schemas/`, `graph/`, `runtime/`, `prompts/shared/`, `config.yaml`, `pyproject.toml`, `uv.lock` 변경은 공통 영향 범위를 PR에 적어 함께 검토합니다.
+**미정 역할:** `domain`(도메인 평가), `synthesis`(종합), `report`(보고서)의 최종 내용 책임자는 위 메시지에 없습니다.
+해당 `prompts/<node>/`, `rubrics/<node>.yaml`, `tests/fixtures/<node>/`는 기반만 있는 상태입니다.
+팀에서 배정하거나 사용자가 명시적으로 작업을 맡기기 전에는 다른 역할에 자동 편입하지 않습니다. 기존 그래프에서 이 노드들을 삭제한다는 뜻은 아닙니다.
+
+**공동 검토 파일:** `schemas/`, `runtime/`, `rag/interface.py`, `rag/evidence.py`, `prompts/shared/`, `config.yaml`, `pyproject.toml`, `uv.lock`, 공통 실행기와 테스트.
+이 파일은 단독 소유 범위가 아니며, 영향받는 담당자와 변경 내용을 공유하고 PR에 입출력·호출 측 영향을 적습니다.
+정재웅의 그래프 수정도 여러 노드에 영향을 주므로 동일한 검토 원칙을 적용합니다.
+평가 담당자가 검색 기능 변경을 필요로 하면 자기 프롬프트 PR에 공통 검색 수정을 섞기보다 관련 담당자와 별도 PR로 연결합니다.
 의존성이 필요 없는 프롬프트 수정 PR에는 lock 파일을 바꾸지 않습니다.
 팀원마다 개인 브랜치·.env·LangSmith 프로젝트·outputs 디렉토리를 사용합니다.
+브랜치 생성·검증·PR 절차는 [팀원 시작 안내](onboarding.md#git-작업-절차)를 따릅니다. main에 직접 수정·커밋·push하지 않습니다.
 
 ## 5. 완료 기준
 
