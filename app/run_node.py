@@ -16,7 +16,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Run one node without running its predecessors")
     parser.add_argument("--node", choices=NODES, required=True)
     parser.add_argument("--mode", choices=("mock", "fixture", "rag", "web"), default="mock")
-    parser.add_argument("--case", choices=("basic", "missing-evidence"), default="basic")
+    parser.add_argument(
+        "--case", choices=("basic", "missing-evidence", "acceptance"), default="basic"
+    )
     parser.add_argument(
         "--input", type=Path, help="Custom NodeInput JSON; overrides the built-in case"
     )

@@ -14,7 +14,7 @@ from schemas.contracts import NODES, NodeInput
 
 
 def load_input(node: str, case: str = "basic", path: Path | None = None) -> NodeInput:
-    if node not in NODES or case not in ("basic", "missing-evidence"):
+    if node not in NODES or case not in ("basic", "missing-evidence", "acceptance"):
         raise ValueError("Unknown node/case; use --input for your own JSON fixture")
     target = path or ROOT / "tests/fixtures" / node / f"{case}.json"
     return NodeInput.model_validate_json(target.read_text(encoding="utf-8"))

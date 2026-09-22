@@ -2,7 +2,7 @@
 
 ## 최초 한 번
 
-1. README의 기초 환경 브랜치를 clone하고 `uv sync --frozen`을 실행합니다.
+1. README의 main 브랜치를 clone하고 `uv sync --frozen`을 실행합니다.
 2. `.env.example`을 `.env`로 복사합니다. 이미 `.env`가 있으면 덮어쓰지 않습니다.
 3. 키 없이 `uv run python -m app.run_node --node 본인노드 --mode mock`으로 설치를 확인합니다.
 4. 개인 OpenAI 키를 넣습니다. 추적을 사용할 때 LangSmith 키와 본인 프로젝트 이름도 넣습니다.
@@ -21,6 +21,7 @@ EU/자체 호스팅은 `LANGSMITH_ENDPOINT`를 본인 환경에 맞춥니다.
 | `rubrics/<node>.yaml` | 기준 ID, 정의, 허용 판정 |
 | `tests/fixtures/<node>/basic.json` | 담당 노드의 질문과 고정 근거 |
 | `tests/fixtures/<node>/missing-evidence.json` | 근거가 없을 때의 처리 확인 |
+| `tests/fixtures/<node>/acceptance.json` | 두 기술 × 현재 rubric 전체 항목 인수 점검 |
 
 Jinja에서 사용할 수 있는 변수는 `node`, `rubric`, `input_json`, `evidence_json`입니다.
 존재하지 않는 변수는 즉시 오류가 납니다. `prompts/shared`는 모든 노드에 영향을 줍니다.
@@ -74,7 +75,7 @@ uv run python -m app.run_node --node stakeholder --mode web
 
 ## Git 작업 절차
 
-기반 브랜치가 main에 병합된 이후의 일반 작업 예시입니다.
+기초 환경은 main에 병합됐습니다. 일반 작업 예시입니다.
 
 ```bash
 git switch main
@@ -98,4 +99,5 @@ PR에는 수정한 질문/기준, fixture 결과, 실제 LLM 확인 여부를 �
 API 키, PDF, FAISS, 모델 캐시, 결과 파일은 `.gitignore`로 제외됩니다. 공유 fixture·문서 목록·프롬프트·lock은 추적합니다.
 최신 main을 브랜치에 반영한 뒤 테스트하고 PR을 합칩니다. 공유 브랜치의 force-push는 피합니다.
 
-현재 예시는 담당자의 GitHub 계정을 가정하지 않습니다. 팀원 초대와 CODEOWNERS는 실제 계정·역할 확정 후 설정하면 됩니다.
+팀원 GitHub 계정은 README에 정리했습니다. Write 초대를 수락한 뒤 개인 브랜치를 push하세요.
+세부 역할은 [협업 계약](team-contract.md)의 파일 경계에 맞춰 확정합니다. CODEOWNERS나 보호 규칙은 자동 설정하지 않았습니다.

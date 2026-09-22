@@ -1,0 +1,74 @@
+{
+  "case_id": "market-acceptance",
+  "description": "구현 인수용 질문 범위: 두 기술의 모든 현재 rubric 항목. 기본 evidence는 짧은 예시일 뿐이므로 실제 평가용 근거로 교체해야 합니다. 확인 불가를 숨기지 마세요.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-adoption",
+      "technology": "KIVI",
+      "criterion": "adoption",
+      "text": "공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다."
+    },
+    {
+      "id": "kivi-growth",
+      "technology": "KIVI",
+      "criterion": "growth",
+      "text": "시장 범위·기준연도·전망기간과 규모/성장 방향을 확인한다. 출처 개수만으로 성장성을 판정하지 않는다. 분야 전망을 선정 기술의 매출이나 채택으로 해석하지 않는다."
+    },
+    {
+      "id": "kivi-ecosystem",
+      "technology": "KIVI",
+      "criterion": "ecosystem",
+      "text": "선정 기술의 프레임워크·라이브러리·표준 지원 여부와 실제 지원 버전/범위를 확인한다. 영감을 받은 구현이나 같은 계열 기술의 지원을 해당 논문의 공식 통합으로 간주하지 않는다."
+    },
+    {
+      "id": "itme-adoption",
+      "technology": "ITME",
+      "criterion": "adoption",
+      "text": "공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다."
+    },
+    {
+      "id": "itme-growth",
+      "technology": "ITME",
+      "criterion": "growth",
+      "text": "시장 범위·기준연도·전망기간과 규모/성장 방향을 확인한다. 출처 개수만으로 성장성을 판정하지 않는다. 분야 전망을 선정 기술의 매출이나 채택으로 해석하지 않는다."
+    },
+    {
+      "id": "itme-ecosystem",
+      "technology": "ITME",
+      "criterion": "ecosystem",
+      "text": "선정 기술의 프레임워크·라이브러리·표준 지원 여부와 실제 지원 버전/범위를 확인한다. 영감을 받은 구현이나 같은 계열 기술의 지원을 해당 논문의 공식 통합으로 간주하지 않는다."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "kivi-abstract-fixture",
+      "text": "the value cache should be quantized per-token.",
+      "title": "KIVI — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "kivi"
+    },
+    {
+      "id": "itme-abstract-fixture",
+      "text": "demonstrating its functional feasibility through an FPGA-based hardware prototype.",
+      "title": "ITME — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "itme"
+    }
+  ],
+  "prior_results": {}
+}

@@ -1,0 +1,50 @@
+{
+  "case_id": "report-acceptance",
+  "description": "구현 인수용 질문 범위: 두 기술의 모든 현재 rubric 항목. 기본 evidence는 짧은 예시일 뿐이므로 실제 평가용 근거로 교체해야 합니다. 확인 불가를 숨기지 마세요.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-coverage",
+      "technology": "KIVI",
+      "criterion": "coverage",
+      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+    },
+    {
+      "id": "itme-coverage",
+      "technology": "ITME",
+      "criterion": "coverage",
+      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "kivi-abstract-fixture",
+      "text": "the value cache should be quantized per-token.",
+      "title": "KIVI — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2402.02750v2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "kivi"
+    },
+    {
+      "id": "itme-abstract-fixture",
+      "text": "demonstrating its functional feasibility through an FPGA-based hardware prototype.",
+      "title": "ITME — abstract excerpt (limited fixture)",
+      "url": "https://arxiv.org/abs/2606.12556v2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "page": 1,
+      "document_id": "itme"
+    }
+  ],
+  "prior_results": {}
+}

@@ -1,6 +1,7 @@
 # 공통 입출력 계약
 
 스키마의 원본은 `schemas/contracts.py`이며 모르는 필드는 거부합니다.
+호출 방식·JSON 예시·필수 서지 필드·파일 책임·완료 기준은 [협업 계약](team-contract.md)에 명시했습니다.
 
 | 형식 | 주요 필드 | 의미 |
 | --- | --- | --- |
@@ -29,3 +30,7 @@ summary도 LLM 요약이므로 최종 제출 전 원문과 검토해야 합니�
 메인 State 키는 팀 starter의 `tech_result`, `market_result`, `stakeholder_result`, `domain_result`, `synthesis`, `report`를 계승했습니다.
 값은 공통 `NodeRun`으로 정규화했습니다. 병렬 가지는 자기 결과 키만 쓰고, 세 가지가 끝난 뒤 한 번 합류합니다.
 이전 결과를 원문 근거로 대신 사용하지 않습니다. 원문 evidence를 따로 병합하고 같은 ID의 다른 내용은 덮어쓰지 않습니다.
+
+`app.check_handoff`는 rubric 전체 항목과 최종 인용의 서지 필드를 검사합니다.
+확인 불가도 이유·미확인 목록·검색 이력이 충족되면 인수 가능한 응답일 수 있습니다.
+이 검사는 NodeRun.status를 성공으로 바꾸지 않으며, 실제 기술 평가와 사람 검토의 완료를 대신하지 않습니다.

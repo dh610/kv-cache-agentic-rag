@@ -11,6 +11,7 @@ KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 �
 - 키 없이 연결을 확인하는 mock / 고정 근거로 실제 LLM을 호출하는 fixture / 실제 검색 모드
 - [과제 가이드](https://actually-war-1ea.notion.site/KV-cache-3ba7f4c866938099b7a8fdaa1831c07e)
 - [팀원 시작 안내](docs/onboarding.md) · [입출력 계약](docs/contracts.md) · [구조와 구현 범위](docs/architecture.md)
+- [역할·연결·완료 기준](docs/team-contract.md) · [최종 설계와 구현 차이](docs/final-design-review.md)
 
 ## Selected Technologies
 
@@ -21,10 +22,10 @@ KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 �
 
 ## Usage
 
-현재 기초 환경 브랜치에서 시작합니다. main 병합 후에는 `--branch` 옵션을 생략하면 됩니다.
+main에 공통 기초 환경이 반영되어 있습니다.
 
 ```bash
-git clone --branch feat/team-node-foundation https://github.com/dh610/kv-cache-agentic-rag.git
+git clone https://github.com/dh610/kv-cache-agentic-rag.git
 cd kv-cache-agentic-rag
 uv sync --frozen
 cp .env.example .env
@@ -158,9 +159,22 @@ GitHub Actions는 API 키 없이 동일한 검사와 mock 전체 파이프라인
 
 ## Contributors
 
-공통 기반 담당과 관점별 담당이 같은 저장소를 사용합니다. 실제 이름·담당 노드 배정은 팀에서 확정 후 기입합니다.
+| 팀원 | GitHub |
+| --- | --- |
+| 김계원 | [wonn2k](https://github.com/wonn2k) |
+| 박유진 | [youjin09222](https://github.com/youjin09222) |
+| 윤동현 | [dh610](https://github.com/dh610) |
+| 인수연 | [1nyeonart](https://github.com/1nyeonart) |
+| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) |
+
+공통 기반 담당과 관점별 담당이 같은 저장소를 사용합니다. 실제 개인별 세부 역할은 팀에서 확정해 기입합니다.
+협업자 Write 권한은 저장소 초대를 수락하면 활성화됩니다. GitHub의 기여자 통계는 이후 반영된 커밋에 따라 집계됩니다.
 공유 코드보다 담당 프롬프트·rubric·fixture를 우선 수정하고 작은 PR로 합칩니다.
 [충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다.
+
+노드 인수 전에는 `--case acceptance`로 현재 rubric의 모든 항목을 요청하고
+`python -m app.check_handoff --node market --result outputs/local/RUN/result.json`으로 누락·더미·출처를 점검합니다.
+자세한 명령과 인수/평가 완료의 차이는 [협업 계약](docs/team-contract.md#5-완료-기준)에 있습니다.
 
 ## Deliverables
 

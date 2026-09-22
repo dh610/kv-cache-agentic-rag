@@ -25,6 +25,9 @@ class Paper(BaseModel):
     technology: str
     role: Literal["target", "reference"]
     body_pages: tuple[int, int]
+    authors: str | None = None
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    venue: str | None = None
 
     @model_validator(mode="after")
     def ordered_pages(self):
@@ -116,6 +119,9 @@ def read_chunks(settings: Settings, catalog: Catalog, root: Path = ROOT):
                         document_role=paper.role,
                         page=page_number,
                         document_id=paper.id,
+                        authors=paper.authors,
+                        year=paper.year,
+                        venue=paper.venue,
                     )
                 )
                 if offset + settings.retrieval.chunk_size >= len(text):
