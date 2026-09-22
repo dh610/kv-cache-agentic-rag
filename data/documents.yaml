@@ -28,3 +28,29 @@ documents:
     year: 2026
     venue: arXiv preprint
     citation_id: "2606.12556"
+  - id: turboquant
+    path: data/papers/turboquant.pdf
+    title: "TurboQuant: Online Vector Quantization with Near-optimal Distortion Rate"
+    url: https://arxiv.org/abs/2504.19874
+    technology: other
+    role: reference
+    body_pages: [1, 20]      # p.21 하단부터 References
+    authors: Amir Zandieh et al.
+    year: 2025
+    venue: arXiv preprint
+    citation_id: arXiv 2504.19874
+    affiliation: independent
+    affiliation_reason: Google 연구진의 KV cache 양자화 경쟁 기술 논문. KIVI·ITME 저자와 무관
+  - id: infinigen
+    path: data/papers/infinigen.pdf
+    title: "InfiniGen: Efficient Generative Inference of Large Language Models with Dynamic KV Cache Management"
+    url: https://arxiv.org/abs/2406.19707
+    technology: other
+    role: reference
+    body_pages: [1, 14]      # p.15부터 References
+    authors: Wonbeom Lee et al.
+    year: 2024
+    venue: OSDI 2024
+    citation_id: arXiv 2406.19707  # 게재본 페이지 확인 후 갱신
+    affiliation: independent
+    affiliation_reason: 서울대 연구진의 CPU 오프로딩 기법. ITME 가 비교 대상으로 삼는 접근이며 SK hynix 와 무관
