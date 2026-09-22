@@ -9,7 +9,12 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
 from rag.interface import PartialSearch, search_source, supports_scope
-from runtime.aliases import alias, restore_result, split_absence_claims
+from runtime.aliases import (
+    alias,
+    drop_cross_technology,
+    restore_result,
+    split_absence_claims,
+)
 from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
@@ -597,7 +602,10 @@ def build_node_graph(
                 draft = backend.generate(node, current, prompt_evidence, system, user)
             return {
                 "draft": split_absence_claims(
-                    restore_result(NodeResult.model_validate(draft), back)
+                    drop_cross_technology(
+                        restore_result(NodeResult.model_validate(draft), back),
+                        state["search_results"],
+                    )
                 )[0],
                 "prompt_hash": digest,
                 "rendered_system": system,
@@ -695,11 +703,14 @@ def build_node_graph(
         system, user, digest = render(node, current, labelled)
         try:
             draft = split_absence_claims(
-                restore_result(
-                    NodeResult.model_validate(
-                        backend.generate(node, current, labelled, system, user)
+                drop_cross_technology(
+                    restore_result(
+                        NodeResult.model_validate(
+                            backend.generate(node, current, labelled, system, user)
+                        ),
+                        back,
                     ),
-                    back,
+                    state["search_results"],
                 )
             )[0]
             return {

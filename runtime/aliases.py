@@ -76,6 +76,31 @@ def restore_result(result: NodeResult, back: dict[str, str]) -> NodeResult:
     return restored
 
 
+def drop_cross_technology(result: NodeResult, evidence: list[Evidence]) -> NodeResult:
+    """다른 기술의 근거를 인용한 항목에서 그 인용만 떼어낸다.
+
+    설계서 C.2: 다른 기술의 실험 결과를 대상 기술의 근거로 전용하지 않는다. 기술별로 나눠
+    생성해도 근거 번호는 전체 목록 기준이라, 모델이 자기 묶음에 없는 앞 번호를 적으면 다른
+    기술의 근거로 복원됐다(live 점검에서 ITME 도메인 판정이 전부 기각됨). 목록에 없는
+    ID(지어낸 인용)는 남겨 계약 검사가 잡게 한다.
+    """
+    by_id = {e.id: e for e in evidence}
+
+    def allowed(item, eid: str) -> bool:
+        found = by_id.get(eid)
+        if found is None:
+            return True
+        return (
+            found.technology in (item.technology, "other")
+            or found.document_role == "reference"
+        )
+
+    out = result.model_copy(deep=True)
+    for item in [*out.claims, *out.assessments, *out.trl_estimates]:
+        item.evidence_ids = [eid for eid in item.evidence_ids if allowed(item, eid)]
+    return out
+
+
 def restore_coverage(items: list[Coverage], back: dict[str, str]) -> list[Coverage]:
     return [c.model_copy(update={"evidence_ids": _ids(c.evidence_ids, back)}) for c in items]
 
