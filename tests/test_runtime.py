@@ -155,8 +155,10 @@ def test_web_source_rejects_snippets_and_keeps_raw_content(monkeypatch):
     monkeypatch.setattr(httpx, "post", post)
     data = runner.load_input("market")
     source = WebSource(load_settings())
-    first = source.search(data.questions[0], 1)
-    second = source.search(data.questions[1], 1)
+    kivi_question = next(q for q in data.questions if q.technology == "KIVI")
+    itme_question = next(q for q in data.questions if q.technology == "ITME")
+    first = source.search(kivi_question, 1)
+    second = source.search(itme_question, 1)
     assert len(first) == len(second) == 1
     assert first[0].text == "Full evidence text"
     assert first[0].id != second[0].id  # Same page can contextualize different technologies.

@@ -1,4 +1,6 @@
-다음 입력의 질문을 모두 처리하라.
+다음 입력의 questions에 요청된 기술·평가 기준 조합을 모두 처리하라.
+description의 평가 기준일과 자료의 한계를 확인하라. 기준일이 없으면 임의로 만들지 마라.
+prior_results는 기술 식별과 조건 확인에 활용하고, 사실의 인용은 아래 evidence_json의 원문 ID에 연결하라.
 <task_json>
 {{ input_json }}
 </task_json>
@@ -6,3 +8,8 @@
 <evidence_json>
 {{ evidence_json }}
 </evidence_json>
+
+항목별 근거 있는 claims를 작성하고, 그 주장에 연결된 assessment를 반환하라.
+근거가 없는 항목도 생략하지 말고 확인 불가와 구체적인 미확인 조건을 기록하라.
+summary에는 판정의 핵심과 주요 제한만 간결하게 담아라.
+시스템의 rubric·근거 규칙에 따라 NodeResult 구조로 응답하라.

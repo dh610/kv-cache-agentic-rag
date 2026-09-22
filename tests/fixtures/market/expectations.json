@@ -1,0 +1,523 @@
+{
+  "notice": "합성 테스트 자료의 검토용 기대 결과. 실제 기술 평가가 아니며 Generator 입력에 포함하지 않는다.",
+  "cases": [
+    {
+      "input": "supported.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "높음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "보통"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "높음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "높음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "높음"
+        }
+      ],
+      "review_checks": [
+        "서로 다른 실제 도입 A-01과 정식 기능 출시 C-02의 2건으로 채택 높음을 판정한다.",
+        "별도 파일럿이 있어도 확인된 도입·출시 2건을 누락하지 않는다.",
+        "전망 출처는 1개이므로 성장성 보통, 주요 프레임워크 정식 지원은 생태계 높음이다.",
+        "조건·단위·전망과 실제값을 보존하고, 자사 자료는 독립 자료와 함께 있어도 출처별 이해관계를 표시한다."
+      ]
+    },
+    {
+      "input": "planned-only.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": null,
+          "manual_review_reason": "C.4는 출시 계획만 확인되면 한 등급 낮추라고 하지만, 출시 계획 1건의 하향 전 등급을 명시하지 않는다. 임의의 정답 등급을 추가하지 않는다."
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": null,
+          "manual_review_reason": "C.4는 출시 계획만 확인되면 한 등급 낮추라고 하지만, 출시 계획 1건의 하향 전 등급을 명시하지 않는다. 임의의 정답 등급을 추가하지 않는다."
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        }
+      ],
+      "review_checks": [
+        "실제 출시가 아니라 정식 제품 출시 계획만 존재함을 구분한다.",
+        "C.4의 한 등급 하향 규칙 적용 사유를 사람이 검토한다. 사전에 가정한 등급이나 null을 실제 출력으로 강제하지 않는다.",
+        "실제 출시 미확인을 보존하고 시장·생태계 근거를 만들어내지 않는다."
+      ]
+    },
+    {
+      "input": "context-only.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "보통"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        }
+      ],
+      "review_checks": [
+        "정성 전망만으로 수치가 확인되었다고 쓰지 않는다.",
+        "분야 전망·계열 기술 활용을 선정 기술 채택·지원으로 확대하지 않는다."
+      ]
+    },
+    {
+      "input": "duplicate-announcement.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "보통"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        }
+      ],
+      "review_checks": [
+        "두 문서를 독립 도입 2건으로 세지 않는다.",
+        "파일럿을 정식 채택으로 승격하지 않는다."
+      ]
+    },
+    {
+      "input": "conflicting-forecasts.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        }
+      ],
+      "review_checks": [
+        "출처 수의 높음 조건과 축소 전망의 낮음 조건이 충돌하므로 C.2에 따라 낮음을 선택한다.",
+        "반대 전망을 모두 인용하고 상충을 삭제하거나 확인 불가로 대체하지 않는다."
+      ]
+    },
+    {
+      "input": "similar-implementation.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        }
+      ],
+      "review_checks": [
+        "프레임워크의 정식 기능이라는 사실을 선정 기술의 정식 지원으로 옮기지 않는다.",
+        "원 기술과의 관계·차이를 설명한다."
+      ]
+    },
+    {
+      "input": "missing-metadata.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "보통"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "보통"
+        }
+      ],
+      "review_checks": [
+        "실험적 프레임워크 지원으로 채택 보통, 커뮤니티 구현체 지원으로 생태계 보통을 판정한다.",
+        "날짜 누락만으로 확인된 지원을 확인 불가로 바꾸지 않는다.",
+        "발행일·기능 공개일 미확인과 최신성 판단 한계를 남기며 수집일로 대체하지 않는다.",
+        "실험적 지원을 실제 기업 도입으로 표현하지 않는다."
+      ]
+    },
+    {
+      "input": "upstream-mismatch.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "보통"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "보통"
+        }
+      ],
+      "review_checks": [
+        "상위 결과의 정식 출시 주장을 원문 불일치로 남긴다.",
+        "prior_results 대신 evidence ID를 인용한다.",
+        "상위 미확인 버전을 해결된 것으로 처리하지 않는다.",
+        "표 8의 실험적 지원 조건으로 채택 보통을 주되 실제 도입 사례가 확인되었다고 쓰지 않는다."
+      ]
+    },
+    {
+      "input": "missing-evidence.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "확인 불가"
+        }
+      ],
+      "review_checks": [
+        "6개 assessment를 모두 반환한다.",
+        "claims와 인용은 비워 두고 항목별 부족한 근거를 unverified에 기록한다.",
+        "실제 LLM 실행에서는 needs_revision을 유지한다."
+      ]
+    },
+    {
+      "input": "two-independent-cases.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "높음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "높음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "높음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "높음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "높음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "높음"
+        }
+      ],
+      "review_checks": [
+        "실제 도입은 2개의 서로 다른 사건, 전망은 독립 원 출처 2개로 계산한다.",
+        "자사 자료를 독립 조사와 섞어도 출처별 관계 표시를 유지한다."
+      ]
+    },
+    {
+      "input": "documented-low.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "낮음"
+        }
+      ],
+      "review_checks": [
+        "논문·데모/원 저자 코드와 시장 형성 초기 근거로 낮음을 판정한다.",
+        "합성 조사의 범위와 시점을 보존한다."
+      ]
+    },
+    {
+      "input": "standardization-discussion.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "보통"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "보통"
+        }
+      ],
+      "review_checks": [
+        "진행 중인 표준화 논의를 보통으로 판정하되 공식 채택·구현 지원으로 표현하지 않는다."
+      ]
+    },
+    {
+      "input": "research-code-only.json",
+      "expected_assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "adoption",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "ecosystem",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "adoption",
+          "judgment": "낮음"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "growth",
+          "judgment": "확인 불가"
+        },
+        {
+          "technology": "ITME",
+          "criterion": "ecosystem",
+          "judgment": "낮음"
+        }
+      ],
+      "review_checks": [
+        "제공된 논문·데모/원 저자 코드 외 적용·지원 미확인으로 표 8의 낮음을 적용한다.",
+        "실제로 외부 적용·지원이 없다고 입증된 것은 아니므로 확인 범위와 미확인을 남긴다.",
+        "시장 자료가 없으면 성장성은 확인 불가이다."
+      ]
+    }
+  ],
+  "manual_review_policy": "judgment=null은 설계서만으로 기대 등급을 확정하지 않은 검토용 표시이며 NodeResult 판정값이 아니다. 해당 항목의 등급 정답률을 계산하지 말고 manual_review_reason과 review_checks로 사람 검토한다. 실제 에이전트의 judgment는 기존 네 등급 중 하나여야 한다."
+}
