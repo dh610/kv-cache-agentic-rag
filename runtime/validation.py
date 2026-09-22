@@ -63,6 +63,44 @@ def trim_to_verified(result: NodeResult, checks: list[ClaimCheck], evidence: lis
     return out
 
 
+def enforce_direct_evidence(
+    result: NodeResult, evidence: list[Evidence], criteria: list[str]
+) -> NodeResult:
+    """선정 기술 자체를 말하는 항목은 직접 근거(scope=target)만 쓰게 한다.
+
+    설계서 A.4·C.2: 시장·이해관계자 등급은 접근 전반(background) 근거로도 매길 수 있지만,
+    선정 기술 자체의 채택과 TRL 은 그 기술을 직접 다룬 자료로만 판단한다. 직접 근거가
+    없으면 추정하지 않고 확인 불가로 남긴다.
+    """
+    out = result.model_copy(deep=True)
+    known = {e.id for e in evidence}
+    # 근거 목록에 없는 ID(지어낸 인용)는 남겨 계약 검사가 잡게 한다.
+    direct = {e.id for e in evidence if e.scope == "target"} | {
+        i
+        for item in [*out.assessments, *out.trl_estimates]
+        for i in item.evidence_ids
+        if i not in known
+    }
+    for item in out.assessments:
+        if item.criterion not in criteria or item.judgment == "확인 불가":
+            continue
+        item.evidence_ids = [i for i in item.evidence_ids if i in direct]
+        if not item.evidence_ids:
+            item.judgment = "확인 불가"
+            item.rationale = (
+                "선정 기술을 직접 다룬 근거가 없어 확인 불가로 남깁니다. "
+                "접근 전반 근거는 이 항목의 판정에 쓰지 않습니다."
+            )
+    for estimate in out.trl_estimates:
+        if estimate.level is None:
+            continue
+        estimate.evidence_ids = [i for i in estimate.evidence_ids if i in direct]
+        if not estimate.evidence_ids:
+            estimate.level = None
+            estimate.rationale = "선정 기술을 직접 다룬 근거가 없어 단계를 보류합니다."
+    return out
+
+
 def tech_trl_errors(result: NodeResult) -> list[str]:
     """Validate optional structured TRL against the same tech node's assessment.
 

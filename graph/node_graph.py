@@ -10,7 +10,12 @@ from runtime.aliases import alias, restore_result, split_absence_claims
 from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
-from runtime.validation import tech_trl_errors, trim_to_verified, verified_evidence_ids
+from runtime.validation import (
+    enforce_direct_evidence,
+    tech_trl_errors,
+    trim_to_verified,
+    verified_evidence_ids,
+)
 from schemas.contracts import (
     Coverage,
     Evidence,
@@ -212,6 +217,24 @@ def build_node_graph(node, data, mode, settings, backend, source):
             initial.update(fatal=True, errors=[f"Planning failed: {type(exc).__name__}"])
         return initial
 
+    def layered_queries(q, base, intent, count, live):
+        """설계서 A.4·C.2: 기술 자체(direct)와 그 기술이 대표하는 접근 전반(background)을
+        각각 찾는다. 기술명 단독 검색은 하지 않고 항상 맥락 검색어를 붙인다."""
+        if not live:
+            return [("target", q.text)]
+        terms = settings.search_terms.get(q.technology)
+        if not terms:
+            return [("target", base)]
+
+        def pick(pool, offset=0):
+            return pool[(count - 1 + offset) % len(pool)] if pool else ""
+
+        direct = f"{pick(terms.direct)} {base}".strip()
+        pool = terms.background.get(node) or [terms.approach]
+        extra = pick(terms.critical, 1) if intent == "critical" else ""
+        background = f"{pick(pool)} {terms.approach} {extra}".strip()
+        return [("target", direct), ("context", background)]
+
     def search(state):
         if state.get("fatal"):
             return {}
@@ -231,30 +254,34 @@ def build_node_graph(node, data, mode, settings, backend, source):
             )
             pair = state["queries"][q.id]
             last_query = pair.critical if intent == "critical" else pair.positive
-            searched = q.model_copy(update={"text": last_query}) if live_search else q
-            try:
-                found = source.search(searched, count)
-                evidence = merge_evidence(evidence, found)
-                records.append(
-                    SearchRecord(
-                        question_id=q.id,
-                        attempt=count,
-                        query=searched.text,
-                        intent=intent,
-                        evidence_ids=[e.id for e in found],
+            for scope, text in layered_queries(q, last_query, intent, count, live_search):
+                searched = q.model_copy(update={"text": text})
+                try:
+                    found = source.search(searched, count, scope)
+                    evidence = merge_evidence(evidence, found)
+                    records.append(
+                        SearchRecord(
+                            question_id=q.id,
+                            attempt=count,
+                            query=text,
+                            intent=intent,
+                            scope=scope,
+                            evidence_ids=[e.id for e in found],
+                        )
                     )
-                )
-            except Exception as exc:
-                records.append(
-                    SearchRecord(
-                        question_id=q.id,
-                        attempt=count,
-                        query=searched.text,
-                        intent=intent,
-                        evidence_ids=[],
-                        error=f"Search failed: {type(exc).__name__}",
+                except Exception as exc:
+                    records.append(
+                        SearchRecord(
+                            question_id=q.id,
+                            attempt=count,
+                            query=text,
+                            intent=intent,
+                            scope=scope,
+                            evidence_ids=[],
+                            error=f"Search failed: {type(exc).__name__}",
+                        )
                     )
-                )
+                last_query = text
         return {
             "search_results": evidence,
             "search_count": counts,
@@ -391,6 +418,10 @@ def build_node_graph(node, data, mode, settings, backend, source):
             # Judge 가 확인해 준 근거만 남기고 계약을 검사한다. 확인되지 않은 인용을
             # 지우는 것이므로 내용이 늘지 않는다.
             draft = trim_to_verified(state["draft"], judge.checks, state["search_results"])
+            # 선정 기술 자체를 말하는 항목(채택·TRL)은 직접 근거만 쓴다.
+            draft = enforce_direct_evidence(
+                draft, state["search_results"], settings.evidence_policy.direct_only.get(node, [])
+            )
             errors = rule_errors + contract_errors(
                 node, data, draft, state["search_results"], judge
             )

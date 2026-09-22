@@ -147,6 +147,8 @@ class SearchRecord(Contract):
     evidence_ids: list[str]
     error: str | None = None
     intent: Literal["positive", "critical", "followup", "fixture"] = "fixture"
+    # 검색어 층: direct 검색은 target, 접근 전반(background) 검색은 context.
+    scope: Literal["target", "context"] = "target"
 
 
 class NodeRun(Contract):

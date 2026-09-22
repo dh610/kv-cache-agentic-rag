@@ -24,10 +24,12 @@ class WebSource:
         self.excerpt_chars = settings.retrieval.web_excerpt_chars
 
     @traceable(run_type="retriever", name="web_search")
-    def search(self, question: Question, attempt: int) -> list[Evidence]:
-        # 기술명만 쓰면 같은 철자의 무관한 문서가 올라온다. 도메인 용어를 항상 덧붙인다.
-        anchor = " ".join(self.context_terms[:2])
-        query = f"{question.technology} {question.text} {anchor}".strip()
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
+        # 질의는 호출자가 층별 검색어까지 붙여 넘긴다. 기술명 단독 검색은 하지 않는다.
+        anchor = "" if any(t.lower() in question.text.lower() for t in self.context_terms) else \
+            " ".join(self.context_terms[:2])
+        prefix = question.technology if scope == "target" else ""
+        query = f"{prefix} {question.text} {anchor}".strip()
         # Client does not receive API key via trace arguments.
         response = httpx.post(
             "https://api.tavily.com/search",
@@ -64,7 +66,7 @@ class WebSource:
                     url=url,
                     technology=question.technology,
                     source_type="web",
-                    scope="context",
+                    scope=scope,  # 검색어 층: direct=target, background=context
                     retrieved_at=datetime.now(timezone.utc).isoformat(),
                     published_at=item.get("published_date"),
                     authors=item.get("author"),

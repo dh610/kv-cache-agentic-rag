@@ -35,6 +35,64 @@ retrieval:
     - CXL
     - GPU 메모리
 
+# 설계서 A.4·C.2: 평가 단위는 "접근 전반"이다. 두 층으로 검색한다.
+#   direct     = 선정 기술 자체 (evidence.scope=target)
+#   background = 그 기술이 대표하는 접근 전반 (evidence.scope=context)
+# 기술명은 흔한 단어와 겹치므로(KIWI 도어락, Kivy, 동명 회사) 단독으로 쓰지 않는다.
+# 설계서 A.4·C.2: 접근 전반 근거로 등급을 매겨도 되지만, 선정 기술 "자체"의 채택과
+# TRL 은 직접 근거(scope=target)만 쓴다. 직접 근거가 없으면 확인 불가로 남긴다.
+evidence_policy:
+  direct_only:
+    market: [adoption]
+
+search_terms:
+  KIVI:
+    approach: KV cache 양자화 접근
+    direct:
+      - KIVI 2bit KV cache quantization
+      - KIVI asymmetric quantization LLM
+    background:
+      market:
+        - Hugging Face quantized KV cache
+        - vLLM KV cache quantization
+        - TensorRT-LLM KV cache quantization
+      stakeholder:
+        - TurboQuant KV cache
+        - KVQuant
+        - NVIDIA KV cache transform coding
+      domain:
+        - KV cache quantization throughput memory savings
+        - 2bit KV cache long context serving
+    critical:
+      - KV cache quantization accuracy degradation
+      - 2bit KV cache long context limitations
+  ITME:
+    approach: CXL 메모리를 KV cache 저장 계층으로 쓰는 접근
+    direct:
+      - Inference Tiered Memory Expansion
+      - ITME CXL hybrid memory
+      - arXiv 2606.12556
+    background:
+      market:
+        - CXL memory market forecast
+        - CXL memory expansion AI inference
+        - SK hynix CMM CXL
+        - Samsung CMM-D CXL memory
+        - CXL 메모리 시장 전망
+      stakeholder:
+        - NVIDIA CMX context memory
+        - KV cache offloading NVMe SSD
+        - LMCache KV cache tiering
+        - CXL memory hyperscaler adoption
+        - SK hynix CXL AI memory strategy
+      domain:
+        - CXL memory TCO LLM serving
+        - KV cache offload throughput latency datacenter
+        - disaggregated memory LLM inference cost
+    critical:
+      - CXL memory latency limitations
+      - CXL memory bandwidth overhead inference
+
 evaluation:
   samples: 30
   per_technology: 15

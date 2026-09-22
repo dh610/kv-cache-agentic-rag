@@ -191,6 +191,16 @@ def _claim_line(c):
     return _cell(line)
 
 
+def _basis(assessment, evidence) -> str:
+    """설계서 A.4: 평가 단위는 접근 전반이므로 칸마다 판정 기준과 직접 근거 유무를 함께 적는다."""
+    if assessment.judgment == "확인 불가":
+        return "기준 없음, 직접 근거 없음"
+    scopes = {e.scope for e in evidence if e.id in set(assessment.evidence_ids)}
+    direct = "직접 근거 있음" if "target" in scopes else "직접 근거 없음"
+    basis = "선정 기술 기준" if scopes == {"target"} else "접근 전반 기준"
+    return f"{basis}, {direct}"
+
+
 def _assessment_table(run, techs):
     criteria = list(dict.fromkeys(a.criterion for a in run.result.assessments))
     rows = [f"| 항목 | {' | '.join(techs)} |", f"| --- |{' --- |' * len(techs)}"]
@@ -206,9 +216,11 @@ def _assessment_table(run, techs):
                 None,
             )
             cells.append(
-                _cell(f"{a.judgment}: {a.rationale}{_ids(a.evidence_ids)}")
+                _cell(
+                    f"{a.judgment} ({_basis(a, run.evidence)}): {a.rationale}{_ids(a.evidence_ids)}"
+                )
                 if a
-                else "확인 불가: 결과 누락"
+                else "확인 불가 (기준 없음, 직접 근거 없음): 결과 누락"
             )
         rows.append(f"| {LABELS.get(criterion, criterion)} | {' | '.join(cells)} |")
     return rows

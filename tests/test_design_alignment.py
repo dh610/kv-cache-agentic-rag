@@ -105,19 +105,26 @@ def test_live_search_records_both_intents_and_rewritten_queries():
         def __init__(self):
             self.calls = []
 
-        def search(self, q, attempt):
+        def search(self, q, attempt, scope="target"):
             self.calls.append((q.text, attempt))
             return [e for e in load_input("tech").evidence if e.technology == q.technology]
 
     source = Source()
     state = invoke(source=source, mode="rag")
-    assert len(source.calls) == 3 * len(
-        load_input("tech").questions
-    )  # every question retains a bounded search budget
+    # 시도마다 두 층(direct/background)을 찾되, 질문별 시도 예산은 3 으로 유지한다.
+    assert len(source.calls) == 2 * 3 * len(load_input("tech").questions)
     for q in load_input("tech").questions:
         records = [r for r in state["searches"] if r.question_id == q.id]
-        assert [r.intent for r in records] == ["positive", "critical", "followup"]
-        assert "limitations" in records[1].query
+        assert [r.intent for r in records] == [
+            "positive",
+            "positive",
+            "critical",
+            "critical",
+            "followup",
+            "followup",
+        ]
+        assert [r.scope for r in records] == ["target", "context"] * 3
+        assert "limitations" in records[2].query
     assert state["output"].status == "needs_revision"
 
 
@@ -132,7 +139,7 @@ def test_unsupported_verdict_researches_but_never_exceeds_budget():
     class Source:
         retryable = True
 
-        def search(self, q, attempt):
+        def search(self, q, attempt, scope="target"):
             return load_input("tech").evidence
 
     state = invoke(Unsupported(), Source(), "rag")
