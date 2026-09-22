@@ -54,7 +54,7 @@ def test_known_annotation_is_not_overwritten_by_unknown():
 
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize(
-    "field,other", [("scope", "target"), ("affiliation", "independent"), ("stance", "critical")]
+    "field,other", [("affiliation", "independent"), ("stance", "critical")]
 )
 def test_conflicting_semantic_labels_are_not_resolved_by_input_order(reverse, field, other):
     first = web(affiliation="first_party", stance="positive")
@@ -62,6 +62,19 @@ def test_conflicting_semantic_labels_are_not_resolved_by_input_order(reverse, fi
     pair = [second, first] if reverse else [first, second]
     with pytest.raises(ValueError, match="Conflicting evidence"):
         merge_evidence(pair)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_a_document_found_by_both_search_layers_counts_as_direct(reverse):
+    """직접 검색과 접근 전반 검색이 같은 문서를 찾으면 직접 근거로 본다.
+
+    설계서 A.4 의 2층 검색에서 흔히 생긴다. 이를 충돌로 보면 실행 전체가 죽는다
+    (live 점검에서 마지막 집계 단계가 중단됨). 입력 순서와 무관하게 같은 결과를 준다.
+    """
+    direct = web(scope="target")
+    background = direct.model_copy(update={"scope": "context"})
+    pair = [background, direct] if reverse else [direct, background]
+    assert merge_evidence(pair)[0].scope == "target"
 
 
 def test_filling_affiliation_uses_its_own_reason_without_mutating_inputs():
