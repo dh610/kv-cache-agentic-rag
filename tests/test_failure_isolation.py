@@ -111,3 +111,37 @@ def test_unchecked_claim_stays_unverified_without_blanking_the_node():
     assert any("Judge 가 빠뜨린 주장" in u for u in output.result.unverified)
     assert [a.judgment for a in output.result.assessments] == ["TRL 6"]
     assert output.validation_errors
+
+
+def test_one_failing_provider_does_not_discard_the_others():
+    """웹 API 한도 초과로 도메인 평가가 근거 0건이 된 실제 사례를 막는다."""
+    import pytest
+
+    from rag.interface import CombinedSource, PartialSearch
+    from schemas.contracts import Question
+
+    class Works:
+        retryable = True
+
+        def __init__(self, items):
+            self.items = items
+
+        def search(self, question, attempt, scope="target"):
+            return self.items
+
+    class Fails:
+        retryable = True
+
+        def search(self, question, attempt, scope="target"):
+            raise RuntimeError("HTTPStatusError")
+
+    _, data = load_case("itme_paper")
+    question = Question(id="q", technology="ITME", criterion="maturity", text="근거")
+    kept = data.evidence[:2]
+
+    with pytest.raises(PartialSearch) as partial:
+        CombinedSource(Works(kept), Fails()).search(question, 1)
+    assert [e.id for e in partial.value.found] == [e.id for e in kept]
+
+    with pytest.raises(RuntimeError):
+        CombinedSource(Fails(), Fails()).search(question, 1)

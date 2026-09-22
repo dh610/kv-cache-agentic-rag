@@ -6,6 +6,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
+from rag.interface import PartialSearch
 from runtime.aliases import alias, restore_result, split_absence_claims
 from runtime.node_rules import DRAFT_RULES
 from runtime.prompts import load_rubric, render
@@ -270,7 +271,11 @@ def build_node_graph(node, data, mode, settings, backend, source):
             for scope, text in layered_queries(q, last_query, intent, count, live_search):
                 searched = q.model_copy(update={"text": text})
                 try:
-                    found = source.search(searched, count, scope)
+                    partial = None
+                    try:
+                        found = source.search(searched, count, scope)
+                    except PartialSearch as exc:
+                        found, partial = exc.found, str(exc)
                     evidence = merge_evidence(evidence, found)
                     records.append(
                         SearchRecord(
@@ -280,6 +285,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
                             intent=intent,
                             scope=scope,
                             evidence_ids=[e.id for e in found],
+                            error=f"Search partly failed: {partial}" if partial else None,
                         )
                     )
                 except Exception as exc:
