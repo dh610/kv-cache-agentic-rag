@@ -6,6 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.evidence import merge_evidence
 from runtime.prompts import load_rubric, render
+from runtime.validation import tech_trl_errors, verified_evidence_ids
 from schemas.contracts import (
     Evidence,
     JudgeResult,
@@ -88,17 +89,10 @@ def contract_errors(
         if item.judgment != "확인 불가" and not item.evidence_ids:
             errors.append(f"{item.criterion}: assessment without evidence")
         if item.judgment != "확인 불가":
-            supported_ids = {check.claim_id for check in judge.checks if check.label == "supported"}
-            premises = [
-                c
-                for c in result.claims
-                if c.id in supported_ids
-                and c.technology == item.technology
-                and c.criterion == item.criterion
-            ]
-            if not premises or not set(item.evidence_ids).issubset(
-                {eid for c in premises for eid in c.evidence_ids}
-            ):
+            verified = verified_evidence_ids(
+                result, judge.checks, evidence, item.technology, item.criterion
+            )
+            if not verified or not set(item.evidence_ids).issubset(verified):
                 errors.append(f"{item.criterion}: assessment lacks verified claim premises")
     addressed = {(a.technology, a.criterion) for a in result.assessments}
     if len(addressed) != len(result.assessments):
@@ -110,17 +104,12 @@ def contract_errors(
         if estimate.technology not in techs or not set(estimate.evidence_ids).issubset(known):
             errors.append("TRL has unknown technology/evidence")
         if estimate.level is not None:
-            supported = {
-                eid
-                for c in result.claims
-                if c.technology == estimate.technology
-                for check in judge.checks
-                if check.claim_id == c.id and check.label == "supported"
-                for eid in check.evidence_ids
-            }
+            supported = verified_evidence_ids(result, judge.checks, evidence, estimate.technology)
             if not estimate.evidence_ids or not set(estimate.evidence_ids).issubset(supported):
                 errors.append("TRL lacks verified claim premises")
-    if len({t.technology for t in result.trl_estimates}) != len(result.trl_estimates):
+    if node == "tech":
+        errors.extend(tech_trl_errors(result))
+    elif len({t.technology for t in result.trl_estimates}) != len(result.trl_estimates):
         errors.append("Duplicate TRL technologies")
     return errors
 
