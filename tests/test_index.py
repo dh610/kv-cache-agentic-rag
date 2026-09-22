@@ -79,6 +79,18 @@ def test_signature_changes_when_metadata_text_or_config_changes(corpus):
     assert corpus_signature(settings, catalog, root) != original
 
 
+def test_bibliography_update_changes_signature_and_survives_evidence_merge(corpus):
+    root, catalog = corpus
+    settings = load_settings()
+    original = corpus_signature(settings, catalog, root)
+    before, _ = read_chunks(settings, catalog, root)
+    catalog.documents[0].citation_id = "arXiv 2402.02750"
+    after, _ = read_chunks(settings, catalog, root)
+    assert corpus_signature(settings, catalog, root) != original
+    assert [e.id for e in before] == [e.id for e in after]
+    assert all(e.citation_id == "arXiv 2402.02750" for e in merge_evidence(before, after))
+
+
 def test_empty_page_and_invalid_page_range_fail(corpus):
     root, catalog = corpus
     catalog.documents[0].body_pages = (1, 3)

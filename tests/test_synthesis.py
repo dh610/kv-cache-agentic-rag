@@ -238,6 +238,26 @@ def test_cross_technology_evidence_is_rejected():
     assert any("cannot support KIVI" in e for e in synthesis_errors(data, result, data.evidence))
 
 
+def test_consistency_does_not_count_citations_from_unknown_assessments():
+    _, data = load_case("paper_only")
+    result, _ = synthesis_result(data)
+    # Keep another evaluated domain assessment, but the cited quality assessment is unknown.
+    for item in data.prior_results["domain"].assessments:
+        if item.technology == "KIVI" and "kivi-review-p1-abstract" in item.evidence_ids:
+            item.judgment = "확인 불가"
+    errors = synthesis_errors(data, result, data.evidence)
+    assert any("KIVI/consistency: cite evidence" in e for e in errors)
+
+
+def test_every_upstream_unverified_item_must_survive_runtime_validation():
+    _, data = load_case("paper_only")
+    data.prior_results["tech"].unverified = ["first unresolved", "second unresolved"]
+    result, _ = synthesis_result(data)
+    result.unverified.remove("tech: second unresolved")
+    errors = synthesis_errors(data, result, data.evidence)
+    assert any("tech: upstream unverified item" in e and "second unresolved" in e for e in errors)
+
+
 def test_dropped_upstream_item_fails_and_unknown_is_inconclusive():
     case, data = load_case("paper_only")
     result, checks = synthesis_result(data, preserve=False)

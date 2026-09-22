@@ -12,7 +12,7 @@
 | 입력 | 미확인 사항 | `prior_results[role].unverified`; 상위 상태가 completed가 아니면 description에 “상위 노드 X: status” | 제공됨 |
 | 입력 | 잠정 TRL | `prior_results["tech"].trl_estimates` (`provisional=true`) | 제공됨 |
 | 입력 | 코드 규칙 gaps | `collect`가 계산한 `state["gaps"]`를 description에 JSON으로 추가 | 이번 변경으로 추가 |
-| 출력 | SUMMARY·5장 시사점 본문 | `synthesis.result.summary` → `runtime/reporting.py` SUMMARY와 “5. 관점별 시사점” | 사용됨. 요약이 곧 보고서 본문이므로 프롬프트에 작성 규칙 명시 |
+| 출력 | SUMMARY의 입력·5장 시사점 본문 | `synthesis.result.summary` → 보고서 노드의 SUMMARY 작성 입력과 5.1장 | 최종 SUMMARY는 `report.result.summary`이며, 종합 요약은 5.1장에 표시 |
 | 출력 | 관점별 일치·상충 판정 | `synthesis.result.assessments` (consistency/implications) → 5장 목록 | 사용됨 |
 | 출력 | 최종 TRL | `trl_estimates`(`provisional=false`만) → `state["trl_result"]` → 3.3장, `validate_report`의 “TRL 미확인” 검사 | 사용됨. `provisional=true`면 조용히 버려지고 “확정 TRL 근거 부족”으로 대체되므로 이번 검사에서 오류로 노출 |
 | 출력 | 실제 인용 출처 | `used_ids(out)` → `state["sources"]` → REFERENCE | 사용됨 |
@@ -37,12 +37,12 @@
 | 간극 | 검사 |
 | --- | --- |
 | 관점이 하나뿐인데 일치/상충을 판정 | 확인 불가가 아닌 상위 관점이 둘 미만이면 오류 |
-| 한쪽 관점 근거만 인용한 일치/상충 | assessment.evidence_ids가 둘 이상의 상위 관점이 인용한 ID와 겹쳐야 함 |
+| 한쪽 관점 근거만 인용한 일치/상충 | assessment.evidence_ids가 같은 기술의 확인 불가가 아닌 상위 assessment 두 관점의 인용 ID와 겹쳐야 함 |
 | 관점 결과 없이 시사점 작성 | 확인 불가가 아닌 상위 관점이 없으면 조건부 시사점·판정 유보 불가 |
 | 다른 기술 근거 전용 | KIVI claim/assessment가 ITME evidence를 인용하면 오류 (역도 동일). `other`·reference 문서는 허용하되 TRL에는 불가 |
 | 최종 TRL의 근거 없는 상향 | 잠정 단계보다 높으면 시장 결과가 인용한 해당 기술 `scope=target` 근거를 포함해야 함 |
 | TRL 플래그·범위 | `provisional=true`, 다른 기술·`scope=context` 근거, 잠정 TRL이 있는데 최종 항목이 없는 경우 오류 |
-| 상위 미확인 삭제 | 상위 role의 unverified가 있으면 `"<role>: ..."` 항목이 있어야 함 (role 단위) |
+| 상위 미확인 삭제 | 상위 unverified의 모든 항목을 `"<role>: <원문>"` 그대로 보존해야 함 (항목 단위) |
 
 여전히 검사하지 못하는 것: 일치/상충 판정 자체의 타당성, 상충 원인 서술의 정확성, summary 문장의 의미, 추천 뉘앙스. 이 부분은 `app.evaluate_synthesis`의 검토자 범위와 `manual_review` 항목으로 사람이 확인합니다.
 
@@ -78,5 +78,5 @@ uv run python -m app.evaluate_synthesis --case no_prior --run outputs/local/<위
 - 시장 직접 근거에 의한 TRL 상향은 검증된 웹 자료가 없어 회귀 사례로 만들지 못했습니다. 규칙은 단위 테스트로만 확인했습니다.
 - 실제 LLM으로 acceptance를 실행한 결과는 아직 없습니다. 프롬프트 품질은 fixture 모드 실행 후 `evaluate_synthesis`와 `manual_review`로 확인해야 합니다.
 - 상위 결과에 확인 불가가 하나라도 있으면 종합은 `needs_revision`이고, `validate_report`는 모든 노드 completed를 요구하므로 전체 보고서는 ready가 되지 않습니다. 이는 계약 v2의 정책이며 종합 노드에서 바꾸지 않았습니다.
-- 보고서 노드는 `synthesis.summary`를 SUMMARY와 5장에 그대로 씁니다. summary 작성 규칙(갈린 지점 우선, 확인 불가 개수, 추천 금지)을 프롬프트에 넣었지만 문장 검수는 사람이 해야 합니다.
+- 보고서 노드는 `synthesis.summary`를 바탕으로 최종 SUMMARY를 쓰며, 5.1장에는 종합 요약이 표시됩니다. summary 작성 규칙(갈린 지점 우선, 확인 불가 개수, 추천 금지)을 프롬프트에 넣었지만 문장 검수는 사람이 해야 합니다.
 - 시장 rubric의 출처 개수 조건과 도메인 rubric의 비용·도입 부적합 조건은 여전히 팀 해석 대상입니다. 종합은 그 조건으로 판정된 상위 결과를 조정하지 않고 limitations에 검토 대상으로 남깁니다.

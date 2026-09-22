@@ -17,6 +17,7 @@ METADATA_FIELDS = (
     "authors",
     "year",
     "venue",
+    "citation_id",
     "publisher",
     "site",
     "published_at",

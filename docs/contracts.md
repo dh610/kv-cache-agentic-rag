@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | NodeInput | case_id, target_techs, domain, questions, evidence, prior_results | 개별 노드 독립 실행에도 상위 결과 주입 가능 |
 | Question | id, technology, criterion, text | 모든 질문을 실행하며 검색 예산은 질문별로 계산 |
-| Evidence | id, text, title, url, technology, source_type, scope, document_role, page, affiliation, affiliation_reason, stance | 변경 불가능한 인용 대상; 페이지는 1-based |
+| Evidence | id, text, title, url, technology, source_type, scope, document_role, page, citation_id, affiliation, affiliation_reason, stance | 변경 불가능한 인용 대상; 페이지는 1-based |
 | Claim | id, technology, criterion, text, kind, evidence_ids, conditions | 사실/추론 분리 및 조건 보존 |
 | Assessment | technology, criterion, judgment, rationale, evidence_ids | rubric에 허용된 판정만 사용 |
 | NodeResult | node, summary, claims, assessments, unverified, limitations, trl_estimates | 모델의 공통 반환 형식 |
@@ -49,3 +49,5 @@ RAGSubState의 설계 키: `role`, `questions`, `current_query`, `search_results
 목록 호출을 보존하므로 `search_count`는 질문 ID별 dict입니다. 내부 `queries`는 질문별 positive/critical 질의를 보관하고 `current_query`는 마지막 실행 질의입니다.
 
 `ModelBackend`는 generate/judge 외 plan/sufficiency 메서드를 제공합니다. 실제 backend는 구조화된 QueryPlan/SufficiencyResult를 반환하고 mock은 오프라인 연결만 확인합니다.
+
+PR #10의 서지 확장: Evidence에 선택적 `citation_id`와 `source_type=patent`를 추가했습니다. 논문·특허의 최종 서지 검사에서는 citation_id가 필요합니다. 기존 JSON은 파싱되지만 누락된 서지는 인수 검사에서 보완 대상으로 표시됩니다. 문서 메타데이터가 바뀌므로 각자 `uv run --extra rag python -m app.index`로 FAISS 인덱스를 재생성하세요.

@@ -57,7 +57,18 @@ def synthesis_errors(data: NodeInput, result: NodeResult, evidence: list[Evidenc
                     f"{a.technology}/consistency: {a.judgment} needs two evaluated perspectives, "
                     f"found {len(roles)}"
                 )
-            citing = {role for role, ids in role_ids.items() if ids & set(a.evidence_ids)}
+            # Count only citations attached to this technology's evaluated assessments.
+            # A citation from an unknown or unrelated assessment is not a second viewpoint.
+            citing = {
+                role
+                for role in roles
+                if any(
+                    prior.technology == a.technology
+                    and prior.judgment != UNKNOWN
+                    and set(prior.evidence_ids) & set(a.evidence_ids)
+                    for prior in data.prior_results[role].assessments
+                )
+            }
             if len(citing) < 2:
                 errors.append(
                     f"{a.technology}/consistency: cite evidence used by at least two perspectives"
@@ -91,7 +102,9 @@ def synthesis_errors(data: NodeInput, result: NodeResult, evidence: list[Evidenc
                 f"TRL {technology}: provisional estimate needs a final level or explicit level=null"
             )
 
+    preserved = set(result.unverified)
     for role, prior in data.prior_results.items():
-        if prior.unverified and not any(role in u.lower() for u in result.unverified):
-            errors.append(f"{role}: upstream unverified items must be preserved as '{role}: ...'")
+        for item in prior.unverified:
+            if f"{role}: {item}" not in preserved:
+                errors.append(f"{role}: upstream unverified item must be preserved: {item}")
     return errors
