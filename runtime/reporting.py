@@ -543,18 +543,37 @@ def assemble_report(state, result_keys, mode):
             f"| {ROLE_LABELS[role]} | {unknown}/{len(items)} | {len(run.result.unverified)}건 | "
             f"{shortfall}건 | {run.status} |"
         )
-    # 같은 문장이 여러 노드에서 반복되므로 한 번만 싣는다.
+    # 같은 문장이 여러 노드에서 반복되고, 질문마다 같은 기록이 쌓인다. 한 번만 싣는다.
     printed: set[str] = set()
+    ROUTINE = (
+        ("긍정·비판 양쪽 실제 검색 미완료", "긍정·비판 양쪽 검색을 마치지 못한 질문"),
+        ("확인 불가", "확인 불가로 남은 항목"),
+    )
 
     def bullets(label, values):
-        out = []
+        out, grouped = [], {}
         for value in values:
             text = _cell(str(value))
-            key = f"{label}|{text}"
-            if not text or key in printed:
+            if not text:
+                continue
+            # 같은 형태의 기록은 항목 이름만 모아 한 줄로 싣는다.
+            for marker, title in ROUTINE:
+                if text.endswith(marker) and ":" in text:
+                    grouped.setdefault(title, []).append(text.split(":")[0].strip())
+                    break
+            else:
+                key = f"{label}|{text[:60]}"  # 끝부분만 다른 반복 문장도 한 번만 싣는다.
+                if key in printed:
+                    continue
+                printed.add(key)
+                out.append(f"- {label}: {text}")
+        for title, items in grouped.items():
+            key = f"{label}|{title}"
+            if key in printed:
                 continue
             printed.add(key)
-            out.append(f"- {label}: {text}")
+            names = ", ".join(dict.fromkeys(items))
+            out.append(f"- {label}: {title} — {names}")
         return out
 
     lines.extend(bullets("보고서 통합 한계", report.result.limitations))

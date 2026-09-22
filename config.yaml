@@ -66,10 +66,15 @@ search_terms:
         - Hugging Face quantized KV cache
         - vLLM KV cache quantization
         - TensorRT-LLM KV cache quantization
-      stakeholder:
-        - TurboQuant KV cache
-        - KVQuant
-        - NVIDIA KV cache transform coding
+        - LLM inference infrastructure market forecast
+        - AI inference memory optimization market size
+      stakeholder:  # 설계서 표 9의 KIVI 경쟁 진영 + 도입자·업계 반응 경로
+        - TurboQuant KV cache quantization Google
+        - KVTC NVIDIA KV cache transform coding
+        - DeepSeek MLA multi-head latent attention KV cache
+        - vLLM KV cache quantization issue discussion
+        - Hugging Face quantized KV cache community feedback
+        - KV cache quantization industry outlook analyst
       domain:
         - KV cache quantization throughput memory savings
         - 2bit KV cache long context serving
@@ -89,12 +94,13 @@ search_terms:
         - SK hynix CMM CXL
         - Samsung CMM-D CXL memory
         - CXL 메모리 시장 전망
-      stakeholder:
-        - NVIDIA CMX context memory
-        - KV cache offloading NVMe SSD
-        - LMCache KV cache tiering
-        - CXL memory hyperscaler adoption
-        - SK hynix CXL AI memory strategy
+      stakeholder:  # 설계서 표 9의 ITME 경쟁 진영 + 도입자·업계 반응 경로
+        - NVIDIA CMX context memory storage
+        - Samsung CMM-D CXL memory module
+        - PNM processing near memory CXL
+        - LMCache KV cache tiering deployment
+        - CXL memory hyperscaler adoption experience
+        - CXL memory industry outlook analyst
       domain:
         - CXL memory TCO LLM serving
         - KV cache offload throughput latency datacenter
