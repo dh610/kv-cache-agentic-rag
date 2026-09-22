@@ -41,7 +41,7 @@ def test_real_backend_requires_llm_key():
 def test_provider_structured_output_can_be_constructed_without_network(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "unit-test-placeholder")
     backend = OpenAIBackend(load_settings())
-    assert backend.generator is not None and backend.evaluator is not None
+    assert backend.generator is not None and backend.judge_llm is not None
 
 
 def test_prompt_typo_fails_loudly(monkeypatch, tmp_path):

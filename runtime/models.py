@@ -158,15 +158,18 @@ class OpenAIBackend:
         self.sufficiency_judge = ChatOpenAI(
             model=settings.models.judge, **kwargs
         ).with_structured_output(SufficiencyResult, method="json_schema")
-        self.evaluator = ChatOpenAI(model=settings.models.judge, **kwargs).with_structured_output(
-            JudgeResult, method="json_schema"
-        )
+        # judge() rebuilds this per call with claim_id constrained to that draft's real
+        # claim IDs, so keep the unbound client around instead of a pre-bound evaluator.
+        self.judge_llm = ChatOpenAI(model=settings.models.judge, **kwargs)
 
     def generate(self, node, data, evidence, system, user):
         return self.generator.invoke([("system", system), ("human", user)])
 
     def judge(self, result, evidence):
         import json
+        from typing import Literal
+
+        from pydantic import create_model
 
         from runtime.settings import ROOT
 
@@ -189,7 +192,21 @@ class OpenAIBackend:
             },
             ensure_ascii=False,
         )
-        return self.evaluator.invoke([("system", prompt), ("human", payload)])
+        claim_ids = [c.id for c in result.claims]
+        # Belt-and-suspenders on top of the claim_ids_to_check checklist: constrain
+        # claim_id to this draft's real claim IDs at the json_schema level (an enum), so
+        # a dropped/altered suffix -- still observed occasionally even with the checklist
+        # -- can't slip through; the model can only pick from this exact list.
+        constrained_check = create_model(
+            "ConstrainedClaimCheck",
+            __base__=ClaimCheck,
+            claim_id=(Literal[tuple(claim_ids)], ...),
+        )
+        constrained_result = create_model(
+            "ConstrainedJudgeResult", __base__=JudgeResult, checks=(list[constrained_check], ...)
+        )
+        evaluator = self.judge_llm.with_structured_output(constrained_result, method="json_schema")
+        return evaluator.invoke([("system", prompt), ("human", payload)])
 
     def plan(self, data, feedback):
         import json
