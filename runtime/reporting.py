@@ -141,10 +141,32 @@ def reference_text(e):
             f"{e.citation_id or '특허번호 미확인'}, {e.url}"
         )
     if e.source_type == "web":
-        author = e.publisher or e.authors or "기관/작성자 미확인"
+        # 발행 기관을 못 받은 페이지가 많다. 사이트 도메인은 지어낸 정보가 아니라
+        # URL 에서 확인되는 발행 주체이므로 기관명 자리에 쓴다. 발행일은 추정하지 않고,
+        # 대신 우리가 실제로 아는 수집일을 함께 적는다.
+        author = e.publisher or e.authors or site_operator(e.site) or "기관/작성자 미확인"
         site = e.site or "사이트 미확인"
-        return f"{author}({e.published_at or '발행일 미확인'}). {e.title}. {site}, {e.url}"
+        when = e.published_at or (
+            f"발행일 미확인, 수집 {e.retrieved_at[:10]}" if e.retrieved_at else "발행일 미확인"
+        )
+        return f"{author}({when}). {e.title}. {site}, {e.url}"
     return f"개발용 고정 발췌(제출 불가). {e.title}. {e.url}"
+
+
+def site_operator(host: str | None) -> str:
+    """도메인에서 발행 주체 이름을 만든다. 예: www.solidigmtechnology.kr -> Solidigm Technology."""
+    if not host:
+        return ""
+    generic = {"www", "m", "blog", "news", "docs", "doc", "developer", "dev", "support", "en", "ko"}
+    parts = [p for p in host.lower().split(".") if p not in generic]
+    if not parts:
+        return ""
+    name = parts[0]
+    for suffix in ("technology", "research", "labs", "group", "news", "tech"):
+        if name.endswith(suffix) and len(name) > len(suffix) + 2:
+            name = f"{name[: -len(suffix)]} {suffix}"
+            break
+    return name.replace("-", " ").title()
 
 
 def affiliation_marker(e):

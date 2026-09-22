@@ -137,13 +137,19 @@ def contract_errors(
             errors.append(f"{check.claim_id}: supported without evidence")
     for claim in result.claims:
         if claim.technology not in techs or claim.criterion not in rubric:
-            errors.append(f"{claim.id}: unknown technology/criterion")
+            errors.append(
+                f"{claim.id}: unknown technology/criterion "
+                f"({claim.technology}/{claim.criterion})"
+            )
         if not claim.evidence_ids or not set(claim.evidence_ids).issubset(known):
             errors.append(f"{claim.id}: missing/unknown evidence IDs")
     for item in result.assessments:
         criterion = rubric.get(item.criterion)
         if item.technology not in techs or not criterion:
-            errors.append("assessment has unknown technology/criterion")
+            errors.append(
+                "assessment has unknown technology/criterion "
+                f"({item.technology}/{item.criterion})"
+            )
         elif item.judgment not in criterion.judgments:
             errors.append(f"{item.criterion}: judgment not allowed by rubric")
         if not set(item.evidence_ids).issubset(known):
@@ -524,7 +530,16 @@ def build_node_graph(node, data, mode, settings, backend, source):
         dropped = len(kept) != len(result.claims)
         result.claims = kept
         # 등급은 살아남은 주장에 다시 대조한다. 전제가 사라진 항목만 확인 불가로 내린다.
+        allowed = {c.id: set(c.judgments) for c in load_rubric(node).criteria}
         for a in result.assessments:
+            if a.judgment not in allowed.get(a.criterion, set()):
+                # 루브릭에 없는 값(오염된 문자열 등)은 판정으로 쓰지 않는다.
+                a.judgment, a.rationale, a.evidence_ids = (
+                    "확인 불가",
+                    "허용되지 않은 판정 값이어서 보류합니다.",
+                    [],
+                )
+                continue
             if a.judgment == "확인 불가":
                 continue
             verified = verified_evidence_ids(

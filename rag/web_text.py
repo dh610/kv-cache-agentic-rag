@@ -22,8 +22,16 @@ def terms(text: str) -> set[str]:
     return {w.lower() for w in WORD.findall(text)}
 
 
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
 def clean(text: str) -> str:
-    """상용구·메뉴 줄을 버리고 문단만 남긴다."""
+    """상용구·메뉴 줄을 버리고 문단만 남긴다.
+
+    PDF 에서 긁힌 웹 페이지에는 폼피드 같은 제어문자가 섞여 있다. 그대로 넘기면 모델
+    출력까지 오염된다 (live 점검에서 등급 칸이 제어문자가 낀 문자열로 나왔다).
+    """
+    text = CONTROL.sub(" ", text)
     kept = []
     for block in re.split(r"\n\s*\n", text):
         block = re.sub(r"[ \t]+", " ", block).strip()
