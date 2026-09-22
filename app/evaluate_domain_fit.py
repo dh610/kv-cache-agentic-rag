@@ -6,9 +6,11 @@ import argparse
 import json
 from pathlib import Path
 
+from graph.node_graph import contract_errors
 from runtime.domain_checks import domain_rule_errors
 from runtime.settings import ROOT
-from schemas.contracts import NodeInput, NodeResult, NodeRun
+from runtime.validation import verified_evidence_ids
+from schemas.contracts import JudgeResult, NodeInput, NodeResult, NodeRun
 
 DATASET = ROOT / "tests/fixtures/domain/fit_eval"
 CASE_IDS = ("kivi_paper", "itme_paper", "context_only", "no_evidence")
@@ -47,11 +49,15 @@ def score_case(case: dict, data: NodeInput, run: NodeRun, draft: NodeResult | No
     ]
     if run.status == "failed" or errors:
         problems.append("Node execution or contract validation failed")
+    problems.extend(
+        contract_errors(
+            "domain", data, scored.result, scored.evidence, JudgeResult(checks=scored.checks)
+        )
+    )
     problems.extend(domain_rule_errors(data, scored))
 
     technology = case["technology"]
     supplied = {e.id: e for e in data.evidence}
-    supported = {check.claim_id for check in scored.checks if check.label == "supported"}
     items = {}
     for criterion, label in case["items"].items():
         found = [
@@ -83,14 +89,9 @@ def score_case(case: dict, data: NodeInput, run: NodeRun, draft: NodeResult | No
                 problems.append(f"{criterion}: assessment must cite supplied evidence IDs")
             if not set(label["required_evidence_ids"]).issubset(cited):
                 problems.append(f"{criterion}: assessment omits required evidence")
-            verified = {
-                eid
-                for claim in scored.result.claims
-                if claim.id in supported
-                and claim.technology == technology
-                and claim.criterion == criterion
-                for eid in claim.evidence_ids
-            }
+            verified = verified_evidence_ids(
+                scored.result, scored.checks, scored.evidence, technology, criterion
+            )
             if not cited.issubset(verified):
                 problems.append(f"{criterion}: citations lack a supported claim for this item")
         items[criterion] = {"judgment": item.judgment, "decision": decision}

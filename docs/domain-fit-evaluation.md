@@ -39,7 +39,7 @@
 | 계약 검사 | `graph/node_graph.py:contract_errors` | 항목 누락, 허용 판정, 근거 ID 존재, 확인 불가 아닌 판정의 supported claim 연결 | 인용 근거가 **같은 기술의 직접 근거**인지, 등급별 필수 조건 |
 | 도메인 draft 규칙 | `runtime/domain_checks.py:draft_rule_errors` — `runtime/node_rules.py:DRAFT_RULES`로 등록, 공통 그래프의 `verify`가 Judge 호출 전에 실행 | 근거 부재를 말하는 claim(“명시되지 않”, “미상” 등) 금지, 다른 기술 근거 인용 금지, 확인 불가 아닌 판정의 직접 근거(같은 기술·scope=target) 필수, performance 적합의 외부(web) 사례 필수, 실험 항목 fact claim의 conditions 필수, 판정 항목 rationale의 "공개 정보 기반 추정" | rationale 문장의 의미, 수치·기준선이 원문과 일치하는지, FPGA 시제품과 CMM 플랫폼 측정을 섞었는지 |
 | 도메인 handoff 규칙 | `runtime/domain_checks.py:domain_rule_errors` — `HANDOFF_RULES`로 `check_handoff`에 등록, 채점기가 재사용 | draft 규칙 + 부적합의 supported fact claim 필수 | 위와 같음 |
-| 평가 채점기 | `app/evaluate_domain_fit.py` | 검토자 허용 범위(accepted/disputed)와 필수 근거 ID, supported claim 연결. `--draft`로 검증 전 초안(`draft.json`)도 채점 | 위와 같음. `manual_review` 항목은 사람이 확인 |
+| 평가 채점기 | `app/evaluate_domain_fit.py` | 검토자 허용 범위(accepted/disputed)와 필수 근거 ID, 공통 계약 및 claim/Judge가 함께 확인한 인용 ID의 연결. `--draft`로 검증 전 초안(`draft.json`)도 채점 | 위와 같음. `manual_review` 항목은 사람이 확인 |
 
 draft 규칙 위반은 그래프에서 `표현 오류`로 처리되어 기존 1회 수정 루프가 재작성 피드백을 받습니다. 수정 후에도 남으면 validation_errors에 기록되고 기존대로 판정이 보류됩니다. 이를 위해 공통 `graph/node_graph.py`에 세 가지를 추가했습니다(검색·서브그래프 담당자 검토 필요): 근거가 0건이면 충분성 Judge를 호출하지 않고 전 질문 불충분으로 기록, claim이 0건이면 인용 Judge를 호출하지 않음, 수정 예산이 남아 있는 동안 표현 오류를 `추가 근거 필요`보다 먼저 처리. 질문 순회·검색 예산·근거 ID·실패 전파는 그대로입니다. `app/run_node.py`는 검증 전 초안을 `draft.json`으로 함께 저장합니다(프롬프트 검토용이며 인수 산출물이 아님).
 

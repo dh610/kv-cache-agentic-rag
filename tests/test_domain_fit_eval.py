@@ -145,6 +145,20 @@ def test_paper_only_performance_cannot_be_fully_fit():
     assert any("external case" in p for p in report["problems"])
 
 
+def test_scorer_rejects_assessment_citations_the_judge_did_not_confirm():
+    case, data, run = sample_run("kivi_paper", KIVI_BOUNDED)
+    unconfirmed = data.evidence[0].model_copy(update={"id": "unconfirmed-extra-source"})
+    data.evidence = [*data.evidence, unconfirmed]
+    run.evidence = data.evidence
+    next(c for c in run.result.claims if c.criterion == "cost").evidence_ids.append(unconfirmed.id)
+    next(a for a in run.result.assessments if a.criterion == "cost").evidence_ids.append(
+        unconfirmed.id
+    )
+    report = score_case(case, data, run)
+    assert report["decision"] == "fail"
+    assert any("verified claim premises" in p for p in report["problems"])
+
+
 def test_missing_cost_information_is_not_unfit():
     case, data, run = sample_run("itme_paper", {**ITME_BOUNDED, "cost": "부적합"})
     assert score_case(case, data, run)["decision"] == "fail"

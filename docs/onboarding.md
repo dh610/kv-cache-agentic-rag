@@ -65,7 +65,7 @@ fixture와 mock의 차이:
 
 ## 문서와 실제 검색
 
-`data/papers/kivi.pdf`, `data/papers/itme.pdf`에 공유 ZIP의 원문을 놓습니다.
+`data/papers/`에 공유 원문 `kivi.pdf`, `itme.pdf`, `turboquant.pdf`, `infinigen.pdf` 네 편을 놓습니다. PR #16부터 뒤의 두 편을 reference로 등록했으므로 기존 두 편 인덱스도 재생성해야 합니다. 현재 등록 범위는 전체 71페이지 중 본문 54페이지이며, 판본이 다르면 먼저 본문 범위를 확인하세요.
 PDF 원문은 Git에 올리지 않습니다. 다른 팀원도 같은 판본을 준비하고 `app.index --check`의 signature를 비교할 수 있습니다.
 문서를 추가하면 `data/documents.yaml`에도 ID·원문 링크·기술·target/reference·본문 범위를 등록하세요.
 페이지 범위는 PDF 물리 페이지 기준이며 전체 파일 페이지 합계도 200을 넘을 수 없습니다.
