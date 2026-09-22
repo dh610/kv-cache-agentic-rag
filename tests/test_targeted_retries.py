@@ -149,8 +149,10 @@ def test_rewrite_cannot_sneak_completed_questions_back_into_plan():
 
     source = Source(missing={"ITME"})
     run, _ = execute(source, BadSubset())
-    assert counts(source) == {"kivi-mechanism": 2, "itme-mechanism": 2}
-    assert run.status == "failed"
+    # 잘못된 계획은 채택하지 않는다. 다만 한 번의 재작성 실패로 관점 전체를 잃지 않고,
+    # 기존 검색어로 남은 예산(질문당 3회)까지만 계속한다.
+    assert counts(source) == {"kivi-mechanism": 3, "itme-mechanism": 3}
+    assert run.status == "needs_revision"
     assert any("Rewrite failed" in e for e in run.validation_errors)
 
 

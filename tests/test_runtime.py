@@ -41,7 +41,30 @@ def test_real_backend_requires_llm_key():
 def test_provider_structured_output_can_be_constructed_without_network(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "unit-test-placeholder")
     backend = OpenAIBackend(load_settings())
-    assert backend.generator is not None and backend.evaluator is not None
+    assert backend.evaluator is not None and backend.sufficiency_judge is not None
+
+
+def test_generation_schema_only_accepts_rubric_judgments():
+    """모델이 판정 칸에 근거 ID 조각이나 제어문자를 넣지 못하게 스키마로 막는다."""
+    from pydantic import ValidationError
+
+    from runtime.models import result_schema
+
+    model = result_schema("stakeholder")
+    variants = model.model_fields["assessments"].annotation.__args__[0]
+    options = getattr(variants, "__args__", (variants,))
+    judgments = {
+        j for option in options for j in option.model_fields["judgment"].annotation.__args__
+    }
+    assert judgments == {"긍정", "중립", "부정", "확인 불가"}
+    with pytest.raises(ValidationError):
+        options[0](
+            technology="KIVI",
+            criterion="competitors",
+            judgment="655acb8",
+            rationale="근거 ID 조각",
+            evidence_ids=[],
+        )
 
 
 def test_prompt_typo_fails_loudly(monkeypatch, tmp_path):
