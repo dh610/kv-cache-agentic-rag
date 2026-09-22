@@ -6,6 +6,7 @@
 - Stage only the intended files, inspect the staged diff, and push the task branch. Submit a PR targeting main; do not merge unless the user has authorized it. Do not force-push shared branches.
 - Follow the named assignments in docs/team-contract.md. Ask for the role only if it is unclear from the request; do not infer it from the clone owner's Git identity. Domain, synthesis and report remain unassigned and must not be silently assigned to another role.
 - Shared-file changes require an explanation of the affected contracts and coordination with the relevant owners in the PR. File boundaries reduce conflicts; they do not replace PR review or enforce GitHub branch protection.
+- Read docs/design-alignment.md before changing State, graph stages, rubric IDs, retrieval evaluation or report output. Preserve contract v2 and its explicit unresolved decisions; do not overwrite it with an older starter or teammate branch.
 - Follow docs/team-contract.md for question batching, references and handoff checks; track remaining design differences in docs/final-design-review.md.
 - Use uv and Python 3.11. Keep pyproject.toml and uv.lock in sync for dependency changes.
 - Prefer node-owned prompts/<node>, rubrics/<node>.yaml, and tests/fixtures/<node> for role development.

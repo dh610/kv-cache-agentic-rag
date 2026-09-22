@@ -28,6 +28,8 @@ class Paper(BaseModel):
     authors: str | None = None
     year: int | None = Field(default=None, ge=1900, le=2100)
     venue: str | None = None
+    affiliation: Literal["first_party", "independent", "unknown"] = "unknown"
+    affiliation_reason: str | None = None
 
     @model_validator(mode="after")
     def ordered_pages(self):
@@ -122,6 +124,8 @@ def read_chunks(settings: Settings, catalog: Catalog, root: Path = ROOT):
                         authors=paper.authors,
                         year=paper.year,
                         venue=paper.venue,
+                        affiliation=paper.affiliation,
+                        affiliation_reason=paper.affiliation_reason,
                     )
                 )
                 if offset + settings.retrieval.chunk_size >= len(text):
@@ -229,12 +233,6 @@ class PaperSource:
         import numpy as np
 
         query = f"{question.technology} {question.text}"
-        if attempt > 1:
-            query += (
-                " limitations experiments"
-                if attempt == 2
-                else " memory bandwidth latency throughput"
-            )
         with self.lock:
             vectors = np.asarray(
                 self.encoder.encode([query], normalize_embeddings=True), dtype="float32"
@@ -255,6 +253,8 @@ class PaperSource:
         return candidates[: self.settings.retrieval.top_k]
 
     def accepts(self, evidence: Evidence, question: Question) -> bool:
-        if self.node == "tech":
+        if self.node in ("tech", "domain"):
             return evidence.document_role == "target" and evidence.technology == question.technology
+        if self.node == "stakeholder":
+            return question.criterion == "competitors" and evidence.document_role == "reference"
         return evidence.technology == question.technology or evidence.document_role == "reference"

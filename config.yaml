@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 target_techs:
   sw: KIVI
   hw: ITME
@@ -11,8 +11,8 @@ models:
   max_retries: 1
 limits:
   search: 3  # includes initial attempt; per question
-  questions: 6
-  fix: 0
+  questions: 10
+  fix: 1
   supplement: 0
 retrieval:
   model: BAAI/bge-m3
@@ -24,3 +24,20 @@ retrieval:
   reranker: BAAI/bge-reranker-v2-m3
   candidates: 20
   index_dir: .cache/paper-index
+
+evaluation:
+  samples: 30
+  per_technology: 15
+  language: ko
+  acronym_numeric_fraction: 0.3333333333333333
+  tie_mrr: 0.05
+  min_hit5: 0.80
+  min_mrr: 0.60
+  candidates: [BAAI/bge-m3, intfloat/multilingual-e5-large, Alibaba-NLP/gte-multilingual-base]
+  remediation: [chunking, bilingual, dense_sparse, rerank]
+gap_policy:
+  unknown_fraction: 0.5
+  critical_criteria:
+    market: [adoption]
+    domain: [quality, cost]
+    stakeholder: [competitors]

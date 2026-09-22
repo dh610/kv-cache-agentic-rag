@@ -8,28 +8,40 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-reaction",
+      "id": "kivi-competitors",
       "technology": "KIVI",
-      "criterion": "reaction",
-      "text": "발언 주체, 날짜, 원문을 갖춘 반응을 확인한다. 에이전트가 예상한 반응은 사실과 구분한다."
+      "criterion": "competitors",
+      "text": "경쟁 기술 진영의 직접 반응. KIVI: TurboQuant/KVTC/MLA, ITME: NVIDIA CMX/삼성 CXL/PNM. 긍정=보완·통합·채택 언급, 중립=단순 비교/별개 문제, 부정=한계 명시. 반응이 없으면 확인 불가. 일반 분야 발언은 대상 기술 반응으로 전용하지 않는다."
     },
     {
-      "id": "kivi-conflict",
+      "id": "kivi-adopters",
       "technology": "KIVI",
-      "criterion": "conflict",
-      "text": "이해관계자 사이의 요구나 비용 부담 차이를 근거와 함께 제시한다."
+      "criterion": "adopters",
+      "text": "도입 기업·개발자의 원문 반응. 긍정=실사용 효과 확인, 중립=조건부/엇갈린 효과, 부정=도입 장벽/품질 저하가 주된 반응. 발언자·날짜·조건을 기록하고 근거가 없으면 확인 불가."
     },
     {
-      "id": "itme-reaction",
-      "technology": "ITME",
-      "criterion": "reaction",
-      "text": "발언 주체, 날짜, 원문을 갖춘 반응을 확인한다. 에이전트가 예상한 반응은 사실과 구분한다."
+      "id": "kivi-industry",
+      "technology": "KIVI",
+      "criterion": "industry",
+      "text": "투자·업계 반응. 긍정=성장 전망/투자·제휴, 중립=판단 없는 동향 소개, 부정=시기상조/비용 대비 효과 의문. 자사 발표와 독립 반응을 구분하고 원문 근거가 없으면 확인 불가."
     },
     {
-      "id": "itme-conflict",
+      "id": "itme-competitors",
       "technology": "ITME",
-      "criterion": "conflict",
-      "text": "이해관계자 사이의 요구나 비용 부담 차이를 근거와 함께 제시한다."
+      "criterion": "competitors",
+      "text": "경쟁 기술 진영의 직접 반응. KIVI: TurboQuant/KVTC/MLA, ITME: NVIDIA CMX/삼성 CXL/PNM. 긍정=보완·통합·채택 언급, 중립=단순 비교/별개 문제, 부정=한계 명시. 반응이 없으면 확인 불가. 일반 분야 발언은 대상 기술 반응으로 전용하지 않는다."
+    },
+    {
+      "id": "itme-adopters",
+      "technology": "ITME",
+      "criterion": "adopters",
+      "text": "도입 기업·개발자의 원문 반응. 긍정=실사용 효과 확인, 중립=조건부/엇갈린 효과, 부정=도입 장벽/품질 저하가 주된 반응. 발언자·날짜·조건을 기록하고 근거가 없으면 확인 불가."
+    },
+    {
+      "id": "itme-industry",
+      "technology": "ITME",
+      "criterion": "industry",
+      "text": "투자·업계 반응. 긍정=성장 전망/투자·제휴, 중립=판단 없는 동향 소개, 부정=시기상조/비용 대비 효과 의문. 자사 발표와 독립 반응을 구분하고 원문 근거가 없으면 확인 불가."
     }
   ],
   "evidence": [

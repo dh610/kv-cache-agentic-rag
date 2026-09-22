@@ -1,5 +1,7 @@
 # 팀원 시작 안내
 
+계약 v2 변경을 받는 기존 팀원은 [브랜치 이관 안내](design-alignment.md#각자-브랜치에-최신-main-반영)를 먼저 확인하세요.
+
 ## 최초 한 번
 
 1. README의 main 브랜치를 clone하고 `uv sync --frozen`을 실행합니다.
@@ -33,7 +35,7 @@ EU/자체 호스팅은 `LANGSMITH_ENDPOINT`를 본인 환경에 맞춥니다.
 
 Jinja에서 사용할 수 있는 변수는 `node`, `rubric`, `input_json`, `evidence_json`입니다.
 존재하지 않는 변수는 즉시 오류가 납니다. `prompts/shared`는 모든 노드에 영향을 줍니다.
-질문은 최대 6개가 기본값이며 rubric에 정의된 criterion을 사용해야 합니다.
+질문은 최대 10개가 기본값이며 rubric에 정의된 criterion을 사용해야 합니다.
 더 풍부한 고정 입력은 각자 별도 파일을 만들고 지정할 수 있습니다.
 
 ```bash
@@ -50,7 +52,8 @@ uv run python -m app.run_node --node domain --mode mock --case missing-evidence
 `outputs/local/<실행 ID>/result.json`에서 `status`, `validation_errors`, `result.unverified`, `checks`를 확인합니다.
 `system.txt`, `user.txt`는 실제 마지막 생성에 사용한 렌더링 결과입니다.
 `run.json`에 모델 설정, git revision/dirty 상태, 실행 ID, 추적 설정과 trace 링크가 남습니다.
-전체 파이프라인은 `state.json`과 개발용 `preview.md`를 저장합니다.
+전체 파이프라인은 `state.json`, 개발용 `preview.md`, `report.md`, `report.pdf`를 저장합니다.
+`report_path`와 `report_check`에 파일 경로와 최종 검사 결과가 있습니다. mock PDF는 제출물이 아닙니다.
 동일 파일을 덮어쓰지 않도록 매 실행에 고유 디렉토리를 만듭니다.
 
 fixture와 mock의 차이:
@@ -77,9 +80,9 @@ uv run python -m app.run_node --node stakeholder --mode web
 ```
 
 `rag`는 논문만, `web`은 웹만 사용하므로 개별 어댑터를 따로 점검할 수 있습니다.
-전체 `pipeline --mode live`에서는 기술=논문, 시장·도메인=논문+웹, 이해관계자=웹을 사용합니다.
+전체 `pipeline --mode live`에서는 기술=논문, 시장·도메인=논문+웹, 이해관계자=웹+경쟁 진영 질문에 한정한 reference를 사용합니다. 도메인 논문은 target만 조회합니다.
 시장·도메인의 두 검색 제공자 중 하나가 실패하면 그 검색 시도는 실패로 기록합니다.
-실제 검색은 질문별 최대 3회, 매 라운드 Generator/Judge 호출이 생깁니다. 첫 확인은 fixture 한 노드로 시작하세요.
+실제 검색은 질문별 최대 3회이며 planner·충분성 Judge·Generator·인용 Judge 호출이 생깁니다. 긍정·비판 검색을 모두 시도하고 표현 오류는 최대 1회 수정합니다. 첫 확인은 fixture 한 노드로 시작하세요.
 
 ## Git 작업 절차
 

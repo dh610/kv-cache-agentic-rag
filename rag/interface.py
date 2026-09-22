@@ -44,7 +44,9 @@ def live_sources(settings):
 
     web = WebSource(settings)
     papers = PaperSource(settings, "tech")
-    sources = {"tech": papers, "stakeholder": web}
+    competitor_refs = copy(papers)
+    competitor_refs.node = "stakeholder"
+    sources = {"tech": papers, "stakeholder": CombinedSource(web, competitor_refs)}
     for role in ("market", "domain"):
         adapter = copy(papers)  # Share the heavyweight encoder/index and its lock.
         adapter.node = role

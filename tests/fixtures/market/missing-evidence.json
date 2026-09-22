@@ -8,16 +8,16 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-adoption",
+      "id": "kivi-growth",
       "technology": "KIVI",
-      "criterion": "adoption",
-      "text": "공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다."
+      "criterion": "growth",
+      "text": "시장 범위·기준연도·전망기간을 명시한다. 높음: 규모/성장 전망 2개 이상 출처, 보통: 1개 또는 방향만, 낮음: 초기 형성 또는 축소·정체. 출처 수와 성장 방향이 충돌하면 충돌을 명시하고 확인 불가로 보류해 사람 검토를 요청한다. 자료 없음은 확인 불가."
     },
     {
-      "id": "itme-adoption",
+      "id": "itme-growth",
       "technology": "ITME",
-      "criterion": "adoption",
-      "text": "공개된 제품/서비스의 구체적 채택 증거를 확인한다. 논문 저자의 제안, GitHub 관심도는 채택 증거와 다르다."
+      "criterion": "growth",
+      "text": "시장 범위·기준연도·전망기간을 명시한다. 높음: 규모/성장 전망 2개 이상 출처, 보통: 1개 또는 방향만, 낮음: 초기 형성 또는 축소·정체. 출처 수와 성장 방향이 충돌하면 충돌을 명시하고 확인 불가로 보류해 사람 검토를 요청한다. 자료 없음은 확인 불가."
     }
   ],
   "evidence": [],

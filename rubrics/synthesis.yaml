@@ -1,16 +1,17 @@
 role: synthesis
-objective: 네 관점 결과의 일치/상충 및 조건부 시사점을 기존 근거만으로 정리한다.
+objective: 네 관점의 일치·상충을 보존하고 TRL 근거를 대조하며 조건부 시사점을 정리한다.
 criteria:
 - id: consistency
-  definition: 앞선 결과 간 일치와 상충, 근거 부족을 보존한다. 확인 불가를 낮은 점수로 바꾸지 않는다.
+  definition: 기존 결과의 일치와 상충, 미확인 사항을 보존한다. 의견을 맞추려는 재조사는 금지한다. 기존 근거만 사용한다. 기술의 잠정
+    TRL을 시장 직접 근거와 대조하고 trl_estimates에 기술별 최종 단계·사유·근거·추정 한계를 기록한다. 증거가 부족하면 level=null.
   judgments:
   - 일치
   - 상충
   - 확인 불가
-- id: recommendation
-  definition: 공통 평가 조건이 충분할 때만 조건부 권고를 제시한다.
+- id: implications
+  definition: 특정 기술을 추천하거나 우열을 판정하지 않는다. 기술×관점 비교에서 조건과 상충을 설명하는 시사점을 제시한다.
   judgments:
-  - 조건부 권고
+  - 조건부 시사점
   - 판정 유보
   - 확인 불가
 source_policy: 새 RAG/웹 검색을 하지 않는다. prior_results는 평가 결과이고 증거 원문은 별도의 evidence 목록이다.
