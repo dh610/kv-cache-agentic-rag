@@ -40,7 +40,7 @@
 | 검색 품질 | 3개 모델·30문항, Hit@5 ≥ .80 / MRR ≥ .60 | 목표값이며 현재 플랫폼에서 측정 완료한 성능 아님 |
 | 시장 항목 | 성장/채택/생태계 3개 | 범주와 6질문 acceptance 반영. 등급 규칙은 근거 기반 초안 유지 |
 | 이해관계자/도메인 세부 항목 | 주체 3개 / 기준 5개 | 현재 초기 rubric 범위가 더 작음. 각 담당자가 확대해야 함 |
-| TRL | 기술에서 잠정, 종합에서 확정 | 현재 정성적 maturity 기준. 별도 trl_result/1–9 판정 미구현 |
+| TRL | 기술에서 잠정, 종합에서 확정 | 기술 rubric과 프롬프트는 실습 가이드의 1–9단계 정의로 잠정 판정. 설계 PDF의 KV cache 맞춤 단계 정의와 차이가 있음. main graph의 `trl_result`는 기술 rubric의 TRL/maturity 판정을 잠정값으로 옮기며, 종합 rubric에 TRL 기준이 없어 확정 판정은 미구현 |
 | 출력 | SUMMARY–REFERENCE PDF 및 인용 검사 | `citation_check` 노드(인용된 출처만 표 18 서지 검사, 실패 시 완료 승격 안 함) + `report.md`/`references.json`. 제출 PDF 출력은 후속 작업(report 역할 미배정) |
 
 최종본을 기준으로 개발한다고 소개하려면 이 차이표를 닫아야 합니다.

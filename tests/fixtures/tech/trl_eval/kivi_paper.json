@@ -1,0 +1,35 @@
+{
+  "case_id": "trl-kivi-paper",
+  "description": "기술 조사 TRL 평가용 고정 입력. evidence.text는 원문 인용이 아니라 검토자가 KIVI 논문 해당 페이지에서 작성한 한국어 요약이다. 실제 기술 평가나 최종 보고서 근거로 제출하지 않는다.",
+  "target_techs": {"sw": "KIVI"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {"id": "kivi-mechanism", "technology": "KIVI", "criterion": "mechanism", "text": "KIVI의 양자화 원리와 적용 전제를 확인한다."},
+    {"id": "kivi-maturity", "technology": "KIVI", "criterion": "maturity", "text": "KIVI의 검증 대상·실험 환경·워크로드·기준선을 확인하고 가이드 TRL을 잠정 판정한다."},
+    {"id": "kivi-limitations", "technology": "KIVI", "criterion": "limitations", "text": "논문에 보고된 정확도와 적용 범위의 제약을 확인한다."}
+  ],
+  "evidence": [
+    {
+      "id": "kivi-curated-p2-method",
+      "text": "검토자 요약: KIVI는 Key cache를 채널별, Value cache를 토큰별로 2비트 양자화한다. 일부 잔여 토큰은 전정밀도로 유지한다.",
+      "title": "KIVI p.2 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
+      "technology": "KIVI", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 2, "document_id": "kivi"
+    },
+    {
+      "id": "kivi-curated-p6-quality",
+      "text": "검토자 요약: 논문은 Llama-2, Falcon, Mistral의 생성 과제를 FP16 기준과 비교한다. Falcon-7B에서는 2비트 KIVI의 정확도 저하가 커서 4비트 설정이 필요하다고 보고한다.",
+      "title": "KIVI p.6 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
+      "technology": "KIVI", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 6, "document_id": "kivi"
+    },
+    {
+      "id": "kivi-curated-p8-efficiency",
+      "text": "검토자 요약: 처리량 실험은 Llama-2-7B, 단일 NVIDIA A100 80GB, ShareGPT에서 합성한 요청과 FP16 기준을 사용한다. 배치 크기, 최대 메모리, 처리량을 비교한다.",
+      "title": "KIVI p.8 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2402.02750v2",
+      "technology": "KIVI", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 8, "document_id": "kivi"
+    }
+  ],
+  "prior_results": {}
+}

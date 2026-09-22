@@ -24,7 +24,7 @@ def test_every_node_runs_independently(node):
     result = run(node)
     assert isinstance(result, NodeRun)
     assert result.status == "completed"
-    assert len(result.searches) == 2  # Every question, not only questions[0].
+    assert len(result.searches) == len(load_input(node).questions)
     assert {c.technology for c in result.result.claims} == {"KIVI", "ITME"}
     assert result.prompt_hash
 
@@ -35,7 +35,7 @@ def test_empty_evidence_is_not_success(node):
     assert result.status == "needs_revision"
     assert not result.result.claims
     assert result.result.unverified
-    assert len(result.searches) == 2  # Fixtures are never re-searched.
+    assert len(result.searches) == len(load_input(node, "missing-evidence").questions)
 
 
 def test_live_prompt_cannot_see_stale_fixture_evidence():
@@ -114,8 +114,10 @@ def test_search_budget_is_bounded_per_question(fail):
     source = EmptySearch(fail)
     result = run(source=source, mode="rag")
     assert result.status == "needs_revision"
-    assert len(source.calls) == 6
-    assert sorted(a for _, a in source.calls) == [1, 1, 2, 2, 3, 3]
+    assert len(source.calls) == 3 * len(load_input("tech").questions)
+    assert sorted(a for _, a in source.calls) == [
+        attempt for attempt in (1, 2, 3) for _ in load_input("tech").questions
+    ]
     assert "private provider detail" not in result.model_dump_json()
 
 

@@ -1,0 +1,11 @@
+{
+  "case_id": "trl-no-evidence",
+  "description": "TRL 판단 근거가 없는 경우 확인 불가를 유지하는 평가용 입력.",
+  "target_techs": {"sw": "KIVI"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {"id": "kivi-maturity", "technology": "KIVI", "criterion": "maturity", "text": "직접 근거가 없을 때 가이드 TRL을 잠정 판정할 수 있는지 확인한다."}
+  ],
+  "evidence": [],
+  "prior_results": {}
+}
