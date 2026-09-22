@@ -6,6 +6,7 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 import rag.local_index as local_index
+from app.run_report import index_current
 from rag.evidence import merge_evidence
 from rag.local_index import Catalog, Paper, PaperSource, corpus_signature, read_chunks
 from runtime.runner import load_input
@@ -165,8 +166,6 @@ def test_index_roundtrip_and_stale_detection_with_fake_encoder(corpus, monkeypat
     settings = load_settings()
     manifest = local_index.build_index(settings, FakeEncoder())
     assert manifest["resolved_revision"] == "test-revision"
-    from app.run_report import index_current
-
     assert index_current(settings, catalog, root)
     source = PaperSource(settings, "tech")
     found = source.search(load_input("tech").questions[0], 1)
