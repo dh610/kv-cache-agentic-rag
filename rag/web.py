@@ -26,8 +26,11 @@ class WebSource:
     @traceable(run_type="retriever", name="web_search")
     def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
         # 질의는 호출자가 층별 검색어까지 붙여 넘긴다. 기술명 단독 검색은 하지 않는다.
-        anchor = "" if any(t.lower() in question.text.lower() for t in self.context_terms) else \
-            " ".join(self.context_terms[:2])
+        anchor = (
+            ""
+            if any(t.lower() in question.text.lower() for t in self.context_terms)
+            else " ".join(self.context_terms[:2])
+        )
         prefix = question.technology if scope == "target" else ""
         query = f"{prefix} {question.text} {anchor}".strip()
         # Client does not receive API key via trace arguments.
@@ -60,7 +63,9 @@ class WebSource:
             out.append(
                 Evidence(
                     id="web-"
-                    + hashlib.sha256((question.technology + url + text).encode()).hexdigest()[:16],
+                    + hashlib.sha256(
+                        (question.technology + scope + url + text).encode()
+                    ).hexdigest()[:16],
                     text=text,
                     title=title,
                     url=url,

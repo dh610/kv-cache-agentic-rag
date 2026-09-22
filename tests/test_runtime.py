@@ -48,18 +48,17 @@ def test_generation_schema_only_accepts_rubric_judgments():
     """모델이 판정 칸에 근거 ID 조각이나 제어문자를 넣지 못하게 스키마로 막는다."""
     from pydantic import ValidationError
 
-    from runtime.models import constrained_result
+    from runtime.models import result_schema
 
-    model = constrained_result("stakeholder")
-    field = model.model_fields["assessments"].annotation.__args__[0]
-    assert set(field.model_fields["judgment"].annotation.__args__) == {
-        "긍정",
-        "중립",
-        "부정",
-        "확인 불가",
+    model = result_schema("stakeholder")
+    variants = model.model_fields["assessments"].annotation.__args__[0]
+    options = getattr(variants, "__args__", (variants,))
+    judgments = {
+        j for option in options for j in option.model_fields["judgment"].annotation.__args__
     }
+    assert judgments == {"긍정", "중립", "부정", "확인 불가"}
     with pytest.raises(ValidationError):
-        field(
+        options[0](
             technology="KIVI",
             criterion="competitors",
             judgment="655acb8",

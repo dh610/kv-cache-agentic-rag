@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol, Union
 
+from langchain_core.runnables.config import ContextThreadPoolExecutor
+from pydantic import Field, create_model
+
+from runtime.context import evidence_payload
+from runtime.prompts import load_rubric
 from runtime.settings import Settings, require_key
 from schemas.contracts import (
     Assessment,
@@ -138,32 +143,28 @@ class MockBackend:
         )
 
 
-def constrained_result(node: NodeName):
-    """해당 노드 루브릭이 허용한 judgment 만 받는 NodeResult 를 만든다.
-
-    judgment 는 자유 문자열이라 모델이 근거 ID 조각이나 제어문자를 넣어 보내는 일이
-    실제로 있었다(live 점검: '655acb8', '\x0b\x0b확인 불가'). 구조화 출력 스키마에
-    허용값을 못 박으면 그 입력 자체가 만들어지지 않는다. 기준별 정합성은 계약 검사가
-    따로 본다.
-    """
-    from typing import Literal
-
-    from pydantic import create_model
-
-    from runtime.prompts import load_rubric
-
-    allowed = tuple(
-        dict.fromkeys(j for c in load_rubric(node).criteria for j in c.judgments)
+def result_schema(node):
+    """Constrain each criterion's vocabulary before generation, not by relabeling outputs."""
+    variants = tuple(
+        create_model(
+            f"{node}_{criterion.id}_Assessment",
+            __base__=Assessment,
+            criterion=(Literal[criterion.id], ...),
+            judgment=(Literal[tuple(criterion.judgments)], ...),
+        )
+        for criterion in load_rubric(node).criteria
     )
-    judged = create_model(
-        f"{node.title()}Assessment",
-        __base__=Assessment,
-        judgment=(Literal[allowed], ...),
+    item_type = Union[variants] if len(variants) > 1 else variants[0]
+    claim_type = create_model(
+        f"{node}_CitedClaim",
+        __base__=Claim,
+        evidence_ids=(list[str], Field(min_length=1)),
     )
     return create_model(
-        f"{node.title()}Result",
+        f"{node}_Result",
         __base__=NodeResult,
-        assessments=(list[judged], ...),
+        assessments=(list[item_type], ...),
+        claims=(list[claim_type], ...),
     )
 
 
@@ -178,8 +179,8 @@ class OpenAIBackend:
             "timeout": settings.models.timeout_seconds,
             "max_retries": settings.models.max_retries,
         }
-        self._chat = ChatOpenAI(model=self.name, **kwargs)
-        self._generators: dict[str, object] = {}
+        self.generator = ChatOpenAI(model=self.name, **kwargs)
+        self.generators = {}
         self.planner = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
             QueryPlan, method="json_schema"
         )
@@ -191,11 +192,42 @@ class OpenAIBackend:
         )
 
     def generate(self, node, data, evidence, system, user):
-        if node not in self._generators:
-            self._generators[node] = self._chat.with_structured_output(
-                constrained_result(node), method="json_schema"
+        if node not in self.generators:
+            self.generators[node] = self.generator.with_structured_output(
+                result_schema(node), method="json_schema"
             )
-        return self._generators[node].invoke([("system", system), ("human", user)])
+        result = self.generators[node].invoke([("system", system), ("human", user)])
+        return NodeResult.model_validate(result.model_dump())
+
+    def generate_scoped(self, node, packets):
+        """Generate independent technology packets concurrently, preserving every question."""
+
+        def run(packet):
+            data, evidence, system, user = packet
+            result = self.generate(node, data, evidence, system, user)
+            techs = {q.technology for q in data.questions}
+            if any(
+                item.technology not in techs
+                for item in result.claims + result.assessments + result.trl_estimates
+            ):
+                raise ValueError("Scoped generation returned another technology")
+            return result
+
+        with ContextThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(run, packets))
+        merged = NodeResult(
+            node=node, summary="", claims=[], assessments=[], unverified=[], limitations=[]
+        )
+        for index, result in enumerate(results):
+            for claim in result.claims:
+                claim.id = f"part{index}-{claim.id}"
+            merged.claims.extend(result.claims)
+            merged.assessments.extend(result.assessments)
+            merged.trl_estimates.extend(result.trl_estimates)
+            merged.unverified.extend(result.unverified)
+            merged.limitations.extend(result.limitations)
+        merged.summary = "\n".join(r.summary for r in results)
+        return merged
 
     def judge(self, result, evidence):
         """주장 하나씩, 그 주장이 인용한 근거만 보여주고 판정한다.
@@ -309,7 +341,7 @@ class OpenAIBackend:
                     json.dumps(
                         {
                             "questions": [q.model_dump() for q in data.questions],
-                            "evidence": [e.model_dump() for e in evidence],
+                            "evidence": evidence_payload(evidence, data.questions),
                         },
                         ensure_ascii=False,
                     ),

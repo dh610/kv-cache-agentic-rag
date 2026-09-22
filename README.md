@@ -1,179 +1,74 @@
 # Subject
 
-KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 비교하는 Agentic RAG 프로젝트입니다.
-현재는 **5명이 공통 파이프라인 위에서 담당 노드의 프롬프트·평가 기준·입력을 개발하는 기초 환경**입니다.
-설계서 정합성 계약 v2와 보고서 PDF 출력까지 구현했습니다. 실제 기술 평가·검색 품질 실측·제출 검수는 아직 완료되지 않았습니다.
-팀원은 먼저 [변경사항과 브랜치 이관 안내](docs/design-alignment.md)를 읽어주세요.
+KV cache 최적화 기술을 소프트웨어(SW)와 하드웨어(HW) 진영에서 하나씩 선정하고, 시장·이해관계자·도메인 관점에서 비교 평가하는 **Agentic RAG 프로젝트**입니다.
+
+SW의 **KIVI**와 HW의 **ITME**를 대상으로, **데이터센터·클라우드 LLM 서빙** 환경에서 기술의 적용 조건과 관점별 평가 차이를 분석합니다. 기술 조사에서 잠정 추정한 기술 성숙도(TRL)는 평가 종합 단계에서 근거와 함께 재검토합니다. 특정 기술을 추천하거나 종합 순위를 매기기보다 관점 간 일치·상충, 적용 조건, 미확인 사항을 보고서에 남기는 것이 목적입니다.
 
 ## Overview
 
-- 공통 기반: Python 3.11, uv, LangGraph, Pydantic, Jinja2, LangSmith
-- 개인 작업: `prompts/<node>/`, `rubrics/<node>.yaml`, `tests/fixtures/<node>/`
-- 키 없이 연결을 확인하는 mock / 고정 근거로 실제 LLM을 호출하는 fixture / 실제 검색 모드
-- [과제 가이드](https://actually-war-1ea.notion.site/KV-cache-3ba7f4c866938099b7a8fdaa1831c07e)
-- [팀원 시작 안내](docs/onboarding.md) · [입출력 계약](docs/contracts.md) · [구조와 구현 범위](docs/architecture.md)
-- [역할·연결·완료 기준](docs/team-contract.md) · [최종 설계와 구현 차이](docs/final-design-review.md)
-- 노드별 회귀 사례: [기술 TRL](docs/tech-trl-evaluation.md) · [평가 종합](docs/synthesis-evaluation.md) · [도메인 평가](docs/domain-fit-evaluation.md)
+- **Objective**: 같은 기술을 복수 관점에서 평가하고, 두 기술의 평가 결과와 근거를 나란히 비교
+- **Method**: Multi-Agent 역할 분리와 병렬 평가 + 검색·충분성 판단·질의 재작성·인용 검증을 수행하는 Agentic RAG
+- **Tools**: LangGraph, OpenAI, BGE-M3, FAISS, Tavily
+- **Domain**: 데이터센터·클라우드 LLM 서빙
+- **Output**: SUMMARY–REFERENCE 구조의 Markdown/PDF 보고서와 실행 상태·근거를 담은 JSON
 
 ## Selected Technologies
 
-- SW: [KIVI](https://arxiv.org/abs/2402.02750v2) — KV cache 양자화
-- HW: [ITME](https://arxiv.org/abs/2606.12556v2) — CXL 기반 계층형 메모리 확장
-- 도메인: 데이터센터·클라우드 LLM 서빙
-- 서로 다른 접근의 적용 조건을 비교합니다. 서로 다른 실험의 처리량 수치를 직접 우열로 해석하지 않습니다.
+| 진영 | 선정 기술 | 핵심 접근 | 선정 이유 |
+| --- | --- | --- | --- |
+| SW | [KIVI](https://arxiv.org/abs/2402.02750v2) | Key는 채널 단위, Value는 토큰 단위로 KV cache를 비대칭 2비트 양자화 | 모델 재학습 없이 KV cache를 압축하는 접근의 대표 사례로, 메모리 절감과 정확도·지원 조건을 함께 평가할 수 있음 |
+| HW | [ITME](https://arxiv.org/abs/2606.12556v2) | CXL 하이브리드 메모리와 계층 간 프리페칭을 활용한 저장 공간 확장 | 모델 재학습 없이 메모리 계층을 확장하는 접근의 대표 사례로, 추가 인프라와 데이터 이동·운영 조건을 함께 평가할 수 있음 |
 
-## 처음 받았다면: 명령 하나로 보고서 생성
+두 기술은 같은 KV cache 병목에 대해 **저장할 데이터를 줄이는 방법**과 **저장 공간을 확장하는 방법**을 비교할 수 있어 선정했습니다. 서로 다른 실험에서 나온 성능 수치를 그대로 우열로 해석하지 않으며, 압축과 메모리 확장의 보완 가능성도 적용 조건과 함께 검토합니다.
 
-macOS / Linux / WSL에서 clone 후 `.env.example`을 `.env`로 복사해 `OPENAI_API_KEY`와 `TAVILY_API_KEY`를 입력하세요. 이미 환경변수로 export한 키가 있으면 그대로 사용합니다. LangSmith는 선택 사항이며 켜면 개인 키·프로젝트 이름도 필요합니다.
+팀 설계서 A.4에 따라 시장·이해관계자 평가는 KIVI를 대표로 하는 **KV cache 양자화 접근**, ITME를 대표로 하는 **CXL 메모리를 KV cache 저장 계층으로 사용하는 접근 전반**을 함께 다룹니다. 분야의 시장 전망·채택 사례와 선정 기술 자체의 직접 근거는 구분합니다.
 
-```bash
-./run-report.sh
-```
+문서 풀은 KIVI·ITME 논문 2편(`target`)과 TurboQuant·InfiniGen 보조 논문 2편(`reference`)으로 구성하며, 전체 200페이지 이내로 관리합니다.
 
-uv·Python 3.11·의존성, 등록 판본 PDF 네 편, BGE-M3 임베딩과 FAISS 인덱스를 필요한 만큼 준비하고 실제 조사 파이프라인을 실행합니다. PDF는 자동 다운로드하고, 기존 파일은 덮어쓰지 않습니다. 변경·손상된 인덱스는 재생성합니다. 첫 준비는 모델 다운로드로 시간이 걸리며 실제 실행에는 LLM·검색 API 비용이 발생합니다.
+## Features
 
-```bash
-./run-report.sh --prepare-only  # 키/API 호출 없이 자료·모델·인덱스 준비
-./run-report.sh --mock          # 키·논문·임베딩 없이 연결 점검용 보고서 생성
-```
+- **PDF 원문 기반 RAG**: 논문 본문을 청킹·임베딩하고, 기술·문서 역할을 구분해 검색합니다. 주장에 원문 청크 ID와 페이지를 연결합니다.
+- **웹 근거 보완**: Tavily 검색으로 시장 전망, 채택·출시, 프레임워크 지원, 이해관계자 반응, 실제 적용 사례의 원문을 수집합니다. 검색 요약문만으로는 근거로 채택하지 않습니다.
+- **관점별 평가**: 기술 조사 결과를 참고해 시장성·이해관계자·도메인 평가를 병렬 실행하고, 각 역할의 rubric으로 기술별 판정·이유·근거·미확인 사항을 작성합니다.
+- **질문별 Agentic RAG**: 근거 충분성을 판단하고 필요한 질문만 이중언어 질의로 재작성합니다. 최초 검색을 포함해 질문별 최대 3시도를 허용하며, 해당 제공자에서는 시도마다 기술 자체·분야 배경을 각각 검색합니다. 전체 API 호출 3회를 뜻하지 않습니다. 답변의 표현·형식 오류는 최대 1회 수정 후 재검증합니다.
+- **보완과 종료**: 코드가 계산한 근거 부족 항목(`gaps`)에 따라 종합 뒤 최대 1라운드 보완합니다. 기존 검색 근거·이력을 재사용하며, 부족한 질문에만 추가 검색 예산을 적용합니다. 한도를 소진한 미확인 사항과 실행 오류는 결과에 남깁니다.
+- **인용 검증과 보고서 출력**: 주장과 원문의 일치 여부, 인용 ID, 판정 근거, 허용 등급을 검사합니다. 보고서 뒤 인용·형식 검사에서 최종 상태를 판정하고 Markdown/PDF를 출력합니다.
+- **확증 편향 방지 전략**: 긍정·비판 질의를 모두 사용하고 검색 이력과 실제 출처의 입장을 구분합니다. 자사·독립·미확인 출처 관계, 선정 기술 직접 근거·분야 배경을 기록하며, 한쪽 자료만 확보된 경우 그 한계를 남기도록 합니다. 관점 간 의견 차이는 보존하고, 의견을 맞추기 위한 재조사는 하지 않습니다.
 
-결과 경로가 터미널에 표시됩니다: `outputs/local/<실행 ID>/report.pdf`, `report.md`, `state.json`. 종료 코드 2는 초안은 생성됐지만 검증·근거 보완이 필요하다는 뜻입니다. 자동 실행이 최종 제출 승인을 뜻하지는 않습니다. [설치·실행 상세와 오류 해결](docs/one-command-report.md)을 참고하세요.
-
-## Usage
-
-main에 공통 기초 환경이 반영되어 있습니다.
-
-```bash
-git clone https://github.com/dh610/kv-cache-agentic-rag.git
-cd kv-cache-agentic-rag
-uv sync --frozen
-cp .env.example .env
-uv run python -m app.run_node --node tech --mode mock
-uv run python -m app.run_pipeline --mode mock
-uv run pytest -q
-```
-
-기본 설치에는 GPU, 모델 다운로드, API 키가 필요하지 않습니다.
-mock은 고정 문자열로 그래프 연결과 계약을 확인합니다. 프롬프트 품질이나 기술 평가 성능은 측정하지 않습니다.
-
-실제 LLM으로 담당 노드를 테스트하려면 `.env`에 다음을 설정합니다.
-
-```dotenv
-OPENAI_API_KEY=개인_LLM_API_키
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=개인_LangSmith_키
-LANGSMITH_PROJECT=kv-rag-본인이름-dev
-```
-
-```bash
-uv run python -m app.run_node --node market --mode fixture
-```
-
-LangSmith는 관측 도구이므로 **LangSmith 키만으로 LLM을 호출할 수는 없습니다.**
-추적을 켜면 프롬프트, 입력 근거, 출력이 지정한 LangSmith 프로젝트에 기록됩니다.
-출력의 trace 링크와 `outputs/local/<실행 ID>/`의 JSON·렌더링된 프롬프트를 비교하세요.
-기본 fixture는 짧은 논문 발췌라 시장 채택·도메인 적합성의 `확인 불가`가 정상일 수 있습니다.
-
-| 모드 | 의미 | 필요한 준비 |
-| --- | --- | --- |
-| node `mock` | 오프라인 연결 확인 | 없음 |
-| node `fixture` | 내 `.j2` + 고정 근거 + 실제 Generator/Judge | OpenAI 키, 추적 시 LangSmith 키 |
-| node `rag` | BGE-M3 dense + FAISS 검색 + 실제 LLM | 위 준비 + RAG 추가 설치·PDF·인덱스 |
-| node `web` | Tavily 원문 검색 + 실제 LLM | OpenAI·Tavily 키 |
-| pipeline `live` | 역할별 RAG/웹을 사용하는 전체 그래프 | OpenAI·Tavily 키 + RAG 인덱스 |
-
-로컬 논문 검색:
-
-```bash
-# 공유 원문의 kivi.pdf, itme.pdf, turboquant.pdf, infinigen.pdf를 data/papers/에 놓습니다.
-uv run python -m app.index --check
-uv sync --frozen --extra rag
-uv run --extra rag python -m app.index
-uv run --extra rag python -m app.run_node --node tech --mode rag
-# TAVILY_API_KEY를 .env에 추가한 뒤 전체 연결:
-uv run --extra rag python -m app.run_pipeline --mode live
-```
-
-최초 인덱싱은 대용량 모델을 다운로드하며 CPU에서는 시간이 걸립니다.
-문서와 본문 범위는 `data/documents.yaml`, 검색 설정은 `config.yaml`에서 관리합니다.
-PDF/설정이 바뀌면 인덱스를 다시 만들어야 합니다. 전체 PDF 페이지 합계는 200 이하로 제한합니다.
-
-실행 종료 코드는 `0=completed`, `2=needs_revision`, `1=failed/설정 오류`입니다.
-결과 파일이 만들어졌다는 사실만으로 성공 판정하지 않습니다.
-
-## Agents
-
-| 노드 | 역할 | live 검색 경로 |
-| --- | --- | --- |
-| `tech` | 원리·성숙도·실험 조건 | 대상 논문 RAG |
-| `market` | 수요·채택·진입 장벽 | 논문 RAG + 웹 |
-| `stakeholder` | 이해관계자 반응 | 웹 + 경쟁 진영 한정 reference + 상위 근거 |
-| `domain` | 클라우드 적용 조건 | 논문 RAG + 웹 |
-| `synthesis` | 관점별 일치·상충 종합 | 기존 결과·근거 사용 |
-| `report` | 보고서 구성 | 기존 결과·근거 사용 |
-
-## Architecture
-
-```mermaid
-flowchart TD
-    START --> initialize
-    initialize --> tech
-    tech --> market
-    tech --> stakeholder
-    tech --> domain
-    market --> collect
-    stakeholder --> collect
-    domain --> collect
-    collect --> synthesis
-    synthesis -->|보완 대상 없음 또는 1회 소진| report
-    synthesis -->|gaps 있음·보완 가능·실제 모드| supplement
-    supplement --> synthesis
-    report --> check_report
-    check_report --> END
-```
-
-조사 노드 내부는 `plan → search → check_sufficiency → write_draft → verify → return_result`이며 `rewrite_query`, `fix`를 포함한 8단계입니다.
-실제 검색 모드는 근거 부족 시 질문별 최대 3회(첫 검색 포함) 안에서 재검색합니다.
-표현 오류는 최대 1회 수정 후 재검증합니다. 종합에서 근거 부족(gaps)이 남으면 담당 역할만 1라운드 재실행합니다(설계서 표 13, `limits.supplement`; 기술 조사가 바뀌면 의존 평가도, mock 모드는 건너뜀).
-
-## Directory Structure
-
-```text
-app/                 # run_node, run_pipeline, index 실행 명령
-schemas/             # 공통 Pydantic 입출력 계약
-graph/               # 공유 LangGraph, 병렬 합류, 검증/종료 처리
-runtime/             # 설정, .j2 렌더링, LLM/Judge, LangSmith 기록
-rag/                 # 공통 검색 인터페이스, PDF/FAISS, 웹 어댑터
-prompts/<node>/      # 담당자 system.j2, user.j2
-prompts/shared/      # 공통 근거 규칙·Judge
-rubrics/<node>.yaml  # 기준 정의·허용 판정: 팀 검토용 초안
-tests/fixtures/      # 공유 고정 입력: Git 추적
-data/documents.yaml # 문서 메타데이터: Git 추적
-data/papers/         # 개인 원문 PDF: Git 제외
-outputs/local/      # 개인 실행 결과: Git 제외
-.cache/              # 개인 FAISS 인덱스: Git 제외
-```
+모든 평가는 **공개 정보 기반 추정**이며, 미확인 사항과 관점 간 상충을 보존합니다. 자동 검증은 사람의 원문·등급 검토를 대체하지 않습니다.
 
 ## Tech Stack
 
-- Generator `gpt-4.1-mini`, Judge `gpt-4.1-mini`: `config.yaml`에서 변경. 판정기는 claim 당 1개 check·근거 ID 규칙을 지키지 못해 nano 에서 올렸습니다
-- BGE-M3 **dense만 사용** + 정규화된 벡터의 FAISS 내적 검색
-- 선택적 reranker는 `config.yaml`의 `retrieval.rerank`. 기본값은 꺼짐이며, 아래 실측에서 리랭커 없이 기준을 통과해 켜지 않았습니다
+| 구분 | 사용 기술·설정 |
+| --- | --- |
+| Language / Environment | Python 3.11, uv (`uv.lock`으로 의존성 고정) |
+| Framework | LangGraph, LangChain OpenAI 연동 |
+| LLM / Generator | `gpt-4.1-mini` — 답변 생성·수정 및 검색 계획 |
+| LLM / Judge | `gpt-4.1-mini` — 근거 충분성 및 주장·인용 검증 |
+| Retrieval | FAISS, 정규화된 dense 벡터의 내적 검색, 기본 Top-K = 5 |
+| Retrieval Metrics | 30문항 실측: **Hit@1 0.433 / Hit@3 0.733 / Hit@5 0.800 / MRR 0.600** (BGE-M3, dense, 리랭커 없음). 사전 등록 기준 Hit@5 ≥ 0.80·MRR ≥ 0.60 충족 |
+| Embedding | 오픈소스 `BAAI/bge-m3` — 기본 서비스 검색에는 dense 임베딩 사용 |
+| Chunking | 1,200자, overlap 200자 |
+| Web Search | Tavily API — 웹 원문과 URL·수집일 등 출처 메타데이터 |
+| Schema / Prompt | Pydantic, Jinja2, 역할별 YAML rubric |
+| PDF Input / Output | pypdf / ReportLab |
+| Observability | 로컬 실행 기록, LangSmith 연동 지원(선택) |
 
-### 검색 평가 (30문항, 한국어, 기술별 15개, 약어·수치 19문항)
+모델·검색·반복 한도의 기본값은 [config.yaml](config.yaml)에 있습니다. LLM은 환경변수 `GENERATOR_MODEL`, `JUDGE_MODEL`로 변경할 수 있으므로 실제 실행값은 해당 `run.json`에서 확인합니다. 기본 180초 timeout은 개별 모델 호출의 제한이며 전체 보고서의 완료 시간 보장이 아닙니다.
 
-`data/eval/retrieval_qa.json`의 정답 문장은 색인된 원문 청크와 대조해 확인했습니다.
-MRR 은 전체 검색 순위 기준이며 MRR@5 와 다릅니다. 기준은 Hit@5 ≥ 0.80 **및** MRR ≥ 0.60 입니다.
+### 임베딩 선정과 검색 평가
+
+BGE-M3는 한국어 질문과 영어 기술 논문을 함께 다루는 다국어 검색, 오픈소스 사용, 로컬 실행 조건을 고려해 기본 모델로 선택했습니다. FAISS에 연결하는 dense 검색부터 구성하고, sparse 결합과 리랭커는 필요 시 평가하는 옵션으로 두었습니다. 이 선택은 **구현을 위한 초기 선정**이며 비교 실험으로 최적 모델임을 입증한 결과는 아닙니다.
+
+**30문항 평가셋([data/eval/retrieval_qa.json](data/eval/retrieval_qa.json))으로 후보 모델을 실측했습니다.** 각 정답 문장은 색인된 원문 청크와 대조해 확인했고(기술별 15문항, 약어·수치 19문항, 전부 한국어 질문), BGE-M3가 리랭커 없이 사전 등록 기준을 충족해 기본 설정을 그대로 유지합니다.
 
 | 임베딩 모델 | Hit@1 | Hit@3 | Hit@5 | MRR | 기준 |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **BAAI/bge-m3** (선정) | 0.433 | 0.733 | **0.800** | **0.600** | 통과 |
 | intfloat/multilingual-e5-large | 0.333 | 0.600 | 0.700 | 0.512 | 미달 |
 | Alibaba-NLP/gte-multilingual-base | — | — | — | — | 측정 불가 |
 
-gte-multilingual-base 는 로딩에 커스텀 원격 코드 실행(`trust_remote_code=True`)이 필요해
-측정하지 않았습니다. 평가 CLI 의 `--trust-remote-code` 로 켤 수 있으나 제3자 코드를 실행하므로
-기본값으로 쓰지 않습니다.
+gte-multilingual-base는 로딩에 커스텀 원격 코드 실행(`trust_remote_code=True`)이 필요해 측정하지 않았고, 사유를 산출물([outputs/retrieval_eval.json](outputs/retrieval_eval.json))에 기록했습니다. 기준 미달 시 청킹 → 이중언어 질의 → dense+sparse → 리랭커 순으로 재평가하는 절차가 있으나, 기준선에서 통과해 실행하지 않았습니다. 서비스의 기본 리랭커는 꺼진 상태입니다. 평가 코드의 MRR은 전체 검색 순위 기준이며 MRR@5와 구분합니다.
 
 ```bash
 uv run --extra rag python -m app.evaluate_retrieval \
@@ -181,58 +76,184 @@ uv run --extra rag python -m app.evaluate_retrieval \
   --output outputs/retrieval_eval.json
 ```
 
-기준 미달 시 청킹 → 이중언어 질의 → dense+sparse(RRF) → 리랭커 순으로 재평가합니다.
-이번 실측은 기준선에서 통과해 재평가 단계를 실행하지 않았습니다.
-- 서비스 검색 기본값은 dense. 실험 결과를 서비스에 적용할 때 설정/검색 어댑터를 검토하고 인덱스를 다시 생성
-- TRL 잠정/최종 구조와 근거 검사 제공. 사람이 검증한 TRL 결론이나 성능 수치를 기본값으로 채우지 않음
-- 의존성은 `uv.lock`으로 공유, 기본 설치와 `rag` 추가 설치 분리
+| 구분 | 의미·현재 상태 |
+| --- | --- |
+| Hit@5 | 상위 5개 검색 결과에 정답 청크가 포함된 질문의 비율. BGE-M3 실측 0.800 |
+| MRR | 첫 정답 청크 순위의 역수를 질문 전체에 대해 평균한 값. 정답 미검색은 0으로 처리. BGE-M3 실측 0.600 |
+| 남은 검증 | gte-multilingual-base 측정(원격 코드 실행 검토 필요), 청킹 조정으로 Hit@1 개선 여지 |
 
-## Features and Validation
+평가 입력과 실행 방법은 [검색 평가 안내](data/eval/README.md)에 있습니다. 자동 테스트·mock 실행·PDF 생성 성공은 검색 정확도나 보고서 사실성의 실측 결과를 대신하지 않습니다.
 
-인용 ID, 대상 기술, rubric, 질문 누락, Judge 누락을 검사합니다.
-검증되지 않은 주장은 `unverified`에 남기고 실패한 평가를 `확인 불가`로 보류합니다.
-Judge는 인용 정합성 보조 도구이며 기준 판정의 타당성은 담당자가 검토해야 합니다.
-검증 상태와 별개로 mock 결과를 실제 기술 결론으로 사용하면 안 됩니다.
+## Agents
+
+| 에이전트 | 주요 역할·평가 항목 | 자료 경로 |
+| --- | --- | --- |
+| 기술 조사 (`tech`) | 기술 원리·적용 조건·실험 조건·한계 추출, TRL 잠정 추정 | 선정 기술 논문 RAG |
+| 시장성 평가 (`market`) | 시장 규모·성장성, 상용화·채택 현황, 생태계 지지 | 논문 RAG + 웹 검색 |
+| 이해관계자 평가 (`stakeholder`) | 경쟁 기술 진영, 도입 기업·개발자, 투자·업계의 반응 | 웹 검색 중심 + 경쟁 기술 진영 질문에 한정한 보조 문서 조회 |
+| 도메인 평가 (`domain`) | 비용, 성능, 품질, 도입·운영 난이도, 확장성 | 선정 기술 논문 RAG + 웹 검색 |
+| 평가 종합 (`synthesis`) | 관점 간 일치·상충 정리, 근거 대조, 최종 TRL 판단과 조건부 시사점 | 상위 결과·원문 근거 재사용, 새 검색 없음 |
+| 보고서 생성 (`report`) | 기술·관점별 비교표, 시사점, 한계점, 사용 출처 구성 | State의 결과·근거 재사용, 새 검색 없음 |
+
+입력 초기화·결과 수집·보완 대상 선택·인용 및 형식 검사는 에이전트와 구분되는 **코드 노드**입니다. 역할별 프롬프트·rubric·질문은 분리하고 공통 서브그래프를 재사용합니다. 시장성은 두 기술 × 3항목, 이해관계자는 두 기술 × 3주체, 도메인은 두 기술 × 5항목을 처리합니다.
+
+### 네 관점의 평가 기준
+
+| 관점 | 판정 기준의 예 | 기준 파일 |
+| --- | --- | --- |
+| 기술 성숙도 | 실험 모델·장비·워크로드와 검증 환경을 확인해 TRL 1~9를 추정. 논문·코드 공개만으로 상위 단계 부여 금지 | [tech.yaml](rubrics/tech.yaml) |
+| 시장성 | 채택·성장·생태계를 각각 높음/보통/낮음/확인 불가로 판정. 특정 기술의 채택과 관련 시장의 전망을 구분 | [market.yaml](rubrics/market.yaml) |
+| 이해관계자 | 경쟁 진영·도입자·투자/업계의 실제 발언을 긍정/중립/부정/확인 불가로 구분. 원 저자의 자기 평가를 독립 반응으로 취급하지 않음 | [stakeholder.yaml](rubrics/stakeholder.yaml) |
+| 도메인 | 비용·성능·품질·운영·확장성을 적합/조건부 적합/부적합/확인 불가로 판정. 성능은 논문 근거만 있으면 최대 조건부 적합 | [domain.yaml](rubrics/domain.yaml) |
+
+**적용 사례:** 선택한 보고서의 도메인 성능 항목은 두 기술 모두 `조건부 적합`입니다. 논문 조건의 성능 개선은 제시됐지만 독립적인 외부 적용 사례가 확인되지 않았기 때문입니다. 따라서 특정 실험에서의 개선을 데이터센터 전체의 효과로 일반화하지 않습니다. 이 사례는 생성 보고서의 판정 설명이며, 독립 재현 실험 결과는 아닙니다.
+
+근거 부족인 `확인 불가`와 명시적 불리한 근거에 따른 낮은 등급을 구분합니다. 기준을 코드·프롬프트에 넣는 것과 실제 출력이 기준을 지키는 것은 별개이므로, 사람은 **원문 → 주장 → 등급**의 연결을 확인합니다.
+
+## Architecture
+
+전체 그래프는 기술 조사 후 세 관점의 평가를 병렬 실행하고, 모두 완료되면 종합합니다.
+
+![전체 평가 아키텍처: 기술 조사 후 세 관점 병렬 평가, 종합, 최대 1회 보완, 보고서 생성](docs/images/architecture-main.png)
+
+보완은 기존 근거·충분성 검사·검색 이력을 재사용합니다. 기술 조사 결과가 바뀐 경우에는 해당 기술에 의존하는 평가도 갱신합니다. 의견 차이 자체는 보완 사유가 아니며, mock 모드에서는 보완을 생략합니다.
+
+공통 서브그래프는 다음 8개 처리 노드로 구성됩니다. 아래 그림의 마름모는 조건 분기입니다.
+
+![공통 Agentic RAG 서브그래프: 검색 계획부터 검증과 결과 반환까지 8단계](docs/images/architecture-subgraph.png)
+
+위 그림의 검색·재검색 흐름은 기본 실행의 기술 조사·시장성·이해관계자·도메인 평가에 적용됩니다. 종합·보고서 역할은 기존 결과와 근거를 재사용하며, 새 검색과 검색 계획·근거 충분성 판단용 LLM 호출을 생략합니다. `--first-pass` 모드에서는 보고서 생성 단계의 공통 서브그래프 실행을 기존 결과의 코드 조립으로 대체합니다.
+
+검색 필요 여부에는 근거 충분성뿐 아니라 긍정·비판 검색 완료 여부도 포함됩니다. 검색 한도는 질문별로 계산하며, 보완 회차에서도 부족한 질문에만 최대 3회를 추가 적용합니다. API·파싱 오류 등 실행 실패는 `failed`로 기록합니다. Main State의 역할별 결과 키는 분리하고 `sources`는 누적 리듀서로 관리해 병렬 결과를 합칩니다.
+
+전체 역할과 자료 경로는 정해 두고, 서브그래프 내부의 근거 충분성·질의 재작성·검증 결과에 따라 흐름을 바꿉니다. 모든 도구를 자유롭게 선택하는 구조는 아닙니다. 검색 층의 `scope=target/context` 표시는 실제 원문의 직접성을 보증하지 않으므로 본문 확인이 필요합니다.
+
+## Directory Structure
+
+```text
+kv-cache-agentic-rag/
+├── app/                    # 전체·개별 노드 실행, 인덱싱, 평가 명령
+├── graph/                  # 메인 그래프와 공통 8단계 서브그래프
+├── rag/                    # 논문 검색, 웹 검색, 근거 병합, 검색 평가
+├── runtime/                # LLM 호출, 프롬프트 렌더링, 검증, 보고서 출력
+├── schemas/                # 입력·출력·근거·검증 결과의 공통 스키마
+├── prompts/                # 역할별 및 공통 Jinja2 프롬프트
+├── rubrics/                # 역할별 평가 기준과 허용 등급
+├── data/
+│   ├── documents.yaml      # 주 문서·보조 문서 메타데이터와 본문 범위
+│   ├── paper_downloads.json # 등록 PDF 판본 다운로드 정보
+│   ├── source_annotations.yaml # 사람이 확인한 웹 출처 메타데이터
+│   ├── papers/             # 로컬 PDF 원문 (Git 제외)
+│   └── eval/               # 검색 평가셋 작성·실행 안내
+├── tests/                  # 공통 런타임·역할별 테스트와 고정 사례
+├── docs/                   # 설계 대응, 팀 계약, 실행·평가 안내
+│   └── images/             # README 아키텍처 PNG
+├── outputs/local/          # 보고서·JSON·실행 기록 (Git 제외)
+├── .cache/                 # 모델·논문 인덱스 등 로컬 캐시 (Git 제외)
+├── config.yaml             # 기술·도메인·모델·검색·반복 한도
+├── .env.example            # API 키 및 환경변수 설정 예시
+├── pyproject.toml          # Python 의존성·도구 설정
+├── uv.lock                 # 의존성 잠금 파일
+├── run-report.sh           # 환경 준비부터 실제 보고서 생성까지 실행
+└── README.md
+```
+
+## Usage
+
+### 1. 프로젝트와 API 키 준비
+
+macOS / Linux / WSL의 터미널에서 실행합니다.
 
 ```bash
+git clone https://github.com/dh610/kv-cache-agentic-rag.git
+cd kv-cache-agentic-rag
+cp -n .env.example .env
+```
+
+`.env`의 `OPENAI_API_KEY`, `TAVILY_API_KEY`에 사용할 키를 입력합니다. 기존 `.env`와 키는 덮어쓰지 않으며, 환경변수로 이미 설정한 값이 있으면 우선 사용합니다. `.env`, 원문 PDF, 모델·인덱스 캐시, 생성 결과는 Git에 올리지 않습니다.
+
+LangSmith 추적은 선택 사항입니다. 사용할 경우 `.env.example`에 따라 개인 프로젝트와 키를 설정합니다. 추적을 켜면 입력·출력이 해당 LangSmith 프로젝트에 기록됩니다.
+
+### 2. 실제 보고서 생성
+
+```bash
+./run-report.sh
+```
+
+uv·Python 3.11·의존성, 등록 PDF 4편, BGE-M3와 FAISS 인덱스를 준비한 뒤 실제 파이프라인을 실행합니다. 기존 원문과 유효한 인덱스는 재사용합니다. 최초 준비에는 다운로드가 필요하며, 실제 실행은 설정한 OpenAI·Tavily 계정의 API를 사용합니다.
+
+```bash
+./run-report.sh --prepare-only  # 논문·모델·인덱스 준비만 수행, 유료 API 호출 없음
+./run-report.sh --mock          # 키 없이 고정 자료로 실행 흐름과 파일 출력 점검
+```
+
+mock은 실행 흐름을 확인하는 모드이며, 실제 기술 평가나 검색 성능 측정이 아닙니다.
+
+초안 생성 모드는 다음과 같이 실행합니다.
+
+```bash
+./run-report.sh --first-pass
+```
+
+`--first-pass`는 이 실행에 한해 질문별 검색 한도를 2회(긍정·비판 검색)로 설정하고, 추가 재검색·답변 수정·종합 뒤 보완을 생략합니다. 보고서 생성 단계는 별도 LLM 재작성 없이 기존 결과를 코드로 조립하며, 인용·형식 검사와 미확인 사항은 유지합니다. 실제 API를 사용하는 초안 생성 모드이므로 제출 전 결과 검토가 필요합니다.
+
+최종 산출물로 선택한 파일과 코드 통합 범위는 [최종본 기준](docs/final-report-baseline.md)에 기록했습니다.
+
+### 3. 결과 확인
+
+실행 후 터미널에 표시된 `outputs/local/<실행 ID>/`에서 확인합니다.
+
+| 파일 | 내용 |
+| --- | --- |
+| `report.pdf`, `report.md` | SUMMARY → 분석 배경 → 기술 선정 → 기술 개요·TRL → 관점별 평가 → 시사점 → 한계점 → REFERENCE |
+| `state.json` | 역할별 결과·근거·미해결 gaps·`run_status`·`report_check` |
+| `run.json` | 실행 모드·모델 설정·Git 버전·추적 정보 |
+| `preview.md` | 개발용 노드 결과 요약 |
+
+종료 코드는 `0=completed`, `2=needs_revision`, `1=failed/설정 오류`입니다. **PDF 생성 자체가 평가 성공을 뜻하지 않습니다.** `state.json`의 `run_status`, `report_check.ready`, `gaps`를 확인하고, 제출 전 원문·등급·출처를 사람이 검토합니다.
+
+### 4. 개별 노드 및 개발 검증
+
+```bash
+uv run python -m app.run_node --node market --mode mock --case acceptance
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest -q
-# 실제 FAISS 저장/조회 경로를 가짜 임베더로 검증 (모델 다운로드 없음):
-uv run --with faiss-cpu --with numpy pytest tests/test_index.py -q
+uv run python -m app.run_pipeline --mode mock
 ```
-
-GitHub Actions는 API 키 없이 동일한 검사와 mock 전체 파이프라인을 실행합니다.
-실제 OpenAI/Tavily/LangSmith API 호출 및 BGE 모델의 검색 품질은 개인 설정 후 별도 확인해야 합니다.
 
 ## Contributors
 
-| 팀원 | GitHub | 배정 역할 |
+| 팀원 | GitHub | 담당 역할 |
 | --- | --- | --- |
-| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 평가 (`tech`) |
-| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 (`stakeholder`) |
-| 윤동현 | [dh610](https://github.com/dh610) | 로컬 논문 RAG 및 성능 테스트 |
-| 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 평가 (`market`) |
-| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | 웹 검색 및 서브그래프 |
+| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 조사 에이전트, 도메인 조사 에이전트, 도메인 / 기술 프롬프트·rubric·TRL 평가 사례 및 검증 |
+| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 에이전트, 이해관계자 프롬프트·rubric·평가 사례 및 검증 |
+| 윤동현 | [dh610](https://github.com/dh610) | 논문 RAG, PDF 청킹·임베딩·인덱싱, 검색 평가 코드·절차 준비 |
+| 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 평가 에이전트, 시장 프롬프트·rubric·평가 사례 및 검증 |
+| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | 웹 검색, 공통 서브그래프와 그래프 연결·검증 |
 
-2026-09-22 팀 역할 배정을 반영했습니다. 담당자별 수정 경로와 공동 검토 파일은 [협업 계약](docs/team-contract.md#4-수정-범위와-역할-분담)을 기준으로 합니다.
-`domain`·`synthesis`·`report`의 최종 내용 책임자는 아직 미정이며, 다른 담당자에게 자동 배정하지 않습니다.
-협업자 Write 권한은 저장소 초대를 수락하면 활성화됩니다. GitHub의 기여자 통계는 이후 반영된 커밋에 따라 집계됩니다.
-공유 코드보다 담당 프롬프트·rubric·fixture를 우선 수정하고 작은 PR로 합칩니다.
-**파일 수정 전 개인 작업 브랜치를 준비하고, main에 직접 수정·커밋·push하지 않습니다.**
-[충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다. 에이전트는 [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)부터 읽습니다.
+## Report Findings
 
-노드 인수 전에는 `--case acceptance`로 현재 rubric의 모든 항목을 요청하고
-`python -m app.check_handoff --node market --result outputs/local/RUN/result.json`으로 누락·더미·출처를 점검합니다.
-자세한 명령과 인수/평가 완료의 차이는 [협업 계약](docs/team-contract.md#5-완료-기준)에 있습니다.
+아래는 [선택한 보고서 기준](docs/final-report-baseline.md)의 주요 결과와 해석 범위입니다. **검증 보류가 남아 있는 자동 생성 보고서**이며, 이 README 보완이 PDF의 재생성이나 최종 검증 완료를 뜻하지는 않습니다.
 
-## Deliverables
+| 관점 | 보고서의 핵심 포인트 | 해석 범위·남은 확인 |
+| --- | --- | --- |
+| 기술 | KIVI는 KV cache 압축, ITME는 메모리 계층 확장으로 병목에 접근. 보고서의 TRL 추정은 각각 4와 5 | 공개 정보 기반 추정이며 공식 인증이나 종합 우열이 아님. 실험 환경과 단계 정의를 원문 대조해야 함 |
+| 시장 | 양자화 생태계와 CXL 시장 전망을 배경으로 다룸 | 분야의 지원·성장이 KIVI·ITME 자체의 직접 채택을 뜻하지 않음. 일부 채택 서술은 재검토 필요 |
+| 이해관계자 | 독립적인 경쟁 진영·도입자·업계 반응을 충분히 검증하지 못해 확인 불가가 남음 | 확인 불가는 무관심·부정적 반응이 확인됐다는 뜻이 아님 |
+| 클라우드 적용 | 성능은 두 기술 모두 조건부 적합. KIVI는 품질·커널 통합, ITME는 추가 장비·데이터 이동·운영 조건이 검토 대상 | 논문 조건의 개선과 실제 서비스의 TCO·지연·품질을 구분. 대규모 운영 효과는 별도 검증 필요 |
 
-- 설계 PDF: `RAG-Design_{캠퍼스}-{X반}_{이름1+이름2+...}.pdf`
-- 개발 결과: GitHub 링크 + `RAG-Output_{캠퍼스}_{X반}_{이름1+이름2+...}.pdf`
-- 최종 보고서: SUMMARY로 시작하고 REFERENCE로 종료, 실제 사용한 자료만 기재
-- 조별 발표: README로 설계·구현·보고서 핵심 및 Lessons Learned 설명
+관점별 차이는 **기술 실험의 가능성과 시장·운영 근거의 충분성이 일치하지 않는다**는 점입니다. 압축과 메모리 확장은 보완 가능성이 있지만, 두 기술을 결합한 성능을 이번 프로젝트에서 실험한 것은 아닙니다.
 
-일정과 제출 위치는 최신 반별 공지를 확인합니다. 전체 실행은 `report.md`, `report.pdf`, `state.json`을 출력합니다.
-`state.json`의 `report_check.ready`, `gaps`, `run_status`를 확인하세요. mock 보고서나 자동 생성 파일 자체는 제출 승인/평가 완료가 아닙니다.
-최종 제출 파일명으로 정리하기 전 원문·평가 기준·서지·상충 보존을 사람이 검토해야 합니다.
+현재 보고서의 SUMMARY는 핵심 결론 대신 수정 필요 안내로 남아 있어 보완이 필요합니다. 또한 Hugging Face 양자화 캐시를 KIVI 원형의 정식 지원과 동일시하지 않아야 합니다. [Hugging Face의 구현 설명](https://huggingface.co/blog/kv-cache-quantization)은 KIVI에서 영감을 받았지만 당시 통합 방식에 차이가 있음을 명시합니다. 해당 버전·구현 관계를 확인한 뒤 채택 근거로 사용해야 하며, CXL 제품 사례도 ITME 자체의 채택 여부를 별도로 확인해야 합니다.
+
+## Lessons Learned
+
+| 경험 | 반영한 대응 | 남은 과제 |
+| --- | --- | --- |
+| 검색 결과가 많아도 동명 기술·분야 배경이 섞이면 잘못된 평가로 이어짐 | 맥락 검색어, 기술 자체/분야 배경 검색 층과 출처 메타데이터 구분 | 검색 층만 믿지 않고 원문의 대상·직접성을 사람도 확인 |
+| 긴 검증 입력과 인용 ID 오류가 유효한 내용까지 탈락시킬 수 있음 | 주장별 Judge, 짧은 근거 ID 별칭과 원본 복원, 독립적으로 확인된 주장 보존 | Judge 판정과 rubric 적용의 정확성 점검. 같은 모델 계열의 생성·검증 오류 가능성은 남음 |
+| 반복 횟수를 제한해도 질문·검색 제공자·주장별 호출이 누적됨 | 필요한 질문만 재검색, 제한된 병렬 실행, `--first-pass` 초안 모드 | 최신 통합본의 단계별 지연·호출 수·비용 실측. 속도 개선 수치를 아직 확정하지 않음 |
+| PDF 출력 성공과 평가 내용의 완성도는 다름 | 실행 상태·미해결 gaps·인용 및 형식 검사 결과를 함께 저장 | 검색 평가셋·Hit@5/MRR 실측, 보고서 핵심 요약과 직접 채택 근거 검토 |
+
+다음 우선순위는 **정답 평가셋 완성 → 검색 성능 비교 → 보고서의 원문·판정 대조 → 실행 시간·비용 측정**입니다. 구현한 기능, 측정한 결과, 아직 확인하지 못한 사항을 구분해 설명합니다.

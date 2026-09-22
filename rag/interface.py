@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Protocol
 
 from rag.evidence import merge_evidence
@@ -9,9 +10,22 @@ from schemas.contracts import Evidence, NodeInput, NodeName, Question
 class EvidenceSource(Protocol):
     retryable: bool
 
-    def search(
-        self, question: Question, attempt: int, scope: str = "target"
-    ) -> list[Evidence]: ...
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]: ...
+
+
+def supports_scope(source) -> bool:
+    """Keep existing two-argument team adapters usable during the scope migration."""
+    try:
+        inspect.signature(source.search).bind(None, 1, "target")
+        return True
+    except TypeError:
+        return False
+
+
+def search_source(source, question, attempt, scope="target"):
+    if supports_scope(source):
+        return source.search(question, attempt, scope)
+    return source.search(question, attempt)
 
 
 class FixedEvidence:
@@ -49,7 +63,7 @@ class CombinedSource:
         failures = []
         for source in self.sources:
             try:
-                found = merge_evidence(found, source.search(question, attempt, scope))
+                found = merge_evidence(found, search_source(source, question, attempt, scope))
             except Exception as exc:
                 failures.append(f"{type(source).__name__}: {type(exc).__name__}")
         if failures and not found:
