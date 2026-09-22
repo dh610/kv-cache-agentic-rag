@@ -156,10 +156,33 @@ outputs/local/      # 개인 실행 결과: Git 제외
 
 ## Tech Stack
 
-- Generator `gpt-4.1-mini`, Judge `gpt-4.1-nano`: 팀 초안의 기본값, `.env`에서 모델 변경 가능
+- Generator `gpt-4.1-mini`, Judge `gpt-4.1-mini`: `config.yaml`에서 변경. 판정기는 claim 당 1개 check·근거 ID 규칙을 지키지 못해 nano 에서 올렸습니다
 - BGE-M3 **dense만 사용** + 정규화된 벡터의 FAISS 내적 검색
-- 선택적 reranker는 `config.yaml`의 `retrieval.rerank`; 아직 품질 우위 미검증
-- 30문항 검색 평가 실행기와 미달 대응(청킹·이중언어·learned sparse RRF·리랭커) 제공. [평가셋 준비](data/eval/README.md)와 실제 측정은 별도 작업
+- 선택적 reranker는 `config.yaml`의 `retrieval.rerank`. 기본값은 꺼짐이며, 아래 실측에서 리랭커 없이 기준을 통과해 켜지 않았습니다
+
+### 검색 평가 (30문항, 한국어, 기술별 15개, 약어·수치 19문항)
+
+`data/eval/retrieval_qa.json`의 정답 문장은 색인된 원문 청크와 대조해 확인했습니다.
+MRR 은 전체 검색 순위 기준이며 MRR@5 와 다릅니다. 기준은 Hit@5 ≥ 0.80 **및** MRR ≥ 0.60 입니다.
+
+| 임베딩 모델 | Hit@1 | Hit@3 | Hit@5 | MRR | 기준 |
+|---|---|---|---|---|---|
+| **BAAI/bge-m3** (선정) | 0.433 | 0.733 | **0.800** | **0.600** | 통과 |
+| intfloat/multilingual-e5-large | 0.333 | 0.600 | 0.700 | 0.512 | 미달 |
+| Alibaba-NLP/gte-multilingual-base | — | — | — | — | 측정 불가 |
+
+gte-multilingual-base 는 로딩에 커스텀 원격 코드 실행(`trust_remote_code=True`)이 필요해
+측정하지 않았습니다. 평가 CLI 의 `--trust-remote-code` 로 켤 수 있으나 제3자 코드를 실행하므로
+기본값으로 쓰지 않습니다.
+
+```bash
+uv run --extra rag python -m app.evaluate_retrieval \
+  --dataset data/eval/retrieval_qa.json --run --remediate \
+  --output outputs/retrieval_eval.json
+```
+
+기준 미달 시 청킹 → 이중언어 질의 → dense+sparse(RRF) → 리랭커 순으로 재평가합니다.
+이번 실측은 기준선에서 통과해 재평가 단계를 실행하지 않았습니다.
 - 서비스 검색 기본값은 dense. 실험 결과를 서비스에 적용할 때 설정/검색 어댑터를 검토하고 인덱스를 다시 생성
 - TRL 잠정/최종 구조와 근거 검사 제공. 사람이 검증한 TRL 결론이나 성능 수치를 기본값으로 채우지 않음
 - 의존성은 `uv.lock`으로 공유, 기본 설치와 `rag` 추가 설치 분리
