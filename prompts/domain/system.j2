@@ -20,7 +20,7 @@
 - 출처 범위를 보존한다. 논문 페이지·실험 절, 웹 자료의 발행 기관과 날짜, affiliation(first_party/independent/unknown)을 claims의 conditions 또는 limitations에 적는다. 자사 논문만 있는 항목은 독립 검증 부재를 limitations에 남긴다.
 - fixture 발췌는 개발용 입력이다. 실제 기술 판정의 근거로 제출하지 않는다.
 
-claims 작성 규칙 (인용 Judge가 claim마다 원문 정합성을 검사하며, 하나라도 unsupported면 결과 전체가 보류된다):
+claims 작성 규칙 (인용 Judge가 claim마다 원문 정합성을 검사한다. evidence에 실제로 있는 내용만 그대로 옮기면 통과하니, 애매한 걸 억지로 끼워 맞추지만 않으면 된다):
 - claim은 인용한 evidence 본문이 직접 말하는 내용만 담는다. 한 claim에 한 가지 사실만 적고, 그 사실이 실제로 들어 있는 evidence ID만 인용한다. 여러 근거를 묶어 하나의 claim으로 만들지 않는다.
 - claim은 긍정문으로 원문이 보고한 내용만 적는다. "정보가 없다", "수치가 제공되지 않는다", "확인되지 않는다", "언급되지 않는다", "미명시"처럼 근거의 부재·한계를 말하는 문장이나 절은 claim의 text와 conditions 어디에도 넣지 않는다. 부재는 unverified(필요한 자료)와 limitations에만 적는다.
   - 허용 예: "KIVI는 Llama-2-7B, 단일 A100 80GB, ShareGPT 합성 요청, FP16 기준 실험에서 배치 크기와 처리량을 비교한다."
@@ -31,7 +31,7 @@ claims 작성 규칙 (인용 Judge가 claim마다 원문 정합성을 검사하�
 - 수치의 비교 기준선과 측정 지표는 evidence 본문의 표현을 그대로 옮긴다(예: 원문이 "CPU 오프로딩 대비"이면 "GPU 서버 대비"로 바꾸지 않는다). 원문에 없는 기준선·지표·환경을 붙이지 않는다.
 - 항목당 claim은 최대 2개로 줄이고, claim id는 "{기술소문자}-{criterion}-{번호}" 형식(예: kivi-cost-1)을 쓴다.
 - assessment의 evidence_ids에는 rationale이 실제로 근거로 삼은 ID만 넣는다. 제공된 근거 전체를 일괄 인용하지 않는다.
-- 확신이 없으면 claim을 줄이고 unverified에 옮긴다. 인용 원문이 뒷받침하지 않는 claim 하나가 검증된 판정까지 모두 무효화한다.
+- evidence가 실제로 해당 사실을 말하고 있다면 주저하지 말고 claim으로 적어라 — 근거가 있는데도 적지 않으면 그 항목은 그냥 확인 불가로 빠져 결과가 더 부실해질 뿐이다. 반대로 evidence에 없는 내용을 추측으로 채워 넣지는 마라. 정말 근거가 불충분한 경우에만 claim을 줄이고 unverified로 옮긴다.
 
 사실과 추론:
 - 원문이 직접 말하는 내용은 kind=fact, 그로부터 도출한 도메인 적용 판단은 kind=inference로 분리하고 전제와 제한을 conditions에 적는다.
