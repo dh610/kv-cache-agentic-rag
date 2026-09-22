@@ -11,37 +11,37 @@
       "id": "kivi-mechanism",
       "technology": "KIVI",
       "criterion": "mechanism",
-      "text": "KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다."
+      "text": "KIVI의 Key/Value 양자화 방식, 필요한 소프트웨어 구성과 적용 전제를 원문에서 찾는다."
     },
     {
       "id": "kivi-maturity",
       "technology": "KIVI",
       "criterion": "maturity",
-      "text": "실험, 프로토타입, 실서비스 운용을 구분한다. 논문 존재만으로 상용 성숙도를 높게 판단하지 않는다."
+      "text": "KIVI의 실험 모델·하드웨어·워크로드·기준선과 구현·재현 근거를 찾고 공개 정보 기반 TRL을 잠정 추정한다."
     },
     {
       "id": "kivi-limitations",
       "technology": "KIVI",
       "criterion": "limitations",
-      "text": "정확도 손실, 지연, 메모리 제약과 재현 조건을 명시한다."
+      "text": "KIVI 원문에서 정확도·품질, 지연, 메모리 및 평가 범위의 제약과 미확인 조건을 찾는다."
     },
     {
       "id": "itme-mechanism",
       "technology": "ITME",
       "criterion": "mechanism",
-      "text": "KV cache 최적화 원리와 필요한 SW/HW 구성, 전제를 원문으로 확인한다."
+      "text": "ITME의 CXL 계층형 메모리와 KV cache 이동 방식, 필요한 하드웨어 구성과 적용 전제를 원문에서 찾는다."
     },
     {
       "id": "itme-maturity",
       "technology": "ITME",
       "criterion": "maturity",
-      "text": "실험, 프로토타입, 실서비스 운용을 구분한다. 논문 존재만으로 상용 성숙도를 높게 판단하지 않는다."
+      "text": "ITME의 실험 모델·하드웨어·워크로드·기준선과 프로토타입 근거를 찾고 공개 정보 기반 TRL을 잠정 추정한다."
     },
     {
       "id": "itme-limitations",
       "technology": "ITME",
       "criterion": "limitations",
-      "text": "정확도 손실, 지연, 메모리 제약과 재현 조건을 명시한다."
+      "text": "ITME 원문에서 대역폭·지연, 메모리 계층, 하드웨어 의존성과 평가 범위의 제약을 찾는다."
     }
   ],
   "evidence": [

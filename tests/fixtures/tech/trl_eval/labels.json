@@ -1,0 +1,45 @@
+{
+  "rubric": "KV_cache_최적화_기술_평가_가이드.md C.1의 TRL 1~9",
+  "scope": "제공된 고정 근거에 한정한 잠정 판정 평가. 논문 발표 이후의 채택이나 상용화 사실은 다루지 않는다.",
+  "cases": [
+    {
+      "id": "kivi_paper",
+      "input": "kivi_paper.json",
+      "technology": "KIVI",
+      "minimum_supported_stage": 3,
+      "maximum_supported_stage": 5,
+      "allow_unknown": true,
+      "required_maturity_evidence_ids": ["kivi-curated-p8-efficiency"],
+      "reason": "실제 GPU와 모델로 실험했고 서비스 요청을 모사한 워크로드를 사용한다. 제공된 근거에는 실제 운용 환경의 시스템 시연이나 상용 운용이 없다. 4~5단계의 정확한 경계는 검토가 필요하다.",
+      "manual_review": ["A100 80GB와 ShareGPT 기반 합성 요청을 구분했는가", "FP16 기준과 품질 제약을 보존했는가", "코드 공개를 시스템 시연으로 간주하지 않았는가"],
+      "paper_url": "https://arxiv.org/pdf/2402.02750v2",
+      "pages": [2, 6, 8]
+    },
+    {
+      "id": "itme_paper",
+      "input": "itme_paper.json",
+      "technology": "ITME",
+      "minimum_supported_stage": 4,
+      "maximum_supported_stage": 6,
+      "allow_unknown": true,
+      "required_maturity_evidence_ids": ["itme-curated-p8-fpga", "itme-curated-p8-cmm", "itme-curated-p9-workload"],
+      "reason": "FPGA 기능 시제품과 유사 환경의 시스템 평가가 있지만 제공된 근거에는 실제 고객 운용, 양산 적합성, 상용 납품 자료가 없다. 5~6단계의 정확한 경계는 검토가 필요하다.",
+      "manual_review": ["FPGA 기능 시제품과 별도 CMM 성능 플랫폼을 분리했는가", "워크로드와 비교 기준을 보존했는가", "production-grade 장비 사용을 상용 운용으로 오해하지 않았는가"],
+      "paper_url": "https://arxiv.org/pdf/2606.12556v2",
+      "pages": [8, 9, 10]
+    },
+    {
+      "id": "no_evidence",
+      "input": "no_evidence.json",
+      "technology": "KIVI",
+      "minimum_supported_stage": null,
+      "maximum_supported_stage": null,
+      "allow_unknown": true,
+      "required_maturity_evidence_ids": [],
+      "reason": "근거가 없으므로 TRL 수치를 만들 수 없다.",
+      "manual_review": ["미확인 사유가 unverified에 남아 있는가"],
+      "paper_url": null,
+      "pages": []
+    }
+  ]
+}
