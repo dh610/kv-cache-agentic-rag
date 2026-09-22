@@ -12,7 +12,7 @@
 | TRL 최종 상태 | `NodeResult.trl_estimates` 구조와 근거 검사, 종합 결과를 `trl_result`에 연결 | 기술 담당의 잠정 판단 + 종합 담당의 실제 원문/시장 근거 검토 필요. 빈 결과는 단계 추측 없이 확인 불가 |
 | report와 report_path | 기존 `report: NodeRun` 유지, 생성된 PDF 절대 경로를 `report_path`에 별도 기록 | 기존 호출자 호환; 문자열 경로와 평가 객체를 혼동하지 않음 |
 | 입력 초기화 / finish | `initialize`에서 공통 값 초기화, 기존 finish 대신 `check_report`가 검사·상태 집계·파일 출력 | 보고서 뒤 검사 노드가 실제 그래프에 포함됨 |
-| 공통 서브그래프 | `plan → search → check_sufficiency → write_draft → verify → return_result`, 조건부 `rewrite_query`, `fix`: 총 8개 | 충분성 부족/비판 검색 미수행 시 rewrite, 추가 근거 필요 시 남은 예산 안 재검색, 표현 오류는 1회 수정 후 재검증 |
+| 공통 서브그래프 | `plan → search → check_sufficiency → write_draft → verify → return_result`, 조건부 `rewrite_query`, `fix`: 총 8개 | 첫 계획의 긍정·비판 검색을 함께 수행한 뒤 충분성을 검사. 부족할 때 rewrite, 추가 근거 필요 시 남은 예산 안 재검색, 표현 오류는 1회 수정 후 재검증 |
 | Sub State | 설계서 10개 이름 보존 + 검색 이력·검증 메타데이터 확장 | `RAGSubState`; 목록 입력을 지원하므로 `search_count`는 질문 ID별 dict. 단일 전역 횟수로 합치지 않음 |
 | verdict | `통과 / 표현 오류 / 추가 근거 필요` | 주장별 label을 보존하고 코드가 노드 verdict를 집계; API/파싱 실패는 failed |
 | 질의 이중언어화 | 실제 planner가 질문별 긍정/비판 질의를 작성하고 부족한 근거 피드백으로 재작성 | 기존 고정 영어 접미사 제거. mock의 계획은 오프라인 테스트용 |
@@ -27,7 +27,7 @@
 
 ## 의도적으로 남긴 범위 결정
 
-- **종합 뒤 자동 보완:** 설계서 표 13대로 1라운드를 `graph/main_graph.py`의 `supplement` 노드로 구현(`limits.supplement`, 0이면 끔). gaps 의 담당 역할만 재실행하고, 기술 조사가 바뀌면 의존 평가도 재실행한 뒤 synthesis 로 복귀. mock 모드는 고정 문자열 연결 점검이라 건너뛴다.
+- **종합 뒤 자동 보완:** 설계서 표 13대로 1라운드를 `graph/main_graph.py`의 `supplement` 노드로 구현(`limits.supplement`, 0이면 끔). gaps 의 담당 역할만 재실행하고, 기술 결과가 실제로 바뀌면 의존 평가도 재실행한 뒤 synthesis 로 복귀. 사용자 요청으로 검색 범위를 질문별로 축소했으며, 보완 시 이전 근거·coverage·검색 이력을 재사용한다. 충분하고 양쪽 검색을 마친 질문은 재검색하지 않고, 평가 생성·검증은 전체 질문을 유지한다. mock 모드는 고정 문자열 연결 점검이라 건너뛴다.
 - **rubric 조건 충돌:** 등급 어휘와 항목은 맞췄으나, 출처 수만으로 성장성을 판정하거나 비용 정보가 없다는 이유만으로 부적합으로 내리는 조건은 원문/조건 충돌을 명시하고 확인 불가로 보류합니다. 팀의 조건 해석 합의가 필요합니다. `docs/final-design-review.md`의 해석 쟁점을 그대로 숨기지 않습니다.
 - **실측·자료:** 30문항의 사람 검증, 3모델 실측, 실제 웹 출처 분류/발행일 확인, 역할별 실제 LLM 품질 검토는 남아 있습니다. reference 논문 2편은 PR #16으로 등록했으며 PDF 준비·인덱스 재생성은 각자 필요합니다. ZIP의 성능 수치를 현재 코드의 실측값으로 복사하지 않았습니다.
 - **출력 검수:** PDF 생성과 자동 검사는 구현했지만 실제 기술 결론, 모든 요약 문장, 평가 등급 타당성의 사람 승인을 대체하지 않습니다. 도메인·종합·보고서 내용 책임자는 여전히 미정입니다.
@@ -43,7 +43,7 @@
 - `config.yaml.schema_version=2`; `uv sync --frozen` 재실행. 실제 검색/평가는 `uv sync --frozen --extra rag`.
 - 공개 입력 `NodeInput.questions` 목록과 반환 `NodeRun`은 유지. 내부 State 이름/단계가 바뀌었으므로 기존 graph 코드를 통째로 덮어쓰지 않습니다.
 - `ModelBackend`를 직접 구현한 경우 `plan(data, feedback) -> QueryPlan`, `sufficiency(data, evidence) -> SufficiencyResult`도 구현합니다. 출력은 런타임에서 다시 검증합니다.
-- `EvidenceSource.search(Question, attempt)`는 유지. Question.text에 실제 재작성된 질의가 전달됩니다. 어댑터에서 예전 고정 접미사를 또 붙이지 않습니다.
+- `EvidenceSource.search(Question, attempt, scope="target")`로 검색 층을 전달합니다. 기존 2인수 어댑터는 단일 층으로 호환합니다. Question.text에 실제 재작성된 질의가 전달됩니다. 어댑터에서 예전 고정 접미사를 또 붙이지 않습니다.
 - 이해관계자 criterion ID: `competitors`, `adopters`, `industry`. 도메인: `cost`, `performance`, `quality`, `operations`, `scalability`. 종합: `consistency`, `implications`. 이전 `reaction/conflict`, `fit`, `recommendation` 입력은 새 fixture를 참고해 바꿉니다.
 - 기술의 `mechanism/maturity/limitations` ID는 유지. maturity는 TRL 1~9/확인 불가를 허용. 김계원님의 PR #4 프롬프트·TRL 평가 사례는 최신 main에서 받아 보존했습니다. TRL 세부 단계는 기술 프롬프트의 실습 가이드 정의를 유지합니다.
 - 질문 한도 기본값은 10개: 두 기술 × 도메인 5항목을 한 번에 처리합니다. 검색 예산은 여전히 질문별 최초 포함 3회이고 수정은 노드당 최대 1회입니다.

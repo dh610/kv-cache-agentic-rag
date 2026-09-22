@@ -15,13 +15,14 @@ from typing import Annotated, TypedDict
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
-from graph.node_graph import build_node_graph
+from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
 from runtime.models import ModelBackend
+from runtime.report_draft import assemble_report_node
 from runtime.reporting import assemble_report, collect_gaps, used_ids, validate_report, write_report
 from runtime.settings import Settings
-from schemas.contracts import NODES, Evidence, Gap, NodeInput, NodeRun
+from schemas.contracts import NODES, Evidence, Gap, JudgeResult, NodeInput, NodeRun
 
 # Preserve the result key names from the shared team starter.
 RESULT_KEYS = {
@@ -59,6 +60,8 @@ def build_main_graph(
     settings: Settings,
     backend: ModelBackend,
     sources: dict[str, EvidenceSource] | None = None,
+    *,
+    first_pass: bool = False,
 ):
     if mode not in ("mock", "fixture", "live"):
         raise ValueError("Pipeline mode must be mock, fixture or live")
@@ -83,7 +86,7 @@ def build_main_graph(
     builder.add_node("initialize", initialize)
 
     def make_node(name):
-        def run(state):
+        def run(state, previous=None, refresh_technologies=None):
             data = inputs[name].model_copy(deep=True)
             if mode == "live":
                 data.evidence = []  # Never mix demo fixture excerpts with live search.
@@ -112,12 +115,34 @@ def build_main_graph(
             if name in ("market", "stakeholder", "domain") and "tech_result" in state:
                 # Prior result is an input, never a replacement for original evidence.
                 data.prior_results = {"tech": state["tech_result"].result}
+            if name == "report" and first_pass:
+                out = assemble_report_node(data, {r.node: r for r in runs}, mode)
+                errors = contract_errors(
+                    name, data, out.result, out.evidence, JudgeResult(checks=out.checks)
+                )
+                if errors:
+                    out.validation_errors.extend(errors)
+                    out.status = "failed"
+                cited = used_ids(out)
+                return {
+                    RESULT_KEYS[name]: out,
+                    "sources": [e for e in out.evidence if e.id in cited],
+                }
             source = (
                 CombinedSource(FixedEvidence(data), sources[name])
                 if sources and name in sources
                 else FixedEvidence(data)
             )
-            graph = build_node_graph(name, data, mode, settings, backend, source)
+            graph = build_node_graph(
+                name,
+                data,
+                mode,
+                settings,
+                backend,
+                source,
+                previous=previous,
+                refresh_technologies=refresh_technologies,
+            )
             out = graph.invoke({}, config={"recursion_limit": 80})["output"]
             cited = used_ids(out)
             delta = {RESULT_KEYS[name]: out, "sources": [e for e in out.evidence if e.id in cited]}
@@ -163,18 +188,56 @@ def build_main_graph(
         출처는 누적 리듀서에 더해지고, gaps 는 재실행 결과로 다시 계산한다.
         """
         roles = {g.role for g in state["gaps"] if g.role in NODES[:4]}
-        if "tech" in roles:
-            roles |= {"market", "stakeholder", "domain"}
         working = dict(state)
         updates = {"supplement_round": state["supplement_round"] + 1}
         new_sources: list[Evidence] = []
-        for name in [n for n in NODES[:4] if n in roles]:
+        changed_techs = set()
+        for name in NODES[:4]:
+            if name not in roles:
+                continue
             # 재실행 입력은 첫 실행과 같은 상위 결과만 본다: 기술은 없음, 평가는 기술 결과만.
             allowed = () if name == "tech" else ("tech_result",)
             view = {
                 k: v for k, v in working.items() if k not in RESULT_KEYS.values() or k in allowed
             }
-            delta = runners[name](view)
+            previous = working[RESULT_KEYS[name]]
+            delta = runners[name](
+                view,
+                previous=previous,
+                refresh_technologies=changed_techs,
+            )
+            if name == "tech":
+                current = delta[RESULT_KEYS[name]]
+                if (
+                    previous.status != current.status
+                    or previous.result.unverified != current.result.unverified
+                ):
+                    changed_techs = set(settings.target_techs.values())
+                else:
+                    for tech in settings.target_techs.values():
+
+                        def relevant(run):
+                            items = [
+                                item
+                                for group in (
+                                    run.result.claims,
+                                    run.result.assessments,
+                                    run.result.trl_estimates,
+                                )
+                                for item in group
+                                if item.technology == tech
+                            ]
+                            ids = {eid for item in items for eid in item.evidence_ids}
+                            return (
+                                [item.model_dump() for item in items],
+                                [e.model_dump() for e in run.evidence if e.id in ids],
+                                run.result.limitations,
+                            )
+
+                        if relevant(previous) != relevant(current):
+                            changed_techs.add(tech)
+                if changed_techs:
+                    roles |= {"market", "stakeholder", "domain"}
             working[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             updates[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             new_sources.extend(delta["sources"])
@@ -197,6 +260,12 @@ def build_main_graph(
 
     def check_report(state, config: RunnableConfig):
         text = assemble_report(state, RESULT_KEYS, mode)
+        if first_pass:
+            text = text.replace(
+                "# SUMMARY",
+                "# SUMMARY\n1차 초안: 긍정·비판 검색과 인용 검증을 수행하고 추가 재검색·전체 수정·종합 뒤 보완은 생략했습니다. 미확인과 검증 실패는 그대로 표시합니다.",
+                1,
+            )
         validation = validate_report(state, RESULT_KEYS, text, mode)
         folder = config.get("configurable", {}).get("output_dir")
         path = write_report(text, Path(folder), settings.report, mode) if folder else ""

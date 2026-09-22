@@ -596,23 +596,19 @@ def _rule(color, width):
 
 
 def pdf_text(value: str) -> str:
-    """CID 폰트에 없는 글자를 같은 뜻의 한글 문장부호로 바꾼다.
-
-    가운뎃점 U+00B7 은 HYSMyeongJo-Medium 에서 엉뚱한 글리프(∬)로 찍힌다. 마크다운 원문은
-    그대로 두고 조판할 때만 U+318D 로 바꾼다.
-    """
-    return escape(value).replace("\u00b7", "\u318d")
+    """Escape markup; the embedded font includes the original middle-dot glyph."""
+    return escape(value)
 
 
 def write_report(text, output: Path, meta=None, mode: str = "live"):
-    """설계서 표지·목차 구성으로 조판한다. 한국어 CID 폰트로 팀 환경 차이를 없앤다."""
+    """설계서 표지·목차 구성으로 조판하고 한글 글꼴을 PDF 안에 내장한다."""
     from datetime import date
 
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import (
         BaseDocTemplate,
         Frame,
@@ -628,8 +624,8 @@ def write_report(text, output: Path, meta=None, mode: str = "live"):
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "report.md").write_text(text, encoding="utf-8")
-    font = "HYSMyeongJo-Medium"
-    pdfmetrics.registerFont(UnicodeCIDFont(font))
+    font = "ReportKorean"
+    pdfmetrics.registerFont(TTFont(font, str(ROOT / "assets/fonts/NanumGothic-Regular.ttf")))
     ink = colors.HexColor("#1B2530")
     accent = colors.HexColor("#2F5D8C")
     faint = colors.HexColor("#8A97A6")
