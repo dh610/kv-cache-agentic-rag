@@ -15,6 +15,13 @@ from pypdf import PdfReader
 from runtime.settings import ROOT, Settings
 from schemas.contracts import Evidence, Question
 
+# torch, faiss and scikit-learn each bundle their own libomp.dylib. Loading more than one
+# native OpenMP runtime into the same process crashes (macOS: silent segfault or "OMP: Error
+# #15: ... already initialized") the moment embedding/FAISS code below actually runs. Must be
+# set before those libraries are imported, which only happens lazily inside this module.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 
 class Paper(BaseModel):
     model_config = ConfigDict(extra="forbid")
