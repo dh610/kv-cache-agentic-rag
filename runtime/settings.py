@@ -25,6 +25,7 @@ class ReportMeta(SettingsModel):
     lead: str = ""
     campus: str = ""
     members: list[str] = Field(default_factory=list)
+    submission: str = ""
 
 
 class Models(SettingsModel):

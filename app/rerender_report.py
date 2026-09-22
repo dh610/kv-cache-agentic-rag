@@ -41,7 +41,7 @@ def main(argv=None) -> int:
     validation = validate_report(state, RESULT_KEYS, text, mode)
     target = args.out or args.folder
     target.mkdir(parents=True, exist_ok=True)
-    path = write_report(text, target, load_settings().report)
+    path = write_report(text, target, load_settings().report, mode)
     print(f"Report Markdown: {target / 'report.md'}\nReport PDF: {path}")
     print(f"모드: {mode} (모델 호출 없이 재조판) / 제출 준비: {validation['ready']}")
     for problem in validation["problems"]:

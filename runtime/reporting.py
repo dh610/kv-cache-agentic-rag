@@ -598,7 +598,7 @@ def pdf_text(value: str) -> str:
     return escape(value).replace("\u00b7", "\u318d")
 
 
-def write_report(text, output: Path, meta=None):
+def write_report(text, output: Path, meta=None, mode: str = "live"):
     """설계서 표지와 같은 구성으로 조판한다. 한국어 CID 폰트로 팀 환경 차이를 없앤다."""
     from datetime import date
 
@@ -740,4 +740,9 @@ def write_report(text, output: Path, meta=None):
     SimpleDocTemplate(
         str(path), leftMargin=45, rightMargin=45, topMargin=48, bottomMargin=52, title=label
     ).build(story, onFirstPage=cover if meta else footer, onLaterPages=footer)
+    if meta and meta.submission and mode != "mock":
+        # 과제 제출 파일명으로 한 부 더 둔다. 실행 폴더의 원본은 그대로 남는다.
+        submitted = ROOT / "outputs" / meta.submission
+        submitted.parent.mkdir(parents=True, exist_ok=True)
+        submitted.write_bytes(path.read_bytes())
     return str(path)

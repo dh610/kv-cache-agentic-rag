@@ -10,6 +10,8 @@ report:
   lead: SW 압축 KIVI / HW 메모리 확장 ITME
   campus: 판교 · 8반
   members: [김계원, 박유진, 윤동현, 인수연, 정재웅]
+  # 과제 규칙의 제출 파일명. outputs/ 아래에 이 이름으로 최종본을 복사한다.
+  submission: RAG-Output_판교_8반_김계원+박유진+윤동현+인수연+정재웅.pdf
 
 models:
   generator: gpt-4.1-mini

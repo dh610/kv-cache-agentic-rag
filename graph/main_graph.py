@@ -199,7 +199,7 @@ def build_main_graph(
         text = assemble_report(state, RESULT_KEYS, mode)
         validation = validate_report(state, RESULT_KEYS, text, mode)
         folder = config.get("configurable", {}).get("output_dir")
-        path = write_report(text, Path(folder), settings.report) if folder else ""
+        path = write_report(text, Path(folder), settings.report, mode) if folder else ""
         if not path:
             validation["ready"] = False
             validation["problems"].append("No report output directory was configured")
