@@ -1,0 +1,106 @@
+{
+  "case_id": "market-duplicate-announcement",
+  "description": "[SYNTHETIC TEST ONLY] 아래 기관·제품·수치·사건은 모두 가상이다. 실제 KIVI·ITME 현황을 나타내지 않는다. 이 가상 시나리오의 제공 근거만으로 질문에 답하고 결과에도 합성 테스트임을 표시하라. 평가 기준일: 2026-09-22. 기준일 이후 자료·사건을 당시의 확인 근거로 사용하지 마라. 평가 기준일은 고정 예시이며 실제 평가에서는 기준일과 근거를 함께 교체한다.",
+  "target_techs": {
+    "sw": "KIVI",
+    "hw": "ITME"
+  },
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {
+      "id": "kivi-adoption",
+      "technology": "KIVI",
+      "criterion": "adoption",
+      "text": "KIVI를 실제 적용한 조직·제품·서비스는 무엇인가? 적용 단계(도입 계획, 논문 실험·데모, 실제 파일럿, 정식 출시, 실제 운영), 사건 시점과 적용 조건을 구분하고 직접 근거로 채택 여부를 평가하라."
+    },
+    {
+      "id": "kivi-growth",
+      "technology": "KIVI",
+      "criterion": "growth",
+      "text": "KIVI와 관련된 시장은 무엇이며 기술과 어떻게 연결되는가? 시장 범위·지역·기준연도·규모·통화/단위·전망기간·성장률 또는 성장 방향을 확인하고, 관련 시장 전망과 선정 기술 자체의 매출·채택을 구분하여 평가하라."
+    },
+    {
+      "id": "kivi-ecosystem",
+      "technology": "KIVI",
+      "criterion": "ecosystem",
+      "text": "KIVI를 지원하는 프레임워크·라이브러리·표준은 무엇인가? 지원 주체·버전/범위·확인 시점·정식/실험적 상태와 원 기술과의 관계를 확인하고, 일반적인 계열 기술 지원이나 지원 계획과 구분하여 평가하라."
+    },
+    {
+      "id": "itme-adoption",
+      "technology": "ITME",
+      "criterion": "adoption",
+      "text": "ITME를 실제 적용한 조직·제품·서비스는 무엇인가? 적용 단계(도입 계획, 논문 실험·데모, 실제 파일럿, 정식 출시, 실제 운영), 사건 시점과 적용 조건을 구분하고 직접 근거로 채택 여부를 평가하라."
+    },
+    {
+      "id": "itme-growth",
+      "technology": "ITME",
+      "criterion": "growth",
+      "text": "ITME와 관련된 시장은 무엇이며 기술과 어떻게 연결되는가? 시장 범위·지역·기준연도·규모·통화/단위·전망기간·성장률 또는 성장 방향을 확인하고, 관련 시장 전망과 선정 기술 자체의 매출·채택을 구분하여 평가하라."
+    },
+    {
+      "id": "itme-ecosystem",
+      "technology": "ITME",
+      "criterion": "ecosystem",
+      "text": "ITME를 지원하는 프레임워크·라이브러리·표준은 무엇인가? 지원 주체·버전/범위·확인 시점·정식/실험적 상태와 원 기술과의 관계를 확인하고, 일반적인 계열 기술 지원이나 지원 계획과 구분하여 평가하라."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "synthetic-duplicate-announcement-kivi-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 기업 F의 발표 사건 PILOT-01: 2026-09-01부터 KIVI를 사내 파일럿으로 시험 운영 중이다. 정식 제품 출시나 상용 운영은 아니다.",
+      "title": "[SYNTHETIC] duplicate-announcement / KIVI / 1",
+      "url": "https://example.invalid/market/synthetic-duplicate-announcement-kivi-1",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 테스트 기관",
+      "site": "example.invalid",
+      "published_at": "2026-09-07",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-duplicate-announcement-kivi-2",
+      "text": "[SYNTHETIC TEST ONLY] 가상 매체 G는 기업 F의 발표 사건 PILOT-01을 재인용했다. 2026-09-01 시작한 KIVI 사내 파일럿 하나를 소개하며 새 사례나 독립 검증은 제공하지 않는다.",
+      "title": "[SYNTHETIC] duplicate-announcement / KIVI / 2",
+      "url": "https://example.invalid/market/synthetic-duplicate-announcement-kivi-2",
+      "technology": "KIVI",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 테스트 기관",
+      "site": "example.invalid",
+      "published_at": "2026-09-08",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-duplicate-announcement-itme-1",
+      "text": "[SYNTHETIC TEST ONLY] 가상 기업 F의 발표 사건 PILOT-01: 2026-09-01부터 ITME를 사내 파일럿으로 시험 운영 중이다. 정식 제품 출시나 상용 운영은 아니다.",
+      "title": "[SYNTHETIC] duplicate-announcement / ITME / 1",
+      "url": "https://example.invalid/market/synthetic-duplicate-announcement-itme-1",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 테스트 기관",
+      "site": "example.invalid",
+      "published_at": "2026-09-07",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "id": "synthetic-duplicate-announcement-itme-2",
+      "text": "[SYNTHETIC TEST ONLY] 가상 매체 G는 기업 F의 발표 사건 PILOT-01을 재인용했다. 2026-09-01 시작한 ITME 사내 파일럿 하나를 소개하며 새 사례나 독립 검증은 제공하지 않는다.",
+      "title": "[SYNTHETIC] duplicate-announcement / ITME / 2",
+      "url": "https://example.invalid/market/synthetic-duplicate-announcement-itme-2",
+      "technology": "ITME",
+      "source_type": "fixture",
+      "scope": "target",
+      "document_role": "target",
+      "publisher": "가상 테스트 기관",
+      "site": "example.invalid",
+      "published_at": "2026-09-08",
+      "retrieved_at": "2026-09-22T00:00:00Z"
+    }
+  ],
+  "prior_results": {}
+}
