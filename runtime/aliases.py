@@ -90,10 +90,7 @@ def drop_cross_technology(result: NodeResult, evidence: list[Evidence]) -> NodeR
         found = by_id.get(eid)
         if found is None:
             return True
-        return (
-            found.technology in (item.technology, "other")
-            or found.document_role == "reference"
-        )
+        return found.technology in (item.technology, "other") or found.document_role == "reference"
 
     out = result.model_copy(deep=True)
     for item in [*out.claims, *out.assessments, *out.trl_estimates]:

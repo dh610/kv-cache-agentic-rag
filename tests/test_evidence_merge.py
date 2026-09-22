@@ -53,9 +53,7 @@ def test_known_annotation_is_not_overwritten_by_unknown():
 
 
 @pytest.mark.parametrize("reverse", [False, True])
-@pytest.mark.parametrize(
-    "field,other", [("affiliation", "independent"), ("stance", "critical")]
-)
+@pytest.mark.parametrize("field,other", [("affiliation", "independent"), ("stance", "critical")])
 def test_conflicting_semantic_labels_are_not_resolved_by_input_order(reverse, field, other):
     first = web(affiliation="first_party", stance="positive")
     second = first.model_copy(update={field: other})

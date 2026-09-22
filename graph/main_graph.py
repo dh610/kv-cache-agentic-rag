@@ -152,9 +152,7 @@ def build_main_graph(
             if folder:
                 path = Path(folder) / "nodes"
                 path.mkdir(parents=True, exist_ok=True)
-                (path / f"{name}.json").write_text(
-                    out.model_dump_json(indent=2), encoding="utf-8"
-                )
+                (path / f"{name}.json").write_text(out.model_dump_json(indent=2), encoding="utf-8")
             if name == "synthesis":
                 estimates = {
                     t.technology: t.model_dump()
