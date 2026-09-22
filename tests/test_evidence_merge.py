@@ -50,3 +50,24 @@ def test_known_annotation_is_not_overwritten_by_unknown():
     assert out.affiliation == "first_party" and out.stance == "positive"
     out = merge_evidence([second], [first])[0]
     assert out.affiliation == "first_party" and out.affiliation_reason == "자사 논문"
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "field,other", [("scope", "target"), ("affiliation", "independent"), ("stance", "critical")]
+)
+def test_conflicting_semantic_labels_are_not_resolved_by_input_order(reverse, field, other):
+    first = web(affiliation="first_party", stance="positive")
+    second = first.model_copy(update={field: other})
+    pair = [second, first] if reverse else [first, second]
+    with pytest.raises(ValueError, match="Conflicting evidence"):
+        merge_evidence(pair)
+
+
+def test_filling_affiliation_uses_its_own_reason_without_mutating_inputs():
+    first = web(affiliation_reason="아직 미분류")
+    second = web(affiliation="first_party", affiliation_reason="저자 자사 연구")
+    out = merge_evidence([first], [second])[0]
+    assert out.affiliation == "first_party"
+    assert out.affiliation_reason == "저자 자사 연구"
+    assert first.affiliation == "unknown" and first.affiliation_reason == "아직 미분류"

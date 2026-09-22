@@ -24,12 +24,17 @@ class Recording(MockBackend):
 def run(backend=None, mode="fixture", settings=None, case="acceptance"):
     inputs = {n: load_input(n, case) for n in NODES}
     backend = backend or Recording()
-    state = build_main_graph(inputs, mode, settings or load_settings(), backend).invoke({})
+    if settings is None:
+        settings = load_settings()
+        settings.limits.supplement = 1  # Exercise the bounded loop explicitly.
+    state = build_main_graph(inputs, mode, settings, backend).invoke({})
     return state, backend
 
 
 def test_limits_follow_design_table_13():
     assert load_settings().limits.supplement == 1
+    assert Limits(search=3, questions=10, fix=1).supplement == 1
+    assert Limits(search=3, questions=10, fix=1, supplement=1).supplement == 1
     assert Limits(search=3, questions=10, fix=1, supplement=0).supplement == 0
     with pytest.raises(ValidationError):
         Limits(search=3, questions=10, fix=1, supplement=2)
@@ -88,3 +93,16 @@ def test_supplement_accumulates_sources_without_overwrite():
     # 재실행된 역할의 인용 출처도 리듀서에 남는다 (덮어쓰기 없음).
     rerun = {g.role for g in state["gaps"] if g.role in NODES[:4]}
     assert rerun or state["supplement_round"] == 1
+
+
+def test_report_excludes_superseded_citations_but_keeps_source_history():
+    from runtime.reporting import assemble_report, validate_report
+
+    state, _ = run()
+    previous = state["sources"][0].model_copy(update={"id": "superseded-source"})
+    state["sources"].append(previous)
+    text = assemble_report(state, RESULT_KEYS, "fixture")
+    assert "[superseded-source]" not in text
+    assert any(e.id == "superseded-source" for e in state["sources"])
+    problems = validate_report(state, RESULT_KEYS, text, "fixture")["problems"]
+    assert not any("superseded-source" in p for p in problems)

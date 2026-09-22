@@ -27,7 +27,7 @@ class Limits(SettingsModel):
     search: int = Field(ge=1, le=3)
     questions: int = Field(ge=1, le=12)
     fix: int = Field(default=1, ge=0, le=1)
-    # 설계서 표 13: 종합 뒤 보완 재실행 1라운드. 0으로 두면 루프를 끈다. mock 모드는 연결 점검이라 건너뛴다.
+    # 사용자 승인: 설계서 표 13의 보완 1라운드가 기본. 0으로 끌 수 있다.
     supplement: int = Field(default=1, ge=0, le=1)
 
 
