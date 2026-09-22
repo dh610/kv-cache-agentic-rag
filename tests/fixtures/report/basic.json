@@ -1,6 +1,6 @@
 {
   "case_id": "report-basic",
-  "description": "개발용 짧은 원문 발췌. 실제 시장/도메인/이해관계자 평가에 필요한 근거가 충분하지 않으며 확인 불가가 정상일 수 있습니다.",
+  "description": "개발용 짧은 원문 발췌와 형식 예시 prior_results. 실제 평가 결과가 아니므로 부분 구성·확인 불가가 정상일 수 있습니다. 전체 파이프라인에서는 prior_results가 상위 노드의 실제 결과로 대체됩니다.",
   "target_techs": {
     "sw": "KIVI",
     "hw": "ITME"
@@ -8,16 +8,28 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-coverage",
+      "id": "kivi-overview",
       "technology": "KIVI",
-      "criterion": "coverage",
-      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+      "criterion": "overview",
+      "text": "KIVI의 원리·적용 전제·실험 조건·한계(prior_results.tech)와 경쟁 기술 진영의 반응(prior_results.stakeholder의 competitors)을 3.1/3.2 기술 개요 문장으로 옮긴다. 판정의 근거가 된 원문 사실만 claims로 쓰고 결론·조건·한계·출처 연결이 유지되는지 판정한다. TRL 단계는 새로 정하지 않는다."
     },
     {
-      "id": "itme-coverage",
+      "id": "kivi-implications",
+      "technology": "KIVI",
+      "criterion": "implications",
+      "text": "KIVI에 대한 관점 간 일치·상충과 조건부 시사점(prior_results.synthesis)을 5 시사점 문장으로 옮긴다. 상충은 해소하지 않고 보존하며, 압축과 메모리 확장의 보완 관계는 원문 전제가 있을 때만 kind=inference로 적는다. 특정 기술을 추천하거나 우열을 판정하는 문장을 쓰지 않는다."
+    },
+    {
+      "id": "itme-overview",
       "technology": "ITME",
-      "criterion": "coverage",
-      "text": "결론, 조건, 한계와 실제 사용한 출처의 연결이 유지되는지 확인한다."
+      "criterion": "overview",
+      "text": "ITME의 원리·적용 전제·실험 조건·한계(prior_results.tech)와 경쟁 기술 진영의 반응(prior_results.stakeholder의 competitors)을 3.1/3.2 기술 개요 문장으로 옮긴다. 판정의 근거가 된 원문 사실만 claims로 쓰고 결론·조건·한계·출처 연결이 유지되는지 판정한다. TRL 단계는 새로 정하지 않는다."
+    },
+    {
+      "id": "itme-implications",
+      "technology": "ITME",
+      "criterion": "implications",
+      "text": "ITME에 대한 관점 간 일치·상충과 조건부 시사점(prior_results.synthesis)을 5 시사점 문장으로 옮긴다. 상충은 해소하지 않고 보존하며, 압축과 메모리 확장의 보완 관계는 원문 전제가 있을 때만 kind=inference로 적는다. 특정 기술을 추천하거나 우열을 판정하는 문장을 쓰지 않는다."
     }
   ],
   "evidence": [
@@ -46,5 +58,174 @@
       "document_id": "itme"
     }
   ],
-  "prior_results": {}
+  "prior_results": {
+    "tech": {
+      "node": "tech",
+      "summary": "개발용 고정 발췌 기준 형식 예시이며 실제 기술 평가가 아니다. KIVI는 value cache를 토큰 단위로 양자화한다는 원문 문장, ITME는 FPGA 기반 하드웨어 프로토타입으로 기능 실현 가능성을 보였다는 원문 문장만 확인된다. 실험 조건·성숙도·한계는 확인 불가. 공개 정보 기반 추정.",
+      "claims": [
+        {
+          "id": "tech-kivi-mechanism",
+          "technology": "KIVI",
+          "criterion": "mechanism",
+          "text": "KIVI 원문은 value cache를 토큰 단위(per-token)로 양자화해야 한다고 제시한다.",
+          "kind": "fact",
+          "evidence_ids": [
+            "kivi-abstract-fixture"
+          ],
+          "conditions": [
+            "개발용 고정 발췌; 실험 모델·하드웨어·워크로드·기준선 미명시",
+            "자사 자료(원 저자 논문)"
+          ]
+        },
+        {
+          "id": "tech-itme-mechanism",
+          "technology": "ITME",
+          "criterion": "mechanism",
+          "text": "ITME 원문은 FPGA 기반 하드웨어 프로토타입으로 기능 실현 가능성을 시연했다고 제시한다.",
+          "kind": "fact",
+          "evidence_ids": [
+            "itme-abstract-fixture"
+          ],
+          "conditions": [
+            "개발용 고정 발췌; 처리량 수치·워크로드·비교 기준선 미명시",
+            "자사 자료(SK hynix 자사 연구 논문)"
+          ]
+        }
+      ],
+      "assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "mechanism",
+          "judgment": "조건부 확인",
+          "rationale": "value cache의 토큰 단위 양자화만 원문에서 확인되고 key cache 처리와 필요한 구성은 미확인. 공개 정보 기반 추정.",
+          "evidence_ids": [
+            "kivi-abstract-fixture"
+          ]
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "maturity",
+          "judgment": "확인 불가",
+          "rationale": "실험 모델·하드웨어·워크로드·기준선과 검증 환경 근거가 발췌에 없다. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": []
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "limitations",
+          "judgment": "확인 불가",
+          "rationale": "정확도·지연·메모리 제약에 대한 원문 근거가 발췌에 없다. 공개 정보 기반 추정.",
+          "evidence_ids": []
+        },
+        {
+          "technology": "ITME",
+          "criterion": "mechanism",
+          "judgment": "조건부 확인",
+          "rationale": "FPGA 프로토타입 시연만 원문에서 확인되고 메모리 계층 구성과 KV cache 이동 방식은 미확인. 공개 정보 기반 추정.",
+          "evidence_ids": [
+            "itme-abstract-fixture"
+          ]
+        },
+        {
+          "technology": "ITME",
+          "criterion": "maturity",
+          "judgment": "확인 불가",
+          "rationale": "프로토타입의 검증 환경·워크로드·기준선 근거가 발췌에 없다. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": []
+        },
+        {
+          "technology": "ITME",
+          "criterion": "limitations",
+          "judgment": "확인 불가",
+          "rationale": "대역폭·지연·하드웨어 의존성 제약에 대한 원문 근거가 발췌에 없다. 공개 정보 기반 추정.",
+          "evidence_ids": []
+        }
+      ],
+      "unverified": [
+        "KIVI/maturity: 실험 모델·하드웨어·워크로드·기준선 원문 필요",
+        "KIVI/limitations: 정확도·지연·메모리 제약 원문 필요",
+        "ITME/maturity: 프로토타입 검증 환경·워크로드·기준선 원문 필요",
+        "ITME/limitations: 대역폭·지연·하드웨어 의존성 제약 원문 필요"
+      ],
+      "limitations": [
+        "개발용 고정 발췌만 사용했으며 실제 기술 평가가 아니다",
+        "두 논문 모두 자사 자료이며 독립 검증 자료가 없다"
+      ],
+      "trl_estimates": [
+        {
+          "technology": "KIVI",
+          "level": null,
+          "rationale": "고정 발췌만으로는 어느 단계도 뒷받침할 근거가 없다. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": [],
+          "provisional": true
+        },
+        {
+          "technology": "ITME",
+          "level": null,
+          "rationale": "FPGA 프로토타입 언급만으로 검증 환경을 특정할 수 없다. 공개 정보 기반 잠정 추정.",
+          "evidence_ids": [],
+          "provisional": true
+        }
+      ]
+    },
+    "synthesis": {
+      "node": "synthesis",
+      "summary": "시장·이해관계자·도메인 결과가 모두 확인 불가여서 관점 간 일치·상충을 대조할 수 없다. 기술 조사에서 확인된 것은 KIVI의 토큰 단위 value 양자화와 ITME의 FPGA 프로토타입 시연뿐이며, 어느 기술도 추천하지 않는다. 공개 정보 기반 추정.",
+      "claims": [],
+      "assessments": [
+        {
+          "technology": "KIVI",
+          "criterion": "consistency",
+          "judgment": "확인 불가",
+          "rationale": "관점별 결과가 확인 불가라 일치·상충을 판단할 근거가 없다. 공개 정보 기반 추정.",
+          "evidence_ids": []
+        },
+        {
+          "technology": "KIVI",
+          "criterion": "implications",
+          "judgment": "확인 불가",
+          "rationale": "조건부 시사점을 낼 관점별 근거가 없어 판정을 보류한다. 공개 정보 기반 추정.",
+          "evidence_ids": []
+        },
+        {
+          "technology": "ITME",
+          "criterion": "consistency",
+          "judgment": "확인 불가",
+          "rationale": "관점별 결과가 확인 불가라 일치·상충을 판단할 근거가 없다. 공개 정보 기반 추정.",
+          "evidence_ids": []
+        },
+        {
+          "technology": "ITME",
+          "criterion": "implications",
+          "judgment": "확인 불가",
+          "rationale": "조건부 시사점을 낼 관점별 근거가 없어 판정을 보류한다. 공개 정보 기반 추정.",
+          "evidence_ids": []
+        }
+      ],
+      "unverified": [
+        "KIVI/consistency: 관점별 실제 평가 결과 필요",
+        "KIVI/implications: 관점별 실제 평가 결과 필요",
+        "ITME/consistency: 관점별 실제 평가 결과 필요",
+        "ITME/implications: 관점별 실제 평가 결과 필요"
+      ],
+      "limitations": [
+        "기존 미확인 사항을 유지하며 의견을 맞추는 재조사는 하지 않음"
+      ],
+      "trl_estimates": [
+        {
+          "technology": "KIVI",
+          "level": null,
+          "rationale": "잠정 TRL이 확인 불가이고 시장 직접 근거도 없어 확정할 수 없다. 공개 정보 기반 추정.",
+          "evidence_ids": [],
+          "provisional": false
+        },
+        {
+          "technology": "ITME",
+          "level": null,
+          "rationale": "잠정 TRL이 확인 불가이고 시장 직접 근거도 없어 확정할 수 없다. 공개 정보 기반 추정.",
+          "evidence_ids": [],
+          "provisional": false
+        }
+      ]
+    }
+  }
 }
