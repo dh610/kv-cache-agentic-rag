@@ -13,13 +13,29 @@ from schemas.contracts import NODES
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Run the common graph with fixed evidence")
     parser.add_argument("--mode", choices=("mock", "fixture", "live"), default="mock")
+    parser.add_argument(
+        "--first-pass",
+        action="store_true",
+        help="Generate a reviewed first draft without follow-up search, fix, or supplement rounds",
+    )
     args = parser.parse_args(argv)
     settings = load_settings()
+    if args.first_pass:
+        settings.limits.search = 2
+        settings.limits.fix = 0
+        settings.limits.supplement = 0
     inputs = {node: load_input(node, "acceptance") for node in NODES}
     backend = MockBackend() if args.mode == "mock" else OpenAIBackend(settings)
     sources = live_sources(settings) if args.mode == "live" else None
-    graph = build_main_graph(inputs, args.mode, settings, backend, sources)
-    final, output = execute(graph, "pipeline", args.mode, {"settings": settings.model_dump()})
+    graph = build_main_graph(
+        inputs, args.mode, settings, backend, sources, first_pass=args.first_pass
+    )
+    final, output = execute(
+        graph,
+        "pipeline",
+        args.mode,
+        {"settings": settings.model_dump(), "first_pass": args.first_pass},
+    )
     save_json(output / "state.json", final)
     body = [
         f"# Development preview ({args.mode})",

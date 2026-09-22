@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from typing import TypedDict
 
 from langchain_core.runnables.config import ContextThreadPoolExecutor
@@ -18,6 +19,7 @@ from schemas.contracts import (
     NodeName,
     NodeResult,
     NodeRun,
+    QueryPair,
     QueryPlan,
     SearchRecord,
     SufficiencyResult,
@@ -123,10 +125,15 @@ def contract_errors(
     if len(ids) != len(set(ids)):
         errors.append("duplicate claim IDs")
     checked = [c.claim_id for c in judge.checks]
-    if len(checked) != len(set(checked)) or set(checked) != set(ids):
-        errors.append("Judge must return exactly one check per claim")
+    for cid in ids:
+        if checked.count(cid) != 1:
+            errors.append(f"{cid}: Judge must return exactly one check per claim")
+    if set(checked) - set(ids):
+        errors.append("Judge returned unknown claim IDs; those checks are ignored")
     claims = {c.id: c for c in result.claims}
     for check in judge.checks:
+        if check.claim_id not in claims:
+            continue
         cited = set(claims[check.claim_id].evidence_ids) if check.claim_id in claims else set()
         if not set(check.evidence_ids).issubset(cited & known):
             errors.append(f"{check.claim_id}: Judge cited evidence not supplied by claim")
@@ -142,17 +149,19 @@ def contract_errors(
         if item.technology not in techs or not criterion:
             errors.append("assessment has unknown technology/criterion")
         elif item.judgment not in criterion.judgments:
-            errors.append(f"{item.criterion}: judgment not allowed by rubric")
+            errors.append(f"{item.technology}/{item.criterion}: judgment not allowed by rubric")
         if not set(item.evidence_ids).issubset(known):
-            errors.append(f"{item.criterion}: assessment has unknown evidence")
+            errors.append(f"{item.technology}/{item.criterion}: assessment has unknown evidence")
         if item.judgment != "확인 불가" and not item.evidence_ids:
-            errors.append(f"{item.criterion}: assessment without evidence")
+            errors.append(f"{item.technology}/{item.criterion}: assessment without evidence")
         if item.judgment != "확인 불가":
             verified = verified_evidence_ids(
                 result, judge.checks, evidence, item.technology, item.criterion
             )
             if not verified or not set(item.evidence_ids).issubset(verified):
-                errors.append(f"{item.criterion}: assessment lacks verified claim premises")
+                errors.append(
+                    f"{item.technology}/{item.criterion}: assessment lacks verified claim premises"
+                )
     addressed = {(a.technology, a.criterion) for a in result.assessments}
     if len(addressed) != len(result.assessments):
         errors.append("Duplicate technology/criterion assessments")
@@ -260,6 +269,11 @@ def build_node_graph(
     def planned(questions, feedback):
         if not questions:
             return {}
+        if node in ("synthesis", "report"):
+            return {
+                q.id: QueryPair(question_id=q.id, positive=q.text, critical=q.text)
+                for q in questions
+            }
         scoped = data.model_copy(update={"questions": questions})
         pairs = QueryPlan.model_validate(backend.plan(scoped, feedback)).queries
         if (
@@ -402,6 +416,9 @@ def build_node_graph(
         ]
 
     def check_sufficiency(state):
+        if node in ("synthesis", "report"):
+            # No new retrieval here; Generator/Judge validate the upstream premises.
+            return {"coverage": [], "is_sufficient": False}
         if state.get("fatal"):
             return {"is_sufficient": False}
         selected = set(state["searched_question_ids"])
@@ -499,7 +516,35 @@ def build_node_graph(
                 "rendered_user": user,
             }
         try:
-            draft = backend.generate(node, current, prompt_evidence, system, user)
+            if live_search and hasattr(backend, "generate_scoped"):
+                packets = []
+                for tech in dict.fromkeys(q.technology for q in data.questions):
+                    questions = [q for q in data.questions if q.technology == tech]
+                    scoped = current.model_copy(deep=True)
+                    scoped.questions = questions
+                    scoped.target_techs = {
+                        key: value for key, value in data.target_techs.items() if value == tech
+                    }
+                    scoped.description += f"\n이번 생성은 {tech}만 담당합니다. 다른 기술의 claim/assessment/TRL을 생성하지 마세요."
+                    for prior in scoped.prior_results.values():
+                        prior.claims = [c for c in prior.claims if c.technology == tech]
+                        prior.assessments = [a for a in prior.assessments if a.technology == tech]
+                        prior.trl_estimates = [
+                            t for t in prior.trl_estimates if t.technology == tech
+                        ]
+                    scoped_evidence = [
+                        e
+                        for e in prompt_evidence
+                        if e.technology in (tech, "other") or e.document_role == "reference"
+                    ]
+                    scoped_system, scoped_user, _ = render(node, scoped, scoped_evidence)
+                    packets.append((scoped, scoped_evidence, scoped_system, scoped_user))
+                system = "\n\n".join(packet[2] for packet in packets)
+                user = "\n\n".join(packet[3] for packet in packets)
+                digest = hashlib.sha256((system + "\n" + user).encode()).hexdigest()
+                draft = backend.generate_scoped(node, packets)
+            else:
+                draft = backend.generate(node, current, prompt_evidence, system, user)
             return {
                 "draft": NodeResult.model_validate(draft),
                 "prompt_hash": digest,
@@ -610,76 +655,7 @@ def build_node_graph(
             }
 
     def return_result(state):
-        result = state["draft"].model_copy(deep=True)
-        errors = list(state.get("errors", []))
-        rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
-        for c in state["judge"].checks:
-            if c.label != "supported":
-                errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
-        result.unverified.extend(c.text for c in result.claims if c.id in rejected)
-        result.claims = [c for c in result.claims if c.id not in rejected]
-        if state.get("errors") or state.get("fatal"):
-            result.unverified.extend(c.text for c in result.claims)
-            result.claims = []
-        if rejected or state.get("errors") or state.get("fatal"):
-            result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
-            for a in result.assessments:
-                a.judgment, a.rationale, a.evidence_ids = (
-                    "확인 불가",
-                    "근거 검증 실패로 판정을 보류합니다.",
-                    [],
-                )
-            for t in result.trl_estimates:
-                t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
-        errors.extend(
-            f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
-        )
-        if not state["search_results"]:
-            errors.append("No evidence available")
-        if mode != "mock":
-            for a in result.assessments:
-                if a.judgment == "확인 불가":
-                    result.unverified.append(f"{a.technology}/{a.criterion}: 확인 불가")
-            for q in data.questions:
-                intents = {
-                    r.intent for r in state["searches"] if r.question_id == q.id and not r.error
-                }
-                if not {"positive", "critical"}.issubset(intents) and node in (
-                    "tech",
-                    "market",
-                    "stakeholder",
-                    "domain",
-                ):
-                    result.limitations.append(f"{q.id}: 긍정·비판 양쪽 실제 검색 미완료")
-            stances = {e.stance for e in state["search_results"]}
-            if not ({"positive", "critical"}.issubset(stances) or "mixed" in stances):
-                result.limitations.append(
-                    "긍정·비판 양쪽 자료의 원문 분류가 확인되지 않음. 검색 수행과 자료의 실제 입장은 다릅니다."
-                )
-        status = (
-            "failed"
-            if state.get("fatal")
-            else "needs_revision"
-            if errors or result.unverified
-            else "completed"
-        )
-        return {
-            "output": NodeRun(
-                node=node,
-                mode=mode,
-                status=status,
-                result=result,
-                evidence=state["search_results"],
-                checks=state["judge"].checks,
-                validation_errors=errors,
-                searches=state["searches"],
-                prompt_hash=state["prompt_hash"],
-                model=backend.name,
-                verdict=state["verdict"],
-                fix_count=state["fix_count"],
-                coverage=state.get("coverage", []),
-            )
-        }
+        return finalize_node(node, data, mode, state, backend.name)
 
     builder = StateGraph(RAGSubState)
     for fn in (
@@ -705,3 +681,100 @@ def build_node_graph(
     builder.add_edge("fix", "verify")
     builder.add_edge("return_result", END)
     return builder.compile()
+
+
+def finalize_node(node, data, mode, state, model):
+    result = state["draft"].model_copy(deep=True)
+    errors = list(state.get("errors", []))
+    rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
+    for c in state["judge"].checks:
+        if c.label != "supported":
+            errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
+    bad_pairs = {(c.technology, c.criterion) for c in result.claims if c.id in rejected}
+    global_failure = bool(state.get("fatal"))
+    for error in state.get("errors", []):
+        if error.startswith("Judge returned unknown claim IDs"):
+            continue
+        matched = {
+            (c.technology, c.criterion) for c in result.claims if error.startswith(c.id + ":")
+        }
+        matched.update(
+            (q.technology, q.criterion)
+            for q in data.questions
+            if error.startswith(f"{q.technology}/{q.criterion}:")
+            or error.startswith(q.criterion + ":")
+        )
+        if not matched:
+            global_failure = True
+        bad_pairs.update(matched)
+    if global_failure:
+        bad_pairs = {(q.technology, q.criterion) for q in data.questions}
+        bad_pairs.update((c.technology, c.criterion) for c in result.claims)
+        bad_pairs.update((a.technology, a.criterion) for a in result.assessments)
+    result.unverified.extend(
+        c.text for c in result.claims if (c.technology, c.criterion) in bad_pairs
+    )
+    result.claims = [c for c in result.claims if (c.technology, c.criterion) not in bad_pairs]
+    if bad_pairs:
+        result.summary = (
+            "검증을 통과하지 못한 항목은 보류하고, 통과한 항목의 주장과 평가만 보존했습니다."
+        )
+        for a in result.assessments:
+            if (a.technology, a.criterion) in bad_pairs:
+                a.judgment, a.rationale, a.evidence_ids = (
+                    "확인 불가",
+                    "근거 검증 실패로 해당 항목의 판정을 보류합니다.",
+                    [],
+                )
+        for t in result.trl_estimates:
+            if global_failure or any(
+                tech == t.technology and criterion == "maturity" for tech, criterion in bad_pairs
+            ):
+                t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+    errors.extend(
+        f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
+    )
+    if not state["search_results"]:
+        errors.append("No evidence available")
+    if mode != "mock":
+        for a in result.assessments:
+            if a.judgment == "확인 불가":
+                result.unverified.append(f"{a.technology}/{a.criterion}: 확인 불가")
+        for q in data.questions:
+            intents = {r.intent for r in state["searches"] if r.question_id == q.id and not r.error}
+            if not {"positive", "critical"}.issubset(intents) and node in (
+                "tech",
+                "market",
+                "stakeholder",
+                "domain",
+            ):
+                result.limitations.append(f"{q.id}: 긍정·비판 양쪽 실제 검색 미완료")
+        stances = {e.stance for e in state["search_results"]}
+        if not ({"positive", "critical"}.issubset(stances) or "mixed" in stances):
+            result.limitations.append(
+                "긍정·비판 양쪽 자료의 원문 분류가 확인되지 않음. 검색 수행과 자료의 실제 입장은 다릅니다."
+            )
+    status = (
+        "failed"
+        if state.get("fatal")
+        else "needs_revision"
+        if errors or result.unverified
+        else "completed"
+    )
+    return {
+        "output": NodeRun(
+            node=node,
+            mode=mode,
+            status=status,
+            result=result,
+            evidence=state["search_results"],
+            checks=state["judge"].checks,
+            validation_errors=errors,
+            searches=state["searches"],
+            prompt_hash=state["prompt_hash"],
+            model=model,
+            verdict=state["verdict"],
+            fix_count=state["fix_count"],
+            coverage=state.get("coverage", []),
+        )
+    }

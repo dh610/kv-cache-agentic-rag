@@ -15,13 +15,14 @@ from typing import Annotated, TypedDict
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
-from graph.node_graph import build_node_graph
+from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
 from runtime.models import ModelBackend
+from runtime.report_draft import assemble_report_node
 from runtime.reporting import assemble_report, collect_gaps, used_ids, validate_report, write_report
 from runtime.settings import Settings
-from schemas.contracts import NODES, Evidence, Gap, NodeInput, NodeRun
+from schemas.contracts import NODES, Evidence, Gap, JudgeResult, NodeInput, NodeRun
 
 # Preserve the result key names from the shared team starter.
 RESULT_KEYS = {
@@ -59,6 +60,8 @@ def build_main_graph(
     settings: Settings,
     backend: ModelBackend,
     sources: dict[str, EvidenceSource] | None = None,
+    *,
+    first_pass: bool = False,
 ):
     if mode not in ("mock", "fixture", "live"):
         raise ValueError("Pipeline mode must be mock, fixture or live")
@@ -107,6 +110,19 @@ def build_main_graph(
             if name in ("market", "stakeholder", "domain") and "tech_result" in state:
                 # Prior result is an input, never a replacement for original evidence.
                 data.prior_results = {"tech": state["tech_result"].result}
+            if name == "report" and first_pass:
+                out = assemble_report_node(data, {r.node: r for r in runs}, mode)
+                errors = contract_errors(
+                    name, data, out.result, out.evidence, JudgeResult(checks=out.checks)
+                )
+                if errors:
+                    out.validation_errors.extend(errors)
+                    out.status = "failed"
+                cited = used_ids(out)
+                return {
+                    RESULT_KEYS[name]: out,
+                    "sources": [e for e in out.evidence if e.id in cited],
+                }
             source = (
                 CombinedSource(FixedEvidence(data), sources[name])
                 if sources and name in sources
@@ -239,6 +255,12 @@ def build_main_graph(
 
     def check_report(state, config: RunnableConfig):
         text = assemble_report(state, RESULT_KEYS, mode)
+        if first_pass:
+            text = text.replace(
+                "# SUMMARY",
+                "# SUMMARY\n1차 초안: 긍정·비판 검색과 인용 검증을 수행하고 추가 재검색·전체 수정·종합 뒤 보완은 생략했습니다. 미확인과 검증 실패는 그대로 표시합니다.",
+                1,
+            )
         validation = validate_report(state, RESULT_KEYS, text, mode)
         folder = config.get("configurable", {}).get("output_dir")
         path = write_report(text, Path(folder)) if folder else ""

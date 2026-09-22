@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Literal, Protocol, Union
 
-from pydantic import create_model
+from langchain_core.runnables.config import ContextThreadPoolExecutor
+from pydantic import Field, create_model
 
 from runtime.context import evidence_payload
 from runtime.prompts import load_rubric
@@ -154,7 +155,17 @@ def result_schema(node):
         for criterion in load_rubric(node).criteria
     )
     item_type = Union[variants] if len(variants) > 1 else variants[0]
-    return create_model(f"{node}_Result", __base__=NodeResult, assessments=(list[item_type], ...))
+    claim_type = create_model(
+        f"{node}_CitedClaim",
+        __base__=Claim,
+        evidence_ids=(list[str], Field(min_length=1)),
+    )
+    return create_model(
+        f"{node}_Result",
+        __base__=NodeResult,
+        assessments=(list[item_type], ...),
+        claims=(list[claim_type], ...),
+    )
 
 
 class OpenAIBackend:
@@ -187,6 +198,36 @@ class OpenAIBackend:
             )
         result = self.generators[node].invoke([("system", system), ("human", user)])
         return NodeResult.model_validate(result.model_dump())
+
+    def generate_scoped(self, node, packets):
+        """Generate independent technology packets concurrently, preserving every question."""
+
+        def run(packet):
+            data, evidence, system, user = packet
+            result = self.generate(node, data, evidence, system, user)
+            techs = {q.technology for q in data.questions}
+            if any(
+                item.technology not in techs
+                for item in result.claims + result.assessments + result.trl_estimates
+            ):
+                raise ValueError("Scoped generation returned another technology")
+            return result
+
+        with ContextThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(run, packets))
+        merged = NodeResult(
+            node=node, summary="", claims=[], assessments=[], unverified=[], limitations=[]
+        )
+        for index, result in enumerate(results):
+            for claim in result.claims:
+                claim.id = f"part{index}-{claim.id}"
+            merged.claims.extend(result.claims)
+            merged.assessments.extend(result.assessments)
+            merged.trl_estimates.extend(result.trl_estimates)
+            merged.unverified.extend(result.unverified)
+            merged.limitations.extend(result.limitations)
+        merged.summary = "\n".join(r.summary for r in results)
+        return merged
 
     def judge(self, result, evidence):
         import json
