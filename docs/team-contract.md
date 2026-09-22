@@ -65,8 +65,9 @@ run = build_node_graph("market", data, "fixture", settings, backend, source).inv
 | 출처 | 필수 항목 |
 | --- | --- |
 | 공통 | `id`, `text`, `title`, `url`, `technology`, `source_type`, `scope`, `document_role` |
-| 논문(`paper`) | `authors`, `year`, `venue`, `document_id`, `page`; `id`가 chunk_id 역할 |
+| 논문(`paper`) | `authors`, `year`, `venue`, `citation_id`(권(호)·페이지 또는 arXiv 번호), `document_id`, `page`; `id`가 chunk_id 역할 |
 | 웹(`web`) | `publisher` 또는 `authors`, `site`, `published_at`, `retrieved_at` |
+| 특허(`patent`) | `publisher`(출원인), `published_at`(YYYY-MM), `citation_id`(특허번호/공개번호) |
 
 논문의 page는 PDF 물리 페이지(1부터), URL은 원문 위치, venue는 게재 정보이며 프리프린트는 그렇게 명시합니다.
 웹에서 발행일/기관을 못 찾으면 null로 남기고 보완 대상으로 기록합니다. 수집일로 발행일을 대체하거나 기관명을 추측하지 않습니다.

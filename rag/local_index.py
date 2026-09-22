@@ -28,6 +28,7 @@ class Paper(BaseModel):
     authors: str | None = None
     year: int | None = Field(default=None, ge=1900, le=2100)
     venue: str | None = None
+    citation_id: str | None = None  # 권(호)·페이지 또는 arXiv 번호 (REFERENCE 형식)
     affiliation: Literal["first_party", "independent", "unknown"] = "unknown"
     affiliation_reason: str | None = None
 
@@ -124,6 +125,7 @@ def read_chunks(settings: Settings, catalog: Catalog, root: Path = ROOT):
                         authors=paper.authors,
                         year=paper.year,
                         venue=paper.venue,
+                        citation_id=paper.citation_id,
                         affiliation=paper.affiliation,
                         affiliation_reason=paper.affiliation_reason,
                     )

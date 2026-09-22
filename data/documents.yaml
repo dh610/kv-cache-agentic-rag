@@ -1,5 +1,6 @@
 # PDF 원문은 Git에 넣지 않습니다. 페이지는 PDF의 1-based 물리 페이지입니다.
 # 본문 범위는 팀 공유 ZIP의 설정을 계승합니다. 판본 변경 시 다시 확인하세요.
+# citation_id는 REFERENCE 표기(학술지/학회명, 권(호), 페이지)의 권(호)·페이지 또는 arXiv 번호입니다.
 documents:
   - id: kivi
     path: data/papers/kivi.pdf
@@ -13,6 +14,7 @@ documents:
     authors: Zirui Liu et al.
     year: 2024
     venue: ICML 2024
+    citation_id: arXiv 2402.02750  # 게재본 권(호)·페이지 확인 후 갱신
   - id: itme
     path: data/papers/itme.pdf
     title: "Inference Tiered Memory Expansion with Disaggregated CXL-Hybrid Memories"
@@ -24,4 +26,5 @@ documents:
     affiliation_reason: ITME 제안자(SK hynix)의 자사 연구 논문
     authors: Hakbeom Jang et al.
     year: 2026
-    venue: arXiv preprint (2606.12556)
+    venue: arXiv preprint
+    citation_id: "2606.12556"

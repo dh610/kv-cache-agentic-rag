@@ -19,7 +19,7 @@ class Evidence(Contract):
     title: str
     url: str
     technology: str
-    source_type: Literal["paper", "web", "fixture"]
+    source_type: Literal["paper", "web", "patent", "fixture"]
     scope: Literal["target", "context"]
     document_role: Literal["target", "reference"] = "target"
     page: int | None = Field(default=None, ge=1)
@@ -27,6 +27,8 @@ class Evidence(Contract):
     authors: str | None = None
     year: int | None = Field(default=None, ge=1900, le=2100)
     venue: str | None = None
+    # Guide REFERENCE format: paper 권(호)·페이지 or arXiv number; patent 특허번호/공개번호.
+    citation_id: str | None = None
     publisher: str | None = None
     site: str | None = None
     published_at: str | None = None
