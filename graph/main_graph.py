@@ -83,7 +83,7 @@ def build_main_graph(
     builder.add_node("initialize", initialize)
 
     def make_node(name):
-        def run(state):
+        def run(state, previous=None, refresh_technologies=None):
             data = inputs[name].model_copy(deep=True)
             if mode == "live":
                 data.evidence = []  # Never mix demo fixture excerpts with live search.
@@ -109,7 +109,16 @@ def build_main_graph(
                 if sources and name in sources
                 else FixedEvidence(data)
             )
-            graph = build_node_graph(name, data, mode, settings, backend, source)
+            graph = build_node_graph(
+                name,
+                data,
+                mode,
+                settings,
+                backend,
+                source,
+                previous=previous,
+                refresh_technologies=refresh_technologies,
+            )
             out = graph.invoke({}, config={"recursion_limit": 80})["output"]
             cited = used_ids(out)
             delta = {RESULT_KEYS[name]: out, "sources": [e for e in out.evidence if e.id in cited]}
@@ -155,18 +164,56 @@ def build_main_graph(
         출처는 누적 리듀서에 더해지고, gaps 는 재실행 결과로 다시 계산한다.
         """
         roles = {g.role for g in state["gaps"] if g.role in NODES[:4]}
-        if "tech" in roles:
-            roles |= {"market", "stakeholder", "domain"}
         working = dict(state)
         updates = {"supplement_round": state["supplement_round"] + 1}
         new_sources: list[Evidence] = []
-        for name in [n for n in NODES[:4] if n in roles]:
+        changed_techs = set()
+        for name in NODES[:4]:
+            if name not in roles:
+                continue
             # 재실행 입력은 첫 실행과 같은 상위 결과만 본다: 기술은 없음, 평가는 기술 결과만.
             allowed = () if name == "tech" else ("tech_result",)
             view = {
                 k: v for k, v in working.items() if k not in RESULT_KEYS.values() or k in allowed
             }
-            delta = runners[name](view)
+            previous = working[RESULT_KEYS[name]]
+            delta = runners[name](
+                view,
+                previous=previous,
+                refresh_technologies=changed_techs,
+            )
+            if name == "tech":
+                current = delta[RESULT_KEYS[name]]
+                if (
+                    previous.status != current.status
+                    or previous.result.unverified != current.result.unverified
+                ):
+                    changed_techs = set(settings.target_techs.values())
+                else:
+                    for tech in settings.target_techs.values():
+
+                        def relevant(run):
+                            items = [
+                                item
+                                for group in (
+                                    run.result.claims,
+                                    run.result.assessments,
+                                    run.result.trl_estimates,
+                                )
+                                for item in group
+                                if item.technology == tech
+                            ]
+                            ids = {eid for item in items for eid in item.evidence_ids}
+                            return (
+                                [item.model_dump() for item in items],
+                                [e.model_dump() for e in run.evidence if e.id in ids],
+                                run.result.limitations,
+                            )
+
+                        if relevant(previous) != relevant(current):
+                            changed_techs.add(tech)
+                if changed_techs:
+                    roles |= {"market", "stakeholder", "domain"}
             working[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             updates[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             new_sources.extend(delta["sources"])

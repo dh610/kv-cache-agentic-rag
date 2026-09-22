@@ -45,6 +45,9 @@ class RAGSubState(TypedDict, total=False):
     prompt_hash: str
     rendered_system: str
     rendered_user: str
+    searched_question_ids: list[str]
+    retry_from_verification: bool
+    coverage_refreshed: bool
 
 
 WorkState = RAGSubState
@@ -172,7 +175,17 @@ def contract_errors(
     return errors
 
 
-def build_node_graph(node, data, mode, settings, backend, source):
+def build_node_graph(
+    node,
+    data,
+    mode,
+    settings,
+    backend,
+    source,
+    *,
+    previous: NodeRun | None = None,
+    refresh_technologies: set[str] | None = None,
+):
     """Eight bounded stages shared by every role; every question retains its own budget."""
     if not data.questions or len(data.questions) > settings.limits.questions:
         raise ValueError(f"Provide 1..{settings.limits.questions} questions")
@@ -182,30 +195,108 @@ def build_node_graph(node, data, mode, settings, backend, source):
     if any(q.technology not in data.target_techs.values() for q in data.questions):
         raise ValueError("Question technology is not one of target_techs")
     live_search = source.retryable and mode not in ("mock", "fixture")
+    # Reuse retrieval, not the previous Generator/Judge verdict. A supplement still
+    # evaluates the complete question set against current upstream results.
+    previous = previous if live_search else None
+    if previous is not None and (previous.node != node or previous.mode != mode):
+        raise ValueError("Supplement retrieval must belong to the same node and mode")
+    question_ids = {q.id for q in data.questions}
+    old_searches = (
+        [r for r in previous.searches if r.question_id in question_ids] if previous else []
+    )
+    offsets = {
+        q.id: max((r.attempt for r in old_searches if r.question_id == q.id), default=0)
+        for q in data.questions
+    }
+
+    def intents(state, question_id):
+        return {r.intent for r in state["searches"] if r.question_id == question_id and not r.error}
+
+    def pending(state, *, verification=False):
+        """Select only unresolved questions with budget; never infer success from silence."""
+        coverage = {c.question_id: c for c in state.get("coverage", [])}
+        unresolved_pairs = set()
+        unresolved_ids = set()
+        if verification and "draft" in state:
+            draft = state["draft"]
+            assessments = {(a.technology, a.criterion): a for a in draft.assessments}
+            unresolved_pairs.update(
+                (q.technology, q.criterion)
+                for q in data.questions
+                if (q.technology, q.criterion) not in assessments
+                or assessments[q.technology, q.criterion].judgment == "확인 불가"
+            )
+            rejected = {
+                c.claim_id
+                for c in state.get("judge", JudgeResult(checks=[])).checks
+                if c.label == "unsupported"
+            }
+            unresolved_pairs.update(
+                (c.technology, c.criterion) for c in draft.claims if c.id in rejected
+            )
+            for q in data.questions:
+                if any(
+                    q.id in note or f"{q.technology}/{q.criterion}" in note
+                    for note in draft.unverified
+                ):
+                    unresolved_ids.add(q.id)
+            # Unscoped free-text warnings remain unverified; they are not an excuse
+            # to repeat every already-sufficient query or to declare success.
+        return [
+            q
+            for q in data.questions
+            if state["search_count"].get(q.id, offsets[q.id]) - offsets[q.id]
+            < settings.limits.search
+            and (
+                q.id not in coverage
+                or not coverage[q.id].sufficient
+                or not {"positive", "critical"}.issubset(intents(state, q.id))
+                or (q.technology, q.criterion) in unresolved_pairs
+                or q.id in unresolved_ids
+            )
+        ]
+
+    def planned(questions, feedback):
+        if not questions:
+            return {}
+        scoped = data.model_copy(update={"questions": questions})
+        pairs = QueryPlan.model_validate(backend.plan(scoped, feedback)).queries
+        if (
+            len(pairs) != len(questions)
+            or {p.question_id for p in pairs} != {q.id for q in questions}
+            or any(not p.positive.strip() or not p.critical.strip() for p in pairs)
+        ):
+            raise ValueError("Query plan must cover requested questions exactly once")
+        return {p.question_id: p for p in pairs}
 
     def plan(state):
         initial = {
             "role": node,
             "questions": data.questions,
-            "search_count": {},
+            "search_count": dict(offsets),
             "fix_count": 0,
-            "search_results": [],
-            "searches": [],
+            "search_results": (
+                merge_evidence(previous.evidence, data.evidence if mode == "live" else [])
+                if previous
+                else []
+            ),
+            "searches": list(old_searches),
             "errors": [],
             "coverage": [],
             "fatal": False,
             "current_query": "",
             "queries": {},
+            "searched_question_ids": [],
+            "retry_from_verification": False,
         }
+        if previous:
+            initial["coverage"] = normalize_coverage(
+                SufficiencyResult(items=previous.coverage),
+                data.questions,
+                initial["search_results"],
+            )
         try:
-            pairs = QueryPlan.model_validate(backend.plan(data, [])).queries
-            if len(pairs) != len(data.questions) or {p.question_id for p in pairs} != {
-                q.id for q in data.questions
-            }:
-                raise ValueError("Query plan must cover each question exactly once")
-            if any(not p.positive.strip() or not p.critical.strip() for p in pairs):
-                raise ValueError("Empty planned query")
-            initial["queries"] = {p.question_id: p for p in pairs}
+            initial["queries"] = planned(pending(initial) if live_search else data.questions, [])
         except Exception as exc:
             initial.update(fatal=True, errors=[f"Planning failed: {type(exc).__name__}"])
         return initial
@@ -216,20 +307,28 @@ def build_node_graph(node, data, mode, settings, backend, source):
         evidence = list(state["search_results"])
         counts, records = dict(state["search_count"]), list(state["searches"])
         last_query = ""
+        searched_ids = []
         for q in data.questions:
-            count = counts.get(q.id, 0)
-            if count >= settings.limits.search:
+            count = counts.get(q.id, offsets[q.id])
+            if q.id not in state["queries"] or count - offsets[q.id] >= settings.limits.search:
                 continue
             count += 1
             counts[q.id] = count
             intent = (
-                ("positive" if count == 1 else "critical" if count == 2 else "followup")
+                (
+                    "positive"
+                    if "positive" not in intents(state, q.id)
+                    else "critical"
+                    if "critical" not in intents(state, q.id)
+                    else "followup"
+                )
                 if live_search
                 else "fixture"
             )
             pair = state["queries"][q.id]
             last_query = pair.critical if intent == "critical" else pair.positive
             searched = q.model_copy(update={"text": last_query}) if live_search else q
+            searched_ids.append(q.id)
             try:
                 found = source.search(searched, count)
                 evidence = merge_evidence(evidence, found)
@@ -258,34 +357,55 @@ def build_node_graph(node, data, mode, settings, backend, source):
             "search_count": counts,
             "searches": records,
             "current_query": last_query,
+            "searched_question_ids": searched_ids,
         }
 
     def check_sufficiency(state):
         if state.get("fatal"):
             return {"is_sufficient": False}
+        selected = set(state["searched_question_ids"])
+        if previous and not state.get("coverage_refreshed"):
+            selected.update(
+                q.id for q in data.questions if q.technology in (refresh_technologies or set())
+            )
+        questions = [q for q in data.questions if q.id in selected]
+        base = {"retry_from_verification": False, "coverage_refreshed": True}
+        if not questions:
+            return {**base, "is_sufficient": all(c.sufficient for c in state.get("coverage", []))}
         if not state["search_results"]:
             # Nothing to judge: record insufficiency without a model call so an
             # empty search stays "insufficient evidence" instead of an execution failure.
             return {
+                **base,
                 "coverage": [
                     Coverage(
                         question_id=q.id, sufficient=False, evidence_ids=[], reason="근거 없음"
                     )
-                    for q in data.questions
+                    for q in questions
                 ],
                 "is_sufficient": False,
             }
         try:
             review = SufficiencyResult.model_validate(
-                backend.sufficiency(data, state["search_results"])
+                backend.sufficiency(
+                    data.model_copy(update={"questions": questions}), state["search_results"]
+                )
             )
             # 질문에 대응하는 항목이 하나도 없으면 쓸 수 없는 출력이다 → 기존대로 fail-closed.
-            if not any(c.question_id in {q.id for q in data.questions} for c in review.items):
+            if not any(c.question_id in selected for c in review.items):
                 raise ValueError("Sufficiency returned no usable item")
             # 부분적 형식 실수(빠진 질문, 모르는 id, 다른 기술 근거 인용)는 실행 실패가 아니다.
             # 설계서 D.3: 근거 부족은 실행 실패와 구분한다. 정리한 뒤 부족으로 처리하고 계속 진행한다.
-            coverage = normalize_coverage(review, data.questions, state["search_results"])
+            updated = {c.question_id: c for c in state.get("coverage", [])}
+            updated.update(
+                {
+                    c.question_id: c
+                    for c in normalize_coverage(review, questions, state["search_results"])
+                }
+            )
+            coverage = [updated[q.id] for q in data.questions]
             return {
+                **base,
                 "coverage": coverage,
                 "is_sufficient": all(c.sufficient for c in coverage),
             }
@@ -296,39 +416,29 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 "errors": [f"Sufficiency failed: {type(exc).__name__}"],
             }
 
-    def remaining(state):
-        return live_search and any(
-            state["search_count"].get(q.id, 0) < settings.limits.search for q in data.questions
-        )
+    def remaining(state, *, verification=False):
+        return live_search and bool(pending(state, verification=verification))
 
     def enough_route(state):
         if state.get("fatal"):
             return "write_draft"
-        both_sides = all(
-            {r.intent for r in state["searches"] if r.question_id == q.id and not r.error}
-            >= {"positive", "critical"}
-            for q in data.questions
-        )
-        if remaining(state) and (not state["is_sufficient"] or not both_sides):
+        if remaining(state):
             return "rewrite_query"
         return "write_draft"
 
     def rewrite_query(state):
         try:
-            feedback = [c.model_dump() for c in state.get("coverage", [])]
+            questions = pending(state, verification=state.get("retry_from_verification", False))
+            selected = {q.id for q in questions}
+            feedback = [
+                c.model_dump() for c in state.get("coverage", []) if c.question_id in selected
+            ]
             feedback += [
                 c.model_dump()
                 for c in state.get("judge", JudgeResult(checks=[])).checks
                 if c.label != "supported"
             ]
-            pairs = QueryPlan.model_validate(backend.plan(data, feedback)).queries
-            if (
-                len(pairs) != len(data.questions)
-                or {p.question_id for p in pairs} != {q.id for q in data.questions}
-                or any(not p.positive.strip() or not p.critical.strip() for p in pairs)
-            ):
-                raise ValueError("Invalid rewrite coverage")
-            return {"queries": {p.question_id: p for p in pairs}}
+            return {"queries": planned(questions, feedback)}
         except Exception as exc:
             return {"fatal": True, "errors": [f"Rewrite failed: {type(exc).__name__}"]}
 
@@ -402,7 +512,12 @@ def build_node_graph(node, data, mode, settings, backend, source):
                 if expression_error
                 else "통과"
             )
-            return {"judge": judge, "errors": errors, "verdict": verdict}
+            return {
+                "judge": judge,
+                "errors": errors,
+                "verdict": verdict,
+                "retry_from_verification": True,
+            }
         except Exception as exc:
             return {
                 "judge": JudgeResult(checks=[]),
@@ -415,7 +530,7 @@ def build_node_graph(node, data, mode, settings, backend, source):
         if not state.get("fatal"):
             if state["verdict"] == "표현 오류" and state["fix_count"] < settings.limits.fix:
                 return "fix"
-            if state["verdict"] == "추가 근거 필요" and remaining(state):
+            if state["verdict"] == "추가 근거 필요" and remaining(state, verification=True):
                 return "rewrite_query"
         return "return_result"
 
