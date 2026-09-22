@@ -68,7 +68,7 @@ BGE-M3는 한국어 질문과 영어 기술 논문을 함께 다루는 다국어
 | intfloat/multilingual-e5-large | 0.333 | 0.600 | 0.700 | 0.512 | 미달 |
 | Alibaba-NLP/gte-multilingual-base | — | — | — | — | 측정 불가 |
 
-gte-multilingual-base는 로딩에 커스텀 원격 코드 실행(`trust_remote_code=True`)이 필요해 측정하지 않았고, 사유를 산출물([outputs/retrieval_eval.json](outputs/retrieval_eval.json))에 기록했습니다. 기준 미달 시 청킹 → 이중언어 질의 → dense+sparse → 리랭커 순으로 재평가하는 절차가 있으나, 기준선에서 통과해 실행하지 않았습니다. 서비스의 기본 리랭커는 꺼진 상태입니다. 평가 코드의 MRR은 전체 검색 순위 기준이며 MRR@5와 구분합니다.
+gte-multilingual-base는 로딩에 커스텀 원격 코드 실행(`trust_remote_code=True`)이 필요해 측정하지 않았고, 사유를 산출물([docs/retrieval_eval.json](docs/retrieval_eval.json))에 기록했습니다. 기준 미달 시 청킹 → 이중언어 질의 → dense+sparse → 리랭커 순으로 재평가하는 절차가 있으나, 기준선에서 통과해 실행하지 않았습니다. 서비스의 기본 리랭커는 꺼진 상태입니다. 평가 코드의 MRR은 전체 검색 순위 기준이며 MRR@5와 구분합니다.
 
 ```bash
 uv run --extra rag python -m app.evaluate_retrieval \
