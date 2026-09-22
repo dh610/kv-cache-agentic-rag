@@ -1,8 +1,15 @@
-다음 입력의 질문을 모두 처리하라.
+다음 입력의 질문을 모두 처리하라. prior_results는 관점별 평가 결과이고 evidence는 인용 가능한 원문 근거다.
 <task_json>
 {{ input_json }}
 </task_json>
-이번 실행에서 사용 가능한 원문 근거:
+이번 실행에서 사용 가능한 원문 근거 (상위 노드가 검색·인용한 전체):
 <evidence_json>
 {{ evidence_json }}
 </evidence_json>
+
+출력 규칙:
+- 각 질문의 (technology, criterion)마다 assessment를 정확히 하나 작성한다. consistency에는 대조한 관점들이 인용한 원문 ID를 모두 넣고, implications에는 조건을 뒷받침하는 원문 ID를 넣는다.
+- claims는 원문 근거로 확인되는 사실(kind=fact) 또는 그 근거에서 제한적으로 도출한 추론(kind=inference)만 쓴다. 수치는 모델·하드웨어·워크로드·기준선을 conditions에 함께 적는다. KIVI와 ITME의 근거를 섞지 않는다.
+- trl_estimates는 target_techs의 기술마다 하나씩, provisional=false로 작성한다. 잠정 TRL과 대조한 시장 직접 근거가 없으면 잠정 단계를 넘기지 말고, 근거가 전혀 없으면 level=null로 둔다.
+- unverified에는 상위 결과의 unverified 항목을 "<role>: <원문 그대로>"로 모두 옮기고, 이번 종합에서 확인 불가로 둔 항목을 추가한다.
+- summary는 관점이 갈린 지점부터 기술별로 쓰고, 추천이나 우열 표현을 쓰지 않는다. 본문은 한국어로 작성한다.

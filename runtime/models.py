@@ -16,6 +16,7 @@ from schemas.contracts import (
     QueryPair,
     QueryPlan,
     SufficiencyResult,
+    TRLEstimate,
 )
 
 
@@ -90,6 +91,26 @@ class MockBackend:
                     evidence_ids=[match.id],
                 )
             )
+        trl_estimates = []
+        if node == "synthesis":
+            # The synthesis contract carries upstream unresolved items forward and answers
+            # every provisional TRL; mirror both offline without deciding a level.
+            unknown.extend(
+                f"{role}: {item}"
+                for role, prior in data.prior_results.items()
+                for item in prior.unverified
+            )
+            tech = data.prior_results.get("tech")
+            trl_estimates = [
+                TRLEstimate(
+                    technology=t.technology,
+                    level=None,
+                    rationale="MOCK: 잠정 TRL을 확정하지 않음",
+                    evidence_ids=[],
+                    provisional=False,
+                )
+                for t in (tech.trl_estimates if tech else [])
+            ]
         return NodeResult(
             node=node,
             summary=f"[MOCK] {node}: 연결 점검",
@@ -97,6 +118,7 @@ class MockBackend:
             assessments=assessments,
             unverified=unknown,
             limitations=["MOCK: LLM 호출 및 실제 판단 없음"],
+            trl_estimates=trl_estimates,
         )
 
     def judge(self, result, evidence):

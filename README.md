@@ -13,6 +13,7 @@ KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 �
 - [과제 가이드](https://actually-war-1ea.notion.site/KV-cache-3ba7f4c866938099b7a8fdaa1831c07e)
 - [팀원 시작 안내](docs/onboarding.md) · [입출력 계약](docs/contracts.md) · [구조와 구현 범위](docs/architecture.md)
 - [역할·연결·완료 기준](docs/team-contract.md) · [최종 설계와 구현 차이](docs/final-design-review.md)
+- 노드별 회귀 사례: [기술 TRL](docs/tech-trl-evaluation.md) · [평가 종합](docs/synthesis-evaluation.md)
 
 ## Selected Technologies
 
