@@ -96,3 +96,15 @@ uv run pytest tests/test_market_eval.py -q
 기본 실행과 인수 입력의 질문에는 긍정·비판 자료를 모두 찾도록 요구했습니다.
 fixture는 고정 근거만 제공하므로 이 요구의 실제 검색 수행을 검증하지 않습니다.
 양쪽 검색 실행·기록과 한쪽 자료만 확보된 경우의 기록은 검색 담당과 통합하여 확인해야 합니다.
+
+## 계약 v2 이관
+
+공통 런타임 v2의 planner·충분성 검사·verdict·최대 1회 답변 수정·재검증을 사용합니다.
+검증기는 질문별 coverage, fixture 검색 intent, fix_count, verdict와 상태의 일관성도 확인합니다.
+이전 v1 결과 JSON은 재사용하지 말고 v2에서 다시 실행합니다. 시장은 trl_estimates를 비워 둡니다.
+출처 affiliation/affiliation_reason/stance는 공통 스키마로 읽고 보존합니다. 기존 합성 자료에
+명시되지 않은 분류는 기본값 unknown으로 유지하며, 기술명이나 검색 의도로 분류를 추정하지 않습니다.
+
+공통 실제 검색에서는 positive/critical intent를 기록하고 양쪽 검색 누락을 gaps에 남깁니다.
+fixture는 여전히 질문당 한 번, intent=fixture로 실행하므로 실제 양쪽 검색의 대체 검증이 아닙니다.
+시장 질문의 검색 요구와 v2 실행 구조는 연결했지만 실제 API 품질·원문 입장 분류의 사람 검토는 남아 있습니다.

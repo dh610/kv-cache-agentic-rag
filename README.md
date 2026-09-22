@@ -2,7 +2,8 @@
 
 KIVI(SW)와 ITME(HW)를 데이터센터·클라우드 LLM 서빙 관점에서 비교하는 Agentic RAG 프로젝트입니다.
 현재는 **5명이 공통 파이프라인 위에서 담당 노드의 프롬프트·평가 기준·입력을 개발하는 기초 환경**입니다.
-최종 평가, 검색 품질 수치, 제출용 PDF가 완성된 상태는 아닙니다.
+설계서 정합성 계약 v2와 보고서 PDF 출력까지 구현했습니다. 실제 기술 평가·검색 품질 실측·제출 검수는 아직 완료되지 않았습니다.
+팀원은 먼저 [변경사항과 브랜치 이관 안내](docs/design-alignment.md)를 읽어주세요.
 
 ## Overview
 
@@ -88,7 +89,7 @@ PDF/설정이 바뀌면 인덱스를 다시 만들어야 합니다. 전체 PDF �
 | --- | --- | --- |
 | `tech` | 원리·성숙도·실험 조건 | 대상 논문 RAG |
 | `market` | 수요·채택·진입 장벽 | 논문 RAG + 웹 |
-| `stakeholder` | 이해관계자 반응 | 웹 + 상위 기술 결과·근거 |
+| `stakeholder` | 이해관계자 반응 | 웹 + 경쟁 진영 한정 reference + 상위 근거 |
 | `domain` | 클라우드 적용 조건 | 논문 RAG + 웹 |
 | `synthesis` | 관점별 일치·상충 종합 | 기존 결과·근거 사용 |
 | `report` | 보고서 구성 | 기존 결과·근거 사용 |
@@ -97,7 +98,8 @@ PDF/설정이 바뀌면 인덱스를 다시 만들어야 합니다. 전체 PDF �
 
 ```mermaid
 flowchart TD
-    START --> tech
+    START --> initialize
+    initialize --> tech
     tech --> market
     tech --> stakeholder
     tech --> domain
@@ -106,12 +108,13 @@ flowchart TD
     domain --> collect
     collect --> synthesis
     synthesis --> report
-    report --> END
+    report --> check_report
+    check_report --> END
 ```
 
-각 노드 안에서 `search → generate → verify → finalize`를 실행합니다.
+조사 노드 내부는 `plan → search → check_sufficiency → write_draft → verify → return_result`이며 `rewrite_query`, `fix`를 포함한 8단계입니다.
 실제 검색 모드는 근거 부족 시 질문별 최대 3회(첫 검색 포함) 안에서 재검색합니다.
-종합 뒤 자동 보완과 별도 답변 수정 루프는 제외한 간소화안입니다.
+표현 오류는 최대 1회 수정 후 재검증합니다. 종합 뒤 자동 보완은 기존 사용자 결정대로 제외하고 gaps를 한계점에 남깁니다.
 
 ## Directory Structure
 
@@ -136,7 +139,9 @@ outputs/local/      # 개인 실행 결과: Git 제외
 - Generator `gpt-4.1-mini`, Judge `gpt-4.1-nano`: 팀 초안의 기본값, `.env`에서 모델 변경 가능
 - BGE-M3 **dense만 사용** + 정규화된 벡터의 FAISS 내적 검색
 - 선택적 reranker는 `config.yaml`의 `retrieval.rerank`; 아직 품질 우위 미검증
-- sparse·multi-vector·BM25 융합, 자동 TRL 점수화, 검색 품질 평가셋은 이번 기초 범위에 포함하지 않음
+- 30문항 검색 평가 실행기와 미달 대응(청킹·이중언어·learned sparse RRF·리랭커) 제공. [평가셋 준비](data/eval/README.md)와 실제 측정은 별도 작업
+- 서비스 검색 기본값은 dense. 실험 결과를 서비스에 적용할 때 설정/검색 어댑터를 검토하고 인덱스를 다시 생성
+- TRL 잠정/최종 구조와 근거 검사 제공. 사람이 검증한 TRL 결론이나 성능 수치를 기본값으로 채우지 않음
 - 의존성은 `uv.lock`으로 공유, 기본 설치와 `rag` 추가 설치 분리
 
 ## Features and Validation
@@ -159,18 +164,20 @@ GitHub Actions는 API 키 없이 동일한 검사와 mock 전체 파이프라인
 
 ## Contributors
 
-| 팀원 | GitHub |
-| --- | --- |
-| 김계원 | [wonn2k](https://github.com/wonn2k) |
-| 박유진 | [youjin09222](https://github.com/youjin09222) |
-| 윤동현 | [dh610](https://github.com/dh610) |
-| 인수연 | [1nyeonart](https://github.com/1nyeonart) |
-| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) |
+| 팀원 | GitHub | 배정 역할 |
+| --- | --- | --- |
+| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 평가 (`tech`) |
+| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 (`stakeholder`) |
+| 윤동현 | [dh610](https://github.com/dh610) | 로컬 논문 RAG 및 성능 테스트 |
+| 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 평가 (`market`) |
+| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | 웹 검색 및 서브그래프 |
 
-공통 기반 담당과 관점별 담당이 같은 저장소를 사용합니다. 실제 개인별 세부 역할은 팀에서 확정해 기입합니다.
+2026-09-22 팀 역할 배정을 반영했습니다. 담당자별 수정 경로와 공동 검토 파일은 [협업 계약](docs/team-contract.md#4-수정-범위와-역할-분담)을 기준으로 합니다.
+`domain`·`synthesis`·`report`의 최종 내용 책임자는 아직 미정이며, 다른 담당자에게 자동 배정하지 않습니다.
 협업자 Write 권한은 저장소 초대를 수락하면 활성화됩니다. GitHub의 기여자 통계는 이후 반영된 커밋에 따라 집계됩니다.
 공유 코드보다 담당 프롬프트·rubric·fixture를 우선 수정하고 작은 PR로 합칩니다.
-[충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다.
+**파일 수정 전 개인 작업 브랜치를 준비하고, main에 직접 수정·커밋·push하지 않습니다.**
+[충돌을 줄이는 작업 절차](docs/onboarding.md#git-작업-절차)를 따릅니다. 에이전트는 [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)부터 읽습니다.
 
 노드 인수 전에는 `--case acceptance`로 현재 rubric의 모든 항목을 요청하고
 `python -m app.check_handoff --node market --result outputs/local/RUN/result.json`으로 누락·더미·출처를 점검합니다.
@@ -183,4 +190,6 @@ GitHub Actions는 API 키 없이 동일한 검사와 mock 전체 파이프라인
 - 최종 보고서: SUMMARY로 시작하고 REFERENCE로 종료, 실제 사용한 자료만 기재
 - 조별 발표: README로 설계·구현·보고서 핵심 및 Lessons Learned 설명
 
-일정과 제출 위치는 최신 반별 공지를 확인합니다. 현재 `preview.md`는 개발 결과 요약으로, 제출 PDF를 대체하지 않습니다.
+일정과 제출 위치는 최신 반별 공지를 확인합니다. 전체 실행은 `report.md`, `report.pdf`, `state.json`을 출력합니다.
+`state.json`의 `report_check.ready`, `gaps`, `run_status`를 확인하세요. mock 보고서나 자동 생성 파일 자체는 제출 승인/평가 완료가 아닙니다.
+최종 제출 파일명으로 정리하기 전 원문·평가 기준·서지·상충 보존을 사람이 검토해야 합니다.

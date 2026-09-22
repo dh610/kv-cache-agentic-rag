@@ -116,8 +116,10 @@ def test_search_budget_is_bounded_per_question(fail):
     source = EmptySearch(fail)
     result = run(source=source, mode="rag")
     assert result.status == "needs_revision"
-    assert len(source.calls) == 6
-    assert sorted(a for _, a in source.calls) == [1, 1, 2, 2, 3, 3]
+    assert len(source.calls) == 3 * len(load_input("tech").questions)
+    assert sorted(a for _, a in source.calls) == [
+        attempt for attempt in (1, 2, 3) for _ in load_input("tech").questions
+    ]
     assert "private provider detail" not in result.model_dump_json()
 
 
@@ -130,7 +132,7 @@ def test_partial_evidence_retries_for_unanswered_question():
     source = Partial()
     result = run(source=source, mode="rag")
     assert result.status == "needs_revision"
-    assert len(source.calls) == 6
+    assert len(source.calls) == 3 * len(load_input("tech").questions)
 
 
 class RecordingBackend(MockBackend):

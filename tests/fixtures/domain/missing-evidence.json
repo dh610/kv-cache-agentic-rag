@@ -8,16 +8,16 @@
   "domain": "데이터센터·클라우드 LLM 서빙",
   "questions": [
     {
-      "id": "kivi-fit",
+      "id": "kivi-cost",
       "technology": "KIVI",
-      "criterion": "fit",
-      "text": "동시성, context 길이, 정확도, TTFT/TPOT, 처리량, 메모리 제약과 기술 전제를 연결한다. 서로 다른 실험 수치는 직접 순위화하지 않는다."
+      "criterion": "cost",
+      "text": "비용(TCO). 적합=추가 장비 불필요 또는 장비 대비 GPU 절감 수치, 조건부=특정 규모·워크로드에서만 절감, 부적합=실제 비용 요구조건 미충족 근거. 신규 인프라만 있고 절감 정보가 없으면 확인 불가로 남기고 설계서 해석 검토 대상으로 기록한다."
     },
     {
-      "id": "itme-fit",
+      "id": "itme-cost",
       "technology": "ITME",
-      "criterion": "fit",
-      "text": "동시성, context 길이, 정확도, TTFT/TPOT, 처리량, 메모리 제약과 기술 전제를 연결한다. 서로 다른 실험 수치는 직접 순위화하지 않는다."
+      "criterion": "cost",
+      "text": "비용(TCO). 적합=추가 장비 불필요 또는 장비 대비 GPU 절감 수치, 조건부=특정 규모·워크로드에서만 절감, 부적합=실제 비용 요구조건 미충족 근거. 신규 인프라만 있고 절감 정보가 없으면 확인 불가로 남기고 설계서 해석 검토 대상으로 기록한다."
     }
   ],
   "evidence": [],

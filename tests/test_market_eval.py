@@ -5,8 +5,21 @@ import json
 import pytest
 
 from app.evaluate_market import DATASET, load_case, main, score_case
+from graph.node_graph import build_node_graph
+from rag.interface import FixedEvidence
+from runtime.models import MockBackend
 from runtime.prompts import load_rubric
-from schemas.contracts import Assessment, Claim, ClaimCheck, NodeResult, NodeRun, SearchRecord
+from runtime.settings import load_settings
+from schemas.contracts import (
+    Assessment,
+    Claim,
+    ClaimCheck,
+    Coverage,
+    JudgeResult,
+    NodeResult,
+    NodeRun,
+    SearchRecord,
+)
 
 CASES = [
     item["input"].removesuffix(".json")
@@ -81,6 +94,17 @@ def sample_run(case_id="supported"):
         ],
         prompt_hash="unit-test",
         model="unit-test-backend",
+        verdict="추가 근거 필요" if unverified else "통과",
+        fix_count=0,
+        coverage=[
+            Coverage(
+                question_id=q.id,
+                sufficient=bool(data.evidence),
+                evidence_ids=[e.id for e in data.evidence if e.technology == q.technology],
+                reason="검증기 테스트용 충분성 응답; 실제 의미 평가 아님",
+            )
+            for q in data.questions
+        ],
     )
     return case, data, run
 
@@ -208,6 +232,63 @@ def test_saved_run_cli(case_id, expected_code, tmp_path, capsys):
 def test_unknown_case_is_rejected():
     with pytest.raises(ValueError, match="Unknown market evaluation case"):
         load_case("../basic")
+
+
+@pytest.mark.parametrize("case_id", ["supported", "missing-evidence", "context-only"])
+def test_v2_graph_output_is_compatible_with_market_scorer(case_id):
+    case, data, sample = sample_run(case_id)
+
+    class FixedResultBackend(MockBackend):
+        name = "unit-test-backend"
+
+        def generate(self, node, data, evidence, system, user):
+            return sample.result.model_copy(deep=True)
+
+        def judge(self, result, evidence):
+            return JudgeResult(checks=sample.checks)
+
+    graph = build_node_graph(
+        "market", data, "fixture", load_settings(), FixedResultBackend(), FixedEvidence(data)
+    )
+    run = graph.invoke({})["output"]
+    assert len(run.coverage) == 6
+    assert {s.intent for s in run.searches} == {"fixture"}
+    assert run.verdict == ("통과" if case_id == "supported" else "추가 근거 필요")
+    report = score_case(case, data, run)
+    assert report["problems"] == []
+    assert report["automatic_decision"] == "pass"
+    assert report["human_review_required"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_coverage",
+        "duplicate_coverage",
+        "unknown_coverage_evidence",
+        "empty_sufficient_evidence",
+        "too_many_fixes",
+        "wrong_intent",
+        "wrong_verdict",
+    ],
+)
+def test_v2_metadata_is_required_and_consistent(mutation):
+    case, data, run = sample_run()
+    if mutation == "missing_coverage":
+        run.coverage.clear()
+    elif mutation == "duplicate_coverage":
+        run.coverage[-1] = run.coverage[0]
+    elif mutation == "unknown_coverage_evidence":
+        run.coverage[0].evidence_ids = ["unknown-source"]
+    elif mutation == "empty_sufficient_evidence":
+        run.coverage[0].evidence_ids = []
+    elif mutation == "too_many_fixes":
+        run.fix_count = 2
+    elif mutation == "wrong_intent":
+        run.searches[0].intent = "critical"
+    else:
+        run.verdict = "표현 오류"
+    assert score_case(case, data, run)["automatic_decision"] == "fail"
 
 
 @pytest.mark.parametrize(

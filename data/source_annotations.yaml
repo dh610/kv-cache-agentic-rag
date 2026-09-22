@@ -1,0 +1,12 @@
+# 원문을 사람이 확인한 뒤 기술별 URL에 정보를 추가합니다.
+# 미등록 URL을 자동으로 독립 출처/긍정·비판 자료로 분류하지 않습니다.
+# KIVI:
+#   https://example.org/article:
+#     affiliation: independent
+#     affiliation_reason: 원문 발행 기관과 대상 기술의 관계를 확인한 이유
+#     stance: mixed
+#     reviewed_by: 확인한 팀원
+#     publisher: 확인된 기관명
+#     published_at: '2026-09-22'
+KIVI: {}
+ITME: {}

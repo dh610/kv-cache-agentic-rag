@@ -31,6 +31,9 @@ class Evidence(Contract):
     site: str | None = None
     published_at: str | None = None
     retrieved_at: str | None = None
+    affiliation: Literal["first_party", "independent", "unknown"] = "unknown"
+    affiliation_reason: str | None = None
+    stance: Literal["positive", "critical", "mixed", "neutral", "unknown"] = "unknown"
 
 
 class Question(Contract):
@@ -58,6 +61,42 @@ class Assessment(Contract):
     evidence_ids: list[str]
 
 
+class TRLEstimate(Contract):
+    technology: str
+    level: int | None = Field(default=None, ge=1, le=9)
+    rationale: str
+    evidence_ids: list[str]
+    provisional: bool = True
+    disclaimer: Literal["공개 정보 기반 추정"] = "공개 정보 기반 추정"
+
+
+class Gap(Contract):
+    role: str
+    criterion: str
+    reason: str
+
+
+class QueryPair(Contract):
+    question_id: str
+    positive: str
+    critical: str
+
+
+class QueryPlan(Contract):
+    queries: list[QueryPair]
+
+
+class Coverage(Contract):
+    question_id: str
+    sufficient: bool
+    evidence_ids: list[str]
+    reason: str
+
+
+class SufficiencyResult(Contract):
+    items: list[Coverage]
+
+
 class NodeResult(Contract):
     """All nodes return the same outer envelope; the runtime decides run status."""
 
@@ -67,6 +106,7 @@ class NodeResult(Contract):
     assessments: list[Assessment]
     unverified: list[str]
     limitations: list[str]
+    trl_estimates: list[TRLEstimate] = Field(default_factory=list)
 
 
 class NodeInput(Contract):
@@ -104,6 +144,7 @@ class SearchRecord(Contract):
     query: str
     evidence_ids: list[str]
     error: str | None = None
+    intent: Literal["positive", "critical", "followup", "fixture"] = "fixture"
 
 
 class NodeRun(Contract):
@@ -117,6 +158,9 @@ class NodeRun(Contract):
     searches: list[SearchRecord]
     prompt_hash: str
     model: str
+    verdict: Literal["통과", "표현 오류", "추가 근거 필요"] = "추가 근거 필요"
+    fix_count: int = 0
+    coverage: list[Coverage] = Field(default_factory=list)
 
 
 def empty_result(node: NodeName, reason: str) -> NodeResult:

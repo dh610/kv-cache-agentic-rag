@@ -1,0 +1,42 @@
+{
+  "case_id": "trl-itme-paper",
+  "description": "기술 조사 TRL 평가용 고정 입력. evidence.text는 원문 인용이 아니라 검토자가 ITME 논문 해당 페이지에서 작성한 한국어 요약이다. CMM 성능 평가와 FPGA 기능 시제품을 동일한 구현으로 합치지 않는다.",
+  "target_techs": {"hw": "ITME"},
+  "domain": "데이터센터·클라우드 LLM 서빙",
+  "questions": [
+    {"id": "itme-mechanism", "technology": "ITME", "criterion": "mechanism", "text": "ITME의 CXL 계층형 메모리 구성과 적용 전제를 확인한다."},
+    {"id": "itme-maturity", "technology": "ITME", "criterion": "maturity", "text": "ITME의 FPGA 시제품과 CMM 실험을 구분하고 가이드 TRL을 잠정 판정한다."},
+    {"id": "itme-limitations", "technology": "ITME", "criterion": "limitations", "text": "논문에 보고된 대역폭 및 평가 범위의 제약을 확인한다."}
+  ],
+  "evidence": [
+    {
+      "id": "itme-curated-p8-fpga",
+      "text": "검토자 요약: 기능 검증용 ITME 시제품은 Intel Agilex 7 FPGA에 32GB DDR4 DRAM 캐시와 SK Hynix PCIe Gen5 NVMe SSD 두 개를 결합해 하드웨어 제어와 소프트웨어 prefetcher를 검증한다.",
+      "title": "ITME p.8 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 8, "document_id": "itme"
+    },
+    {
+      "id": "itme-curated-p8-cmm",
+      "text": "검토자 요약: 성능 잠재력은 별도 플랫폼의 SK Hynix CMM과 KIOXIA PCIe Gen5 SSD 두 개로 평가한다. 이 측정치를 FPGA 시제품의 측정치로 표현하면 안 된다.",
+      "title": "ITME p.8 CMM 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 8, "document_id": "itme"
+    },
+    {
+      "id": "itme-curated-p9-workload",
+      "text": "검토자 요약: 성능 평가는 ShareGPT 기반 128개 동시 대화, 최대 5턴의 워크로드와 Llama-3.1 8B·70B를 사용하며 GPU 메모리 및 오프로딩 기준과 비교한다.",
+      "title": "ITME p.9 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 9, "document_id": "itme"
+    },
+    {
+      "id": "itme-curated-p10-prototype",
+      "text": "검토자 요약: 논문은 FPGA 시제품의 성능을 별도 CMM 플랫폼과 같은 조건으로 비교한다. FPGA 측정에는 하드웨어 오버헤드가 있다.",
+      "title": "ITME p.10 검토자 요약 — 원문 발췌 아님",
+      "url": "https://arxiv.org/pdf/2606.12556v2",
+      "technology": "ITME", "source_type": "fixture", "scope": "target", "document_role": "target", "page": 10, "document_id": "itme"
+    }
+  ],
+  "prior_results": {}
+}

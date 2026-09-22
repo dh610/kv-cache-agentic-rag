@@ -49,11 +49,26 @@ def score_case(case: dict, data: NodeInput, run: NodeRun) -> dict:
     questions = {q.id for q in data.questions}
     if {s.question_id for s in run.searches} != questions:
         problems.append("search history must cover every input question")
-    if len(run.searches) != len(questions) or any(s.attempt != 1 or s.error for s in run.searches):
+    if len(run.searches) != len(questions) or any(
+        s.attempt != 1 or s.intent != "fixture" or s.error for s in run.searches
+    ):
         problems.append("fixture searches must succeed once per question")
     known = {e.id: e for e in data.evidence}
     if any(not set(s.evidence_ids).issubset(known) for s in run.searches):
         problems.append("search history cites unknown evidence")
+    if len(run.coverage) != len(questions) or {c.question_id for c in run.coverage} != questions:
+        problems.append("v2 sufficiency coverage must include every question exactly once")
+    if any(
+        not set(c.evidence_ids).issubset(known) or (c.sufficient and not c.evidence_ids)
+        for c in run.coverage
+    ):
+        problems.append("invalid sufficiency evidence")
+    if run.fix_count not in (0, 1):
+        problems.append("v2 answer fix count must be 0 or 1")
+    if run.verdict == "표현 오류" or (run.status == "completed" and run.verdict != "통과"):
+        problems.append("unresolved or inconsistent node verdict")
+    if run.result.trl_estimates:
+        problems.append("market must leave TRL estimates to tech/synthesis")
     contextual_citations = set()
     for item in [*run.result.claims, *run.result.assessments]:
         for eid in item.evidence_ids:
@@ -69,6 +84,8 @@ def score_case(case: dict, data: NodeInput, run: NodeRun) -> dict:
     unknown = [a for a in run.result.assessments if a.judgment == "확인 불가"]
     if unknown and not run.result.unverified:
         problems.append("unknown judgments must remain in unverified")
+    if (unknown or run.result.unverified) and run.verdict == "통과":
+        problems.append("unknown judgments and unverified findings require 추가 근거 필요 verdict")
     if (unknown or run.result.unverified or run.validation_errors) and run.status == "completed":
         problems.append("unresolved findings must retain needs_revision status")
     for item in run.result.assessments:

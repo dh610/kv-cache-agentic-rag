@@ -11,13 +11,13 @@
       "id": "kivi-consistency",
       "technology": "KIVI",
       "criterion": "consistency",
-      "text": "앞선 결과 간 일치와 상충, 근거 부족을 보존한다. 확인 불가를 낮은 점수로 바꾸지 않는다."
+      "text": "기존 결과의 일치와 상충, 미확인 사항을 보존한다. 의견을 맞추려는 재조사는 금지한다. 기존 근거만 사용한다. 기술의 잠정 TRL을 시장 직접 근거와 대조하고 trl_estimates에 기술별 최종 단계·사유·근거·추정 한계를 기록한다. 증거가 부족하면 level=null."
     },
     {
       "id": "itme-consistency",
       "technology": "ITME",
       "criterion": "consistency",
-      "text": "앞선 결과 간 일치와 상충, 근거 부족을 보존한다. 확인 불가를 낮은 점수로 바꾸지 않는다."
+      "text": "기존 결과의 일치와 상충, 미확인 사항을 보존한다. 의견을 맞추려는 재조사는 금지한다. 기존 근거만 사용한다. 기술의 잠정 TRL을 시장 직접 근거와 대조하고 trl_estimates에 기술별 최종 단계·사유·근거·추정 한계를 기록한다. 증거가 부족하면 level=null."
     }
   ],
   "evidence": [
