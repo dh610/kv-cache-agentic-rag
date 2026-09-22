@@ -145,3 +145,36 @@ def test_one_failing_provider_does_not_discard_the_others():
 
     with pytest.raises(RuntimeError):
         CombinedSource(Fails(), Fails()).search(question, 1)
+
+
+def test_nested_combined_sources_keep_partial_results():
+    """중첩된 CombinedSource 에서도 성공한 공급자의 근거는 남는다."""
+    import pytest
+
+    from rag.interface import CombinedSource, PartialSearch
+    from schemas.contracts import Question
+
+    class Works:
+        retryable = True
+
+        def __init__(self, items):
+            self.items = items
+
+        def search(self, question, attempt, scope="target"):
+            return self.items
+
+    class Fails:
+        retryable = True
+
+        def search(self, question, attempt, scope="target"):
+            raise RuntimeError("HTTPStatusError")
+
+    _, data = load_case("itme_paper")
+    question = Question(id="q", technology="ITME", criterion="maturity", text="근거")
+    kept = data.evidence[:2]
+    inner = CombinedSource(Works(kept), Fails())
+    outer = CombinedSource(Works([]), inner)
+
+    with pytest.raises(PartialSearch) as partial:
+        outer.search(question, 1)
+    assert [e.id for e in partial.value.found] == [e.id for e in kept]

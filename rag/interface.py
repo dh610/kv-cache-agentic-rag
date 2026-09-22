@@ -64,6 +64,11 @@ class CombinedSource:
         for source in self.sources:
             try:
                 found = merge_evidence(found, search_source(source, question, attempt, scope))
+            except PartialSearch as exc:
+                # 중첩된 CombinedSource 의 부분 결과까지 살린다. 일반 예외로 잡으면 안쪽이
+                # 이미 찾아 둔 근거가 사라진다 (live 점검에서 이해관계자 근거가 비었다).
+                found = merge_evidence(found, exc.found)
+                failures.append(str(exc))
             except Exception as exc:
                 failures.append(f"{type(source).__name__}: {type(exc).__name__}")
         if failures and not found:
