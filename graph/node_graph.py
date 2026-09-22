@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import operator
 from collections import Counter
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 from langchain_core.runnables.config import ContextThreadPoolExecutor
 from langgraph.graph import END, START, StateGraph
@@ -58,6 +59,7 @@ class RAGSubState(TypedDict, total=False):
     searches: list[SearchRecord]
     judge: JudgeResult
     errors: list[str]
+    plan_errors: Annotated[list[str], operator.add]  # 초안 재작성으로 지워지지 않게 누적한다
     fatal: bool
     prompt_hash: str
     rendered_system: str
@@ -553,7 +555,10 @@ def build_node_graph(
             ]
             return {"queries": planned(questions, feedback)}
         except Exception as exc:
-            return {"fatal": True, "errors": [f"Rewrite failed: {type(exc).__name__}"]}
+            # 질의 재작성 한 번이 실패했다고 노드를 죽이지 않는다. 설계서 D.3: 근거 부족은
+            # 실행 실패와 구분한다. 기존 질의로 남은 예산만큼 계속하고 사실만 기록한다
+            # (live 점검에서 이해관계자 노드가 이 한 줄로 통째로 failed 가 됐다).
+            return {"plan_errors": [f"Rewrite failed: {type(exc).__name__}; 기존 검색어 유지"]}
 
     def write_draft(state):
         current = data.model_copy(deep=True)
@@ -843,6 +848,7 @@ def finalize_node(node, data, mode, state, model):
                     t.level, t.evidence_ids, t.rationale = None, [], "등급과 불일치"
     if dropped or state.get("errors") or state.get("fatal"):
         result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
+    errors.extend(state.get("plan_errors", []))
     errors.extend(
         f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
     )
