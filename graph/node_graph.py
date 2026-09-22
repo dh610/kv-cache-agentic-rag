@@ -611,16 +611,25 @@ def build_node_graph(
     def return_result(state):
         result = state["draft"].model_copy(deep=True)
         errors = list(state.get("errors", []))
+        claim_ids = {c.id for c in result.claims}
         rejected = {c.claim_id for c in state["judge"].checks if c.label != "supported"}
         for c in state["judge"].checks:
             if c.label != "supported":
                 errors.append(f"{c.claim_id}: {c.label}: {c.reason}")
+        # An error naming one of this draft's own claim IDs (e.g. "kivi-cost-1: missing/
+        # unknown evidence IDs") only invalidates that claim, same as a Judge rejection.
+        # An error naming nothing (Judge check-count mismatch, assessment/TRL-level,
+        # duplicate IDs, ...) means claim<->check correlation itself may be unreliable,
+        # so the whole batch is still withheld, as before.
+        claim_scoped = {cid for cid in claim_ids for e in errors if e.startswith(f"{cid}:")}
+        rejected |= claim_scoped
+        unscoped_errors = any(not any(e.startswith(f"{cid}:") for cid in claim_ids) for e in errors)
         result.unverified.extend(c.text for c in result.claims if c.id in rejected)
         result.claims = [c for c in result.claims if c.id not in rejected]
-        if state.get("errors") or state.get("fatal"):
+        if unscoped_errors or state.get("fatal"):
             result.unverified.extend(c.text for c in result.claims)
             result.claims = []
-        if rejected or state.get("errors") or state.get("fatal"):
+        if rejected or unscoped_errors or state.get("fatal"):
             result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
             for a in result.assessments:
                 a.judgment, a.rationale, a.evidence_ids = (
