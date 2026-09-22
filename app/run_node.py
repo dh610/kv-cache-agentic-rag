@@ -44,6 +44,9 @@ def main(argv=None) -> int:
     run = final["output"]
     save_json(output / "input.json", data)
     save_json(output / "result.json", run)
+    # The draft is the Generator's last output before the runtime withheld failed judgments.
+    # It is for prompt review only and is never the delivered result.
+    save_json(output / "draft.json", final["draft"])
     system, user = final["rendered_system"], final["rendered_user"]
     (output / "system.txt").write_text(system, encoding="utf-8")
     (output / "user.txt").write_text(user, encoding="utf-8")

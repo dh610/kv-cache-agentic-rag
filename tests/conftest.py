@@ -12,6 +12,7 @@ def no_network_or_credentials(monkeypatch):
     monkeypatch.setenv("LANGSMITH_TRACING", "false")
     monkeypatch.setenv("LANGCHAIN_TRACING_V2", "false")
     for name in ("OPENAI_API_KEY", "TAVILY_API_KEY", "LANGSMITH_API_KEY"):
-        monkeypatch.delenv(name, raising=False)
+        # Empty (not deleted) so a developer's populated .env cannot re-supply it via load_dotenv.
+        monkeypatch.setenv(name, "")
     monkeypatch.setattr(socket.socket, "connect", blocked)
     monkeypatch.setattr(socket.socket, "connect_ex", blocked)

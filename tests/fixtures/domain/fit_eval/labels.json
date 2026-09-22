@@ -1,0 +1,273 @@
+{
+  "rubric": "rubrics/domain.yaml (설계서 표 10과 KV_cache_최적화_기술_평가_가이드.md C.4를 저장소 해석으로 반영)",
+  "scope": "제공된 고정 근거에 한정한 잠정 판정 평가. accepted는 근거로 주장할 수 있는 판정, disputed는 사람 검토가 필요한 판정(inconclusive), 나머지는 fail. 논문 이후의 적용 사례나 실측은 다루지 않는다.",
+  "cases": [
+    {
+      "id": "kivi_paper",
+      "input": "kivi_paper.json",
+      "technology": "KIVI",
+      "evidence_expected": true,
+      "paper_url": "https://arxiv.org/pdf/2402.02750v2",
+      "pages": [
+        1,
+        2,
+        6,
+        8
+      ],
+      "items": {
+        "cost": {
+          "accepted": [
+            "적합",
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가"
+          ],
+          "required_evidence_ids": [
+            "domain-kivi-p2-method"
+          ],
+          "reason": "SW 방식이라 추가 장비가 필요 없고 최대 메모리 2.6배 절감이 보고된다. GPU 대수 절감 수치는 없으므로 조건부도 가능하며, 부적합은 근거가 없다."
+        },
+        "performance": {
+          "accepted": [
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가"
+          ],
+          "required_evidence_ids": [
+            "domain-kivi-p8-efficiency"
+          ],
+          "reason": "단일 A100·Llama-2-7B·ShareGPT 합성 요청·FP16 기준의 논문 실험만 있고 외부 적용 사례가 없다. 적합은 외부 사례 없이 불가."
+        },
+        "quality": {
+          "accepted": [
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가"
+          ],
+          "required_evidence_ids": [
+            "domain-kivi-p6-quality"
+          ],
+          "reason": "Falcon-7B에서 2비트 저하가 보고되어 일부 모델·설정의 저하에 해당한다. 서비스 요구 품질이 없어 부적합은 불가."
+        },
+        "operations": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [
+            "조건부 적합"
+          ],
+          "required_evidence_ids": [
+            "domain-kivi-p2-method"
+          ],
+          "reason": "tuning-free만 확인되고 프레임워크 통합·설정 방법 근거가 없다. 설계서 A.2의 Hugging Face 통합 주장은 이 근거에 없으므로 적합으로 승격하면 안 된다."
+        },
+        "scalability": {
+          "accepted": [
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가"
+          ],
+          "required_evidence_ids": [
+            "domain-kivi-p8-efficiency"
+          ],
+          "reason": "단일 GPU에서 배치 확장까지만 검증됐다. 동시 사용자·다중 노드 규모의 근거가 없으므로 적합·부적합 모두 불가."
+        }
+      },
+      "manual_review": [
+        "A100 80GB와 ShareGPT 합성 요청, FP16 기준을 conditions에 보존했는가",
+        "Falcon-7B 저하와 다른 모델의 유지가 상충으로 기록됐는가",
+        "단일 GPU 실험과 데이터센터 규모 차이가 rationale에 있는가",
+        "Hugging Face 통합을 근거 없이 적합으로 쓰지 않았는가"
+      ]
+    },
+    {
+      "id": "itme_paper",
+      "input": "itme_paper.json",
+      "technology": "ITME",
+      "evidence_expected": true,
+      "paper_url": "https://arxiv.org/pdf/2606.12556v2",
+      "pages": [
+        1,
+        8,
+        9,
+        10
+      ],
+      "items": {
+        "cost": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [
+            "조건부 적합"
+          ],
+          "required_evidence_ids": [
+            "domain-itme-p8-cmm"
+          ],
+          "reason": "CXL 하이브리드 메모리·SSD·FPGA 등 신규 장비가 확인되지만 절감 수치가 없다. 설계서 표 10은 부적합이지만 저장소 기준은 확인 불가로 보류한다."
+        },
+        "performance": {
+          "accepted": [
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가"
+          ],
+          "required_evidence_ids": [
+            "domain-itme-p1-abstract",
+            "domain-itme-p9-workload"
+          ],
+          "reason": "CPU 오프로딩 대비 최대 35.7%와 ShareGPT 128 동시 대화·Llama-3.1 조건의 논문 실험만 있고 외부 사례가 없다."
+        },
+        "quality": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "제공된 근거에 정확도·품질 보고가 없다. 데이터를 바꾸지 않는 방식이라는 추론만으로 적합을 부여하면 안 된다."
+        },
+        "operations": {
+          "accepted": [
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가",
+            "부적합"
+          ],
+          "required_evidence_ids": [
+            "domain-itme-p8-fpga"
+          ],
+          "reason": "특정 하드웨어와 제어 소프트웨어가 필요하므로 조건부 적합이다. 설계서 표 10의 부적합 조건은 팀 해석 검토 대상이라 disputed로 둔다."
+        },
+        "scalability": {
+          "accepted": [
+            "조건부 적합"
+          ],
+          "disputed": [
+            "확인 불가"
+          ],
+          "required_evidence_ids": [
+            "domain-itme-p9-workload"
+          ],
+          "reason": "128 동시 대화·70B 모델까지 단일 GPU 서버에서 검증됐고 다중 노드 근거가 없다."
+        }
+      },
+      "manual_review": [
+        "FPGA 기능 시제품과 별도 CMM 성능 플랫폼을 분리했는가",
+        "35.7%의 기준선(CPU 오프로딩)과 워크로드를 보존했는가",
+        "설계서의 vLLM·NVMe-oF 대비 1.80배가 근거 없이 등장하지 않았는가",
+        "SK hynix 자사 논문임을 limitations에 남겼는가"
+      ]
+    },
+    {
+      "id": "context_only",
+      "input": "context_only.json",
+      "technology": "ITME",
+      "evidence_expected": true,
+      "paper_url": null,
+      "pages": [],
+      "items": {
+        "cost": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "분야 배경 자료만 있으므로 어떤 판정도 만들 수 없다."
+        },
+        "performance": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "분야 배경 자료만 있으므로 어떤 판정도 만들 수 없다."
+        },
+        "quality": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "분야 배경 자료만 있으므로 어떤 판정도 만들 수 없다."
+        },
+        "operations": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "분야 배경 자료만 있으므로 어떤 판정도 만들 수 없다."
+        },
+        "scalability": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "분야 배경 자료만 있으므로 어떤 판정도 만들 수 없다."
+        }
+      },
+      "manual_review": [
+        "배경 자료를 ITME 직접 근거로 전용하지 않았는가"
+      ]
+    },
+    {
+      "id": "no_evidence",
+      "input": "no_evidence.json",
+      "technology": "KIVI",
+      "evidence_expected": false,
+      "paper_url": null,
+      "pages": [],
+      "items": {
+        "cost": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "근거가 없으므로 판정을 만들 수 없다."
+        },
+        "performance": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "근거가 없으므로 판정을 만들 수 없다."
+        },
+        "quality": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "근거가 없으므로 판정을 만들 수 없다."
+        },
+        "operations": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "근거가 없으므로 판정을 만들 수 없다."
+        },
+        "scalability": {
+          "accepted": [
+            "확인 불가"
+          ],
+          "disputed": [],
+          "required_evidence_ids": [],
+          "reason": "근거가 없으므로 판정을 만들 수 없다."
+        }
+      },
+      "manual_review": [
+        "미확인 사유가 unverified에 남아 있는가"
+      ]
+    }
+  ]
+}
