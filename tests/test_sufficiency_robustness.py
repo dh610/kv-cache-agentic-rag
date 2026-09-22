@@ -1,5 +1,7 @@
 """충분성 판정기의 형식 실수는 근거 부족으로 정리하고 계속한다 (설계서 D.3). 실행 실패만 failed."""
 
+import pytest
+
 from graph.node_graph import build_node_graph, normalize_coverage
 from rag.interface import FixedEvidence
 from runtime.models import MockBackend
@@ -81,3 +83,25 @@ def test_review_with_no_usable_item_still_fails_closed():
     state, _ = run(EmptyJudge())
     assert state["output"].status == "failed"
     assert any("Sufficiency failed" in e for e in state["output"].validation_errors)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_conflicting_duplicate_judgments_never_become_sufficient_by_order(reverse):
+    data = load_input("tech")
+    original = MockBackend().sufficiency(data, data.evidence).items[0]
+    conflicting = original.model_copy(update={"sufficient": False, "reason": "부족"})
+    items = [conflicting, original] if reverse else [original, conflicting]
+    out = normalize_coverage(SufficiencyResult(items=items), data.questions, data.evidence)
+    assert not out[0].sufficient and "중복" in out[0].reason
+
+
+@pytest.mark.parametrize("invalid", ["unknown-id", "other-technology"])
+def test_partially_invalid_citations_leave_insufficient_with_reason(invalid):
+    data = load_input("tech")
+    original = MockBackend().sufficiency(data, data.evidence).items[0]
+    extra = "unknown-id" if invalid == "unknown-id" else data.evidence[1].id
+    original.evidence_ids.append(extra)
+    out = normalize_coverage(SufficiencyResult(items=[original]), data.questions, data.evidence)
+    assert not out[0].sufficient
+    assert extra not in out[0].evidence_ids
+    assert "근거 제거" in out[0].reason

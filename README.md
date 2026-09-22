@@ -107,7 +107,9 @@ flowchart TD
     stakeholder --> collect
     domain --> collect
     collect --> synthesis
-    synthesis --> report
+    synthesis -->|보완 대상 없음 또는 1회 소진| report
+    synthesis -->|gaps 있음·보완 가능·실제 모드| supplement
+    supplement --> synthesis
     report --> check_report
     check_report --> END
 ```

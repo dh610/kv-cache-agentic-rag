@@ -51,8 +51,8 @@ WorkState = RAGSubState
 def normalize_coverage(review, questions, evidence) -> list:
     """충분성 판정 결과를 질문 집합에 맞게 정리한다.
 
-    - 질문마다 정확히 하나의 Coverage 를 남긴다: 빠진 질문은 부족, 중복·미지 question_id 는 무시.
-    - 현재 근거에 없는 evidence_id 는 버린다.
+    - 질문마다 정확히 하나의 Coverage 를 남긴다: 빠진/중복 질문은 부족, 미지 question_id 는 무시.
+    - 현재 근거에 없거나 다른 기술인 evidence_id 는 버리고 부족 사유를 남긴다.
     - '충분'인데 인용이 없거나 다른 기술의 근거만 인용했으면 부족으로 강등하고 사유를 남긴다.
     판정기(nano)는 근거가 수십 건일 때 id 를 빠뜨리거나 다른 기술 청크를 인용하기 쉽다. 그 실수로
     노드 전체를 failed 로 만들면 실제 실행에서 모든 역할이 죽는다 (live 점검에서 실제로 발생).
@@ -60,9 +60,13 @@ def normalize_coverage(review, questions, evidence) -> list:
     by_id = {e.id: e for e in evidence}
     tech_of = {q.id: q.technology for q in questions}
     seen: dict[str, object] = {}
+    duplicates = set()
     for c in review.items:
-        if c.question_id in tech_of and c.question_id not in seen:
-            seen[c.question_id] = c
+        if c.question_id in tech_of:
+            if c.question_id in seen:
+                duplicates.add(c.question_id)
+            else:
+                seen[c.question_id] = c
     out = []
     for q in questions:
         c = seen.get(q.id)
@@ -76,14 +80,20 @@ def normalize_coverage(review, questions, evidence) -> list:
                 )
             )
             continue
-        ids = [eid for eid in c.evidence_ids if eid in by_id]
+        ids = list(
+            dict.fromkeys(
+                eid
+                for eid in c.evidence_ids
+                if eid in by_id and by_id[eid].technology in (q.technology, "other")
+            )
+        )
         sufficient, reason = c.sufficient, c.reason
-        if sufficient and not ids:
+        if q.id in duplicates:
+            sufficient, reason = False, f"{reason} (중복 질문 판정 → 부족)"
+        if set(c.evidence_ids) - set(ids):
+            sufficient, reason = False, f"{reason} (모르는/다른 기술 근거 제거 → 부족)"
+        elif sufficient and not ids:
             sufficient, reason = False, f"{reason} (인용 근거 없음 → 부족)"
-        elif sufficient and any(
-            by_id[eid].technology not in (q.technology, "other") for eid in ids
-        ):
-            sufficient, reason = False, f"{reason} (다른 기술 근거 인용 → 부족)"
         out.append(
             Coverage(question_id=q.id, sufficient=sufficient, evidence_ids=ids, reason=reason)
         )
