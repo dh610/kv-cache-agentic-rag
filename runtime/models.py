@@ -171,11 +171,18 @@ class OpenAIBackend:
         from runtime.settings import ROOT
 
         prompt = (ROOT / "prompts/shared/judge.j2").read_text(encoding="utf-8")
+        # judge.j2: the Judge checks only what each claim actually cited, never browses
+        # the wider pool for support. Sending the full accumulated evidence (which grows
+        # unbounded across search rounds/questions, 100+ items in live mode) instead of
+        # each claim's own evidence_ids overloads the judge model into missing or
+        # duplicating per-claim checks.
+        cited = {eid for c in result.claims for eid in c.evidence_ids}
+        relevant = [e for e in evidence if e.id in cited]
         # This shared prompt has no variables; claim/evidence JSON is a separate message.
         payload = json.dumps(
             {
                 "result": result.model_dump(),
-                "evidence": [e.model_dump() for e in evidence],
+                "evidence": [e.model_dump() for e in relevant],
             },
             ensure_ascii=False,
         )
@@ -212,6 +219,13 @@ class OpenAIBackend:
     def sufficiency(self, data, evidence):
         import json
 
+        # Same overload as judge(): a mixed-technology evidence pool (both target techs,
+        # 50-270+ items in live mode) makes the small judge model misattribute evidence
+        # between technologies, up to inventing IDs that splice one paper's hash with the
+        # other technology's prefix. Scope to technologies the current questions actually
+        # need; "other" stays since it can be shared background evidence.
+        techs = {q.technology for q in data.questions}
+        relevant = [e for e in evidence if e.technology in techs or e.technology == "other"]
         return self.sufficiency_judge.invoke(
             [
                 (
@@ -223,7 +237,7 @@ class OpenAIBackend:
                     json.dumps(
                         {
                             "questions": [q.model_dump() for q in data.questions],
-                            "evidence": [e.model_dump() for e in evidence],
+                            "evidence": [e.model_dump() for e in relevant],
                         },
                         ensure_ascii=False,
                     ),
