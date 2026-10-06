@@ -62,6 +62,7 @@ def build_main_graph(
     sources: dict[str, EvidenceSource] | None = None,
     *,
     first_pass: bool = False,
+    code_report: bool = False,
 ):
     if mode not in ("mock", "fixture", "live"):
         raise ValueError("Pipeline mode must be mock, fixture or live")
@@ -115,7 +116,7 @@ def build_main_graph(
             if name in ("market", "stakeholder", "domain") and "tech_result" in state:
                 # Prior result is an input, never a replacement for original evidence.
                 data.prior_results = {"tech": state["tech_result"].result}
-            if name == "report" and first_pass:
+            if name == "report" and (first_pass or code_report):
                 out = assemble_report_node(data, {r.node: r for r in runs}, mode)
                 errors = contract_errors(
                     name, data, out.result, out.evidence, JudgeResult(checks=out.checks)
