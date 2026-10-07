@@ -47,7 +47,7 @@ from graph.supervisor_graph import WORKER_ROLES, build_supervisor_graph
 from runtime.models import MockBackend
 from runtime.runner import load_input
 from runtime.settings import load_settings
-from schemas.contracts import NODES, Evidence, QualityVerdict
+from schemas.contracts import NODES, Evidence, JudgeResult, QualityVerdict
 
 
 def settings():
@@ -966,3 +966,67 @@ def test_submission_pdf_stays_within_the_page_limit(tmp_path):
     assert submission.exists()
     pages = len(PdfReader(submission).pages)
     assert pages <= 10, f"제출본이 {pages}장으로 한도를 넘었다"
+
+
+def test_synthesis_judgements_survive_when_their_premises_are_verified():
+    """종합의 주장은 상위 관점의 항목명을 가리킨다(contract_errors 가 허용).
+
+    전제를 '같은 항목의 주장'으로만 찾으면 종합 판정은 근거와 무관하게 늘 확인 불가가
+    된다. live 두 번 모두 종합 실판정이 0건이었고, 그래서 보고서 5장 시사점이 비었다.
+    """
+    from graph.node_graph import finalize_node
+    from runtime.runner import load_input
+    from schemas.contracts import Assessment, Claim, ClaimCheck, NodeResult
+
+    evidence = Evidence(
+        id="e1",
+        text="원문",
+        title="T",
+        url="https://example.com/e1",
+        technology="KIVI",
+        source_type="web",
+        scope="target",
+    )
+    draft = NodeResult(
+        node="synthesis",
+        summary="s",
+        claims=[
+            Claim(
+                id="c1",
+                technology="KIVI",
+                criterion="adoption",  # 상위 관점의 항목을 가리킨다
+                text="원문",
+                kind="fact",
+                evidence_ids=["e1"],
+                conditions=[],
+            )
+        ],
+        assessments=[
+            Assessment(
+                technology="KIVI",
+                criterion="consistency",  # 자기 루브릭의 항목
+                judgment="일치",
+                rationale="관점 간 일치",
+                evidence_ids=["e1"],
+            )
+        ],
+        unverified=[],
+        limitations=[],
+    )
+    state = {
+        "draft": draft,
+        "judge": JudgeResult(
+            checks=[ClaimCheck(claim_id="c1", label="supported", evidence_ids=["e1"], reason="r")]
+        ),
+        "search_results": [evidence],
+        "searches": [],
+        "prompt_hash": "h",
+        "verdict": "통과",
+        "fix_count": 0,
+        "errors": [],
+    }
+    out = finalize_node("synthesis", load_input("synthesis", "acceptance"), "mock", state, "m")[
+        "output"
+    ]
+    judgement = out.result.assessments[0]
+    assert judgement.judgment == "일치", "검증된 전제가 있는데 확인 불가로 내려가면 안 된다"

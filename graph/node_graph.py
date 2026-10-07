@@ -820,8 +820,14 @@ def finalize_node(node, data, mode, state, model):
             continue
         if a.judgment == "확인 불가":
             continue
+        # 평가 종합의 일은 관점 간 대조다. 그 노드의 주장은 contract_errors 가 허용하는
+        # 대로 상위 관점의 항목명(adoption, maturity …)을 가리키고, 판정은 자기 루브릭
+        # (consistency, implications)을 쓴다. 항목이 같은 주장만 전제로 인정하면 두
+        # 규칙이 어긋나 종합 판정이 근거와 무관하게 늘 확인 불가가 된다 (live 두 번 모두
+        # 종합 실판정 0건). 종합에서는 그 기술에 대해 검증된 주장이면 전제로 본다.
+        premise_criterion = None if node == "synthesis" else a.criterion
         verified = verified_evidence_ids(
-            result, state["judge"].checks, state["search_results"], a.technology, a.criterion
+            result, state["judge"].checks, state["search_results"], a.technology, premise_criterion
         )
         if not verified or not set(a.evidence_ids).issubset(verified):
             a.judgment, a.rationale, a.evidence_ids = (

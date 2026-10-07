@@ -270,7 +270,7 @@ _COMPACT = False
 # 이번 조판에서 본문이 실제로 인용한 근거 ID. _ids 가 채우고 압축 조판이 읽는다.
 _CITED: set[str] = set()
 # 절·기술당 본문에 싣는 주장 문장 수. 나머지는 산출물 JSON 에 남는다.
-COMPACT_CLAIMS = 0
+COMPACT_CLAIMS = 1
 # 한계점에서 같은 분류로 싣는 줄 수.
 COMPACT_BULLETS = 1
 # 한 문장·한 칸이 본문에 드러내는 REFERENCE 번호의 수. 판정 하나가 근거를 열 건 넘게
@@ -398,6 +398,35 @@ def _assessment_table(run, techs):
     return rows
 
 
+def findings_line(run, tech) -> str:
+    """그 관점이 이 기술에 대해 실제로 내린 판정을 한 줄로 먼저 보여 준다.
+
+    절이 "KIVI 절 구성: 확인 불가" 로 시작하면 읽는 사람은 아무것도 안 나왔다고 읽는다.
+    그 문장은 기술에 대한 평가가 아니라 **이 절이 구성됐는지**에 대한 파이프라인 상태인데,
+    실제 판정은 절 끝 비교표에 묻혀 있었다. 결과를 먼저 놓고 상태는 뒤로 보낸다.
+    """
+    items = [a for a in run.result.assessments if a.technology == tech]
+    if not items:
+        return f"{tech}: 이 관점의 평가 결과가 없다."
+    decided = [a for a in items if a.judgment != "확인 불가"]
+    def entry(a):
+        label = LABELS.get(a.criterion, a.criterion)
+        # 일부 루브릭은 판정 값 자체가 항목명을 품는다("원리" / "원리 확인"). 둘을 그대로
+        # 이으면 "원리 원리 확인"이 된다.
+        return a.judgment if a.judgment.startswith(label) else f"{label} {a.judgment}"
+
+    parts = ", ".join(entry(a) for a in items)
+    head = f"{tech} — {parts}."
+    unknown = len(items) - len(decided)
+    if not decided:
+        head += " (공개 근거 부족으로 전 항목 보류)"
+    elif unknown:
+        head += f" ({len(items)}항목 중 {unknown}항목은 공개 근거 부족으로 보류)"
+    else:
+        head += f" ({len(items)}항목 모두 판정)"
+    return _cell(head)
+
+
 def _narrative(report_run, criterion, tech, shown=None):
     """Report-node sentences for one section/technology plus its coverage judgment.
 
@@ -419,7 +448,11 @@ def _narrative(report_run, criterion, tech, shown=None):
         if a
         else "확인 불가. 보고서 노드 결과 누락"
     )
-    lines.append(_cell(f"{tech} 절 구성: {status}"))
+    # "절 구성"은 이 절이 조판됐는지에 대한 파이프라인 상태이지 기술 평가가 아니다.
+    # 제출본에서는 싣지 않는다 — 6장이 관점별 상태를 이미 표로 보고하고, 앞에 둔
+    # 판정 줄과 겹쳐 읽는 사람이 결과를 못 찾게 만든다.
+    if not _COMPACT:
+        lines.append(_cell(f"{tech} 절 구성: {status}"))
     claims = [
         c for c in report_run.result.claims if c.criterion == criterion and c.technology == tech
     ]
@@ -432,11 +465,7 @@ def _narrative(report_run, criterion, tech, shown=None):
             continue
         shown += 1
         lines.append(_claim_line(c))
-    hidden = len(claims) - shown
-    if _COMPACT and hidden > 0:
-        # 생략한 것은 본문 노출뿐이다. 판정과 근거는 아래 비교표와 REFERENCE 에 남는다.
-        lines.append(f"- {tech}: 같은 절의 근거 문장 {hidden}건은 산출물 JSON 에 남겼다")
-    if not claims:
+    if not claims and not _COMPACT:
         lines.append(f"- {tech}: 확인 불가. 이 절에 인용 가능한 보고서 문장이 없음")
     return lines
 
@@ -526,6 +555,7 @@ def _render_report(state, result_keys, mode, sources):
     for number, tech in enumerate(techs, 1):
         lines.append(f"## 3.{number} {tech}")
         shown: set[str] = set()
+        lines.append(findings_line(tech_run, tech))
         lines.extend(_narrative(report, "overview", tech, shown))
         lines.extend(
             _unique_claim_lines([c for c in tech_run.result.claims if c.technology == tech], shown)
@@ -582,6 +612,9 @@ def _render_report(state, result_keys, mode, sources):
         run = state[result_keys[role]]
         lines.append(f"## 4.{number} {heading}")
         shown = set()
+        # 판정부터 싣는다. 절 구성 상태(보고서 노드의 메타 판정)는 그 뒤로 간다.
+        for tech in techs:
+            lines.append(findings_line(run, tech))
         for tech in techs:
             lines.extend(_narrative(report, role, tech, shown))
         lines.append(f"{ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)}")
@@ -850,7 +883,7 @@ def write_report(
         base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
         return ParagraphStyle(name, **{**base, **kw})
 
-    dense = 0.72 if compact else 1.0
+    dense = 0.66 if compact else 1.0
     normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
     cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
     cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)
