@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol, Union
 
+from langchain_core.runnables.config import ContextThreadPoolExecutor
+from pydantic import Field, create_model
+
+from runtime.context import evidence_payload
+from runtime.prompts import load_rubric
 from runtime.settings import Settings, require_key
 from schemas.contracts import (
     Assessment,
@@ -138,6 +143,31 @@ class MockBackend:
         )
 
 
+def result_schema(node):
+    """Constrain each criterion's vocabulary before generation, not by relabeling outputs."""
+    variants = tuple(
+        create_model(
+            f"{node}_{criterion.id}_Assessment",
+            __base__=Assessment,
+            criterion=(Literal[criterion.id], ...),
+            judgment=(Literal[tuple(criterion.judgments)], ...),
+        )
+        for criterion in load_rubric(node).criteria
+    )
+    item_type = Union[variants] if len(variants) > 1 else variants[0]
+    claim_type = create_model(
+        f"{node}_CitedClaim",
+        __base__=Claim,
+        evidence_ids=(list[str], Field(min_length=1)),
+    )
+    return create_model(
+        f"{node}_Result",
+        __base__=NodeResult,
+        assessments=(list[item_type], ...),
+        claims=(list[claim_type], ...),
+    )
+
+
 class OpenAIBackend:
     def __init__(self, settings: Settings):
         from langchain_openai import ChatOpenAI
@@ -149,64 +179,120 @@ class OpenAIBackend:
             "timeout": settings.models.timeout_seconds,
             "max_retries": settings.models.max_retries,
         }
-        self.generator = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
-            NodeResult, method="json_schema"
-        )
+        self.generator = ChatOpenAI(model=self.name, **kwargs)
+        self.generators = {}
         self.planner = ChatOpenAI(model=self.name, **kwargs).with_structured_output(
             QueryPlan, method="json_schema"
         )
         self.sufficiency_judge = ChatOpenAI(
             model=settings.models.judge, **kwargs
         ).with_structured_output(SufficiencyResult, method="json_schema")
-        # judge() rebuilds this per call with claim_id constrained to that draft's real
-        # claim IDs, so keep the unbound client around instead of a pre-bound evaluator.
-        self.judge_llm = ChatOpenAI(model=settings.models.judge, **kwargs)
+        self.evaluator = ChatOpenAI(model=settings.models.judge, **kwargs).with_structured_output(
+            JudgeResult, method="json_schema"
+        )
 
     def generate(self, node, data, evidence, system, user):
-        return self.generator.invoke([("system", system), ("human", user)])
+        if node not in self.generators:
+            self.generators[node] = self.generator.with_structured_output(
+                result_schema(node), method="json_schema"
+            )
+        result = self.generators[node].invoke([("system", system), ("human", user)])
+        return NodeResult.model_validate(result.model_dump())
+
+    def generate_scoped(self, node, packets):
+        """Generate independent technology packets concurrently, preserving every question."""
+
+        def run(packet):
+            data, evidence, system, user = packet
+            result = self.generate(node, data, evidence, system, user)
+            techs = {q.technology for q in data.questions}
+            if any(
+                item.technology not in techs
+                for item in result.claims + result.assessments + result.trl_estimates
+            ):
+                raise ValueError("Scoped generation returned another technology")
+            return result
+
+        with ContextThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(run, packets))
+        merged = NodeResult(
+            node=node, summary="", claims=[], assessments=[], unverified=[], limitations=[]
+        )
+        for index, result in enumerate(results):
+            for claim in result.claims:
+                claim.id = f"part{index}-{claim.id}"
+            merged.claims.extend(result.claims)
+            merged.assessments.extend(result.assessments)
+            merged.trl_estimates.extend(result.trl_estimates)
+            merged.unverified.extend(result.unverified)
+            merged.limitations.extend(result.limitations)
+        merged.summary = "\n".join(r.summary for r in results)
+        return merged
 
     def judge(self, result, evidence):
+        """주장 하나씩, 그 주장이 인용한 근거만 보여주고 판정한다.
+
+        전체 결과와 근거 풀(수백 건)을 한 번에 넘기면 판정기가 다른 주장의 ID 를 인용하거나
+        일부 주장을 빠뜨린다 (live 점검의 `Judge cited evidence not supplied by claim`,
+        `Judge must return exactly one check per claim`). 범위를 좁히면 그 오류가 구조적으로
+        생길 수 없고, claim 당 정확히 하나의 check 를 코드가 보장한다.
+        """
         import json
         from typing import Literal
 
         from pydantic import create_model
 
+        from runtime.aliases import alias
         from runtime.settings import ROOT
 
         prompt = (ROOT / "prompts/shared/judge.j2").read_text(encoding="utf-8")
-        # judge.j2: the Judge checks only what each claim actually cited, never browses
-        # the wider pool for support. Sending the full accumulated evidence (which grows
-        # unbounded across search rounds/questions, 100+ items in live mode) instead of
-        # each claim's own evidence_ids overloads the judge model into missing or
-        # duplicating per-claim checks.
-        cited = {eid for c in result.claims for eid in c.evidence_ids}
-        relevant = [e for e in evidence if e.id in cited]
-        # This shared prompt has no variables; claim/evidence JSON is a separate message.
-        # claim_ids_to_check surfaces the exact checklist judge.j2 asks the model to
-        # count against, instead of leaving it to notice claims[].id buried in `result`.
-        payload = json.dumps(
-            {
-                "claim_ids_to_check": [c.id for c in result.claims],
-                "result": result.model_dump(),
-                "evidence": [e.model_dump() for e in relevant],
-            },
-            ensure_ascii=False,
-        )
-        claim_ids = [c.id for c in result.claims]
-        # Belt-and-suspenders on top of the claim_ids_to_check checklist: constrain
-        # claim_id to this draft's real claim IDs at the json_schema level (an enum), so
-        # a dropped/altered suffix -- still observed occasionally even with the checklist
-        # -- can't slip through; the model can only pick from this exact list.
-        constrained_check = create_model(
-            "ConstrainedClaimCheck",
-            __base__=ClaimCheck,
-            claim_id=(Literal[tuple(claim_ids)], ...),
-        )
-        constrained_result = create_model(
-            "ConstrainedJudgeResult", __base__=JudgeResult, checks=(list[constrained_check], ...)
-        )
-        evaluator = self.judge_llm.with_structured_output(constrained_result, method="json_schema")
-        return evaluator.invoke([("system", prompt), ("human", payload)])
+        by_id = {e.id: e for e in evidence}
+        checks = []
+        for claim in result.claims:
+            cited = [by_id[eid] for eid in dict.fromkeys(claim.evidence_ids) if eid in by_id]
+            if not cited:
+                checks.append(
+                    ClaimCheck(
+                        claim_id=claim.id,
+                        label="unsupported",
+                        evidence_ids=[],
+                        reason="인용한 근거가 현재 근거 목록에 없다.",
+                    )
+                )
+                continue
+            labelled, back = alias(cited)
+            payload = json.dumps(
+                {
+                    "claim": claim.model_dump() | {"evidence_ids": [e.id for e in labelled]},
+                    "evidence": [e.model_dump() for e in labelled],
+                },
+                ensure_ascii=False,
+            )
+            one = JudgeResult.model_validate(
+                self.evaluator.invoke([("system", prompt), ("human", payload)])
+            )
+            check = one.checks[0] if one.checks else None
+            if check is None:
+                checks.append(
+                    ClaimCheck(
+                        claim_id=claim.id,
+                        label="unsupported",
+                        evidence_ids=[],
+                        reason="판정 결과가 비어 있다.",
+                    )
+                )
+                continue
+            known = {e.id for e in labelled}
+            ids = [back[i] for i in dict.fromkeys(check.evidence_ids) if i in known]
+            checks.append(
+                ClaimCheck(
+                    claim_id=claim.id,  # 판정기가 바꿔 적어도 대상 주장은 코드가 고정한다.
+                    label=check.label,
+                    evidence_ids=ids,
+                    reason=check.reason,
+                )
+            )
+        return JudgeResult(checks=checks)
 
     def plan(self, data, feedback):
         import json
@@ -242,6 +328,14 @@ class OpenAIBackend:
         )
 
     def sufficiency(self, data, evidence):
+
+        from runtime.aliases import alias, restore_coverage
+
+        labelled, back = alias(evidence)
+        review = SufficiencyResult.model_validate(self._sufficiency(data, labelled))
+        return SufficiencyResult(items=restore_coverage(review.items, back))
+
+    def _sufficiency(self, data, evidence):
         import json
 
         # Same overload as judge(): a mixed-technology evidence pool (both target techs,
@@ -262,7 +356,7 @@ class OpenAIBackend:
                     json.dumps(
                         {
                             "questions": [q.model_dump() for q in data.questions],
-                            "evidence": [e.model_dump() for e in relevant],
+                            "evidence": evidence_payload(evidence, data.questions),
                         },
                         ensure_ascii=False,
                     ),

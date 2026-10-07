@@ -79,7 +79,7 @@ REFERENCE에는 검색한 모든 자료가 아니라 실제 인용된 ID만 넘�
 - `scope=target`: 선정 기술 직접 근거. `context`: 분야 배경/비교 자료.
 - `document_role=target/reference`: 논문 corpus 내 문서의 역할. scope와 다른 축입니다.
 - 분야 채택을 선정 기술 자체의 채택/TRL로 전용하지 않습니다.
-- 웹 검색의 scope 기본값은 context입니다. 직접 근거라는 분류가 필요하면 원문을 사람이 확인한 입력에서 명시합니다.
+- PR #23부터 웹 검색 scope는 검색 층(target/context)을 기록합니다. 이 값만으로 실제 직접 채택·관계가 증명되지는 않으므로 원문과 source_annotations를 함께 확인합니다.
 - 같은 ID의 다른 내용은 오류로 처리합니다. 출처 병합은 `merge_evidence`를 사용하며 덮어쓰지 않습니다.
 
 ## 4. 수정 범위와 역할 분담

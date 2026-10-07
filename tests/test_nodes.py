@@ -104,8 +104,8 @@ class EmptySearch:
         self.calls = []
         self.fail = fail
 
-    def search(self, question, attempt):
-        self.calls.append((question.id, attempt))
+    def search(self, question, attempt, scope="target"):
+        self.calls.append((question.id, attempt, scope))
         if self.fail:
             raise RuntimeError("private provider detail")
         return []
@@ -116,23 +116,25 @@ def test_search_budget_is_bounded_per_question(fail):
     source = EmptySearch(fail)
     result = run(source=source, mode="rag")
     assert result.status == "needs_revision"
-    assert len(source.calls) == 3 * len(load_input("tech").questions)
-    assert sorted(a for _, a in source.calls) == [
-        attempt for attempt in (1, 2, 3) for _ in load_input("tech").questions
+    # 시도마다 직접(direct)·접근 전반(background) 두 층을 찾는다. 질문별 시도 예산은 3 그대로.
+    assert len(source.calls) == 2 * 3 * len(load_input("tech").questions)
+    assert sorted(a for _, a, _ in source.calls) == [
+        attempt for attempt in (1, 2, 3) for _ in load_input("tech").questions for _ in range(2)
     ]
+    assert {scope for _, _, scope in source.calls} == {"target", "context"}
     assert "private provider detail" not in result.model_dump_json()
 
 
 def test_partial_evidence_retries_for_unanswered_question():
     class Partial(EmptySearch):
-        def search(self, question, attempt):
-            self.calls.append((question.id, attempt))
+        def search(self, question, attempt, scope="target"):
+            self.calls.append((question.id, attempt, scope))
             return load_input("tech").evidence[:1] if question.technology == "KIVI" else []
 
     source = Partial()
     result = run(source=source, mode="rag")
     assert result.status == "needs_revision"
-    assert len(source.calls) == 3 * len(load_input("tech").questions)
+    assert len(source.calls) == 2 * 3 * len(load_input("tech").questions)
 
 
 class RecordingBackend(MockBackend):
@@ -187,7 +189,7 @@ def test_live_pipeline_uses_injected_sources_and_drops_demo_evidence():
     class RealSource:
         retryable = False
 
-        def search(self, question, attempt):
+        def search(self, question, attempt, scope="target"):
             evidence = load_input("tech").evidence
             for e in evidence:
                 e.id = "injected-" + e.id

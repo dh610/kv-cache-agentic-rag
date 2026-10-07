@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Protocol
 
 from rag.evidence import merge_evidence
@@ -9,7 +10,22 @@ from schemas.contracts import Evidence, NodeInput, NodeName, Question
 class EvidenceSource(Protocol):
     retryable: bool
 
-    def search(self, question: Question, attempt: int) -> list[Evidence]: ...
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]: ...
+
+
+def supports_scope(source) -> bool:
+    """Keep existing two-argument team adapters usable during the scope migration."""
+    try:
+        inspect.signature(source.search).bind(None, 1, "target")
+        return True
+    except TypeError:
+        return False
+
+
+def search_source(source, question, attempt, scope="target"):
+    if supports_scope(source):
+        return source.search(question, attempt, scope)
+    return source.search(question, attempt)
 
 
 class FixedEvidence:
@@ -18,8 +34,16 @@ class FixedEvidence:
     def __init__(self, data: NodeInput):
         self.evidence = data.evidence
 
-    def search(self, question: Question, attempt: int) -> list[Evidence]:
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
         return [e for e in self.evidence if e.technology in (question.technology, "other")]
+
+
+class PartialSearch(Exception):
+    """공급자 일부만 실패했다. 성공한 근거는 살리고 실패 사실은 기록한다."""
+
+    def __init__(self, found: list[Evidence], reason: str):
+        super().__init__(reason)
+        self.found = found
 
 
 class CombinedSource:
@@ -28,11 +52,29 @@ class CombinedSource:
     def __init__(self, *sources: EvidenceSource):
         self.sources = sources
 
-    def search(self, question: Question, attempt: int) -> list[Evidence]:
-        # Each provider must succeed; a failed provider is recorded by the node runtime.
-        found = []
+    def search(self, question: Question, attempt: int, scope: str = "target") -> list[Evidence]:
+        """한 공급자가 실패해도 다른 공급자의 근거는 버리지 않는다.
+
+        웹 API 한도 초과로 웹 검색이 실패했을 때 같은 노드의 논문 근거까지 사라져
+        도메인 평가가 근거 0건이 된 적이 있다 (live 점검). 설계서 D.3에 따라 근거 부족은
+        실행 실패와 구분한다. 전부 실패하면 그대로 예외를 올린다.
+        """
+        found: list[Evidence] = []
+        failures = []
         for source in self.sources:
-            found = merge_evidence(found, source.search(question, attempt))
+            try:
+                found = merge_evidence(found, search_source(source, question, attempt, scope))
+            except PartialSearch as exc:
+                # 중첩된 CombinedSource 의 부분 결과까지 살린다. 일반 예외로 잡으면 안쪽이
+                # 이미 찾아 둔 근거가 사라진다 (live 점검에서 이해관계자 근거가 비었다).
+                found = merge_evidence(found, exc.found)
+                failures.append(str(exc))
+            except Exception as exc:
+                failures.append(f"{type(source).__name__}: {type(exc).__name__}")
+        if failures and not found:
+            raise RuntimeError("; ".join(failures))
+        if failures:
+            raise PartialSearch(found, "; ".join(failures))
         return found
 
 

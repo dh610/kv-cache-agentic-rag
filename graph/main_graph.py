@@ -15,14 +15,15 @@ from typing import Annotated, TypedDict
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
-from graph.node_graph import build_node_graph
+from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
 from runtime.models import ModelBackend
 from runtime.progress import ProgressLog
+from runtime.report_draft import assemble_report_node
 from runtime.reporting import assemble_report, collect_gaps, used_ids, validate_report, write_report
 from runtime.settings import Settings
-from schemas.contracts import NODES, Evidence, Gap, NodeInput, NodeRun
+from schemas.contracts import NODES, Evidence, Gap, JudgeResult, NodeInput, NodeRun
 
 # Preserve the result key names from the shared team starter.
 RESULT_KEYS = {
@@ -60,6 +61,8 @@ def build_main_graph(
     settings: Settings,
     backend: ModelBackend,
     sources: dict[str, EvidenceSource] | None = None,
+    *,
+    first_pass: bool = False,
 ):
     if mode not in ("mock", "fixture", "live"):
         raise ValueError("Pipeline mode must be mock, fixture or live")
@@ -99,7 +102,15 @@ def build_main_graph(
                     data.description += (
                         f"\n상위 노드 {r.node}: {r.status}. 미확인/실패 내용을 보존하세요."
                     )
-            data.evidence = merge_evidence(data.evidence, *(r.evidence for r in runs))
+            # 종합·보고서는 앞 노드의 근거 풀 전체가 아니라, 검증을 통과한 주장이 실제로
+            # 인용한 원문만 물려받는다. 풀을 그대로 넘기면 입력이 수 MB가 되어 생성이
+            # 제한 시간을 넘긴다 (live 점검에서 report 노드가 시간 초과로 실패).
+            inherited = (
+                [[e for e in r.evidence if e.id in used_ids(r)] for r in runs]
+                if name in ("synthesis", "report")
+                else [r.evidence for r in runs]
+            )
+            data.evidence = merge_evidence(data.evidence, *inherited)
             if name == "synthesis" and state.get("gaps"):
                 # Code-rule gaps are data for the synthesis prompt, never a judgment to fill in.
                 data.description += "\n코드 규칙 gaps: " + json.dumps(
@@ -108,6 +119,19 @@ def build_main_graph(
             if name in ("market", "stakeholder", "domain") and "tech_result" in state:
                 # Prior result is an input, never a replacement for original evidence.
                 data.prior_results = {"tech": state["tech_result"].result}
+            if name == "report" and first_pass:
+                out = assemble_report_node(data, {r.node: r for r in runs}, mode)
+                errors = contract_errors(
+                    name, data, out.result, out.evidence, JudgeResult(checks=out.checks)
+                )
+                if errors:
+                    out.validation_errors.extend(errors)
+                    out.status = "failed"
+                cited = used_ids(out)
+                return {
+                    RESULT_KEYS[name]: out,
+                    "sources": [e for e in out.evidence if e.id in cited],
+                }
             source = (
                 CombinedSource(FixedEvidence(data), sources[name])
                 if sources and name in sources
@@ -135,6 +159,13 @@ def build_main_graph(
             )
             cited = used_ids(out)
             delta = {RESULT_KEYS[name]: out, "sources": [e for e in out.evidence if e.id in cited]}
+            # 노드가 끝나는 즉시 저장한다. 뒤 단계가 실패해도 여기까지의 조사 결과는 남는다
+            # (live 점검에서 마지막 집계 오류로 35분치 호출이 통째로 사라졌다).
+            folder = config.get("configurable", {}).get("output_dir")
+            if folder:
+                path = Path(folder) / "nodes"
+                path.mkdir(parents=True, exist_ok=True)
+                (path / f"{name}.json").write_text(out.model_dump_json(indent=2), encoding="utf-8")
             if name == "synthesis":
                 estimates = {
                     t.technology: t.model_dump()
@@ -256,9 +287,15 @@ def build_main_graph(
 
     def check_report(state, config: RunnableConfig):
         text = assemble_report(state, RESULT_KEYS, mode)
+        if first_pass:
+            text = text.replace(
+                "# SUMMARY",
+                "# SUMMARY\n1차 초안: 긍정·비판 검색과 인용 검증을 수행하고 추가 재검색·전체 수정·종합 뒤 보완은 생략했습니다. 미확인과 검증 실패는 그대로 표시합니다.",
+                1,
+            )
         validation = validate_report(state, RESULT_KEYS, text, mode)
         folder = config.get("configurable", {}).get("output_dir")
-        path = write_report(text, Path(folder)) if folder else ""
+        path = write_report(text, Path(folder), settings.report, mode) if folder else ""
         if not path:
             validation["ready"] = False
             validation["problems"].append("No report output directory was configured")
