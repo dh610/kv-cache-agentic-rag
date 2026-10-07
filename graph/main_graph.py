@@ -19,6 +19,7 @@ from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
 from runtime.models import ModelBackend
+from runtime.progress import ProgressLog
 from runtime.report_draft import assemble_report_node
 from runtime.reporting import assemble_report, collect_gaps, used_ids, validate_report, write_report
 from runtime.settings import Settings
@@ -87,7 +88,10 @@ def build_main_graph(
 
     def make_node(name):
         def run(state, config: RunnableConfig, previous=None, refresh_technologies=None):
+            log = ProgressLog(config.get("configurable", {}).get("output_dir"))
+            log.emit("node_start", node=name)
             data = inputs[name].model_copy(deep=True)
+            data.tech_descriptions = settings.tech_descriptions
             if mode == "live":
                 data.evidence = []  # Never mix demo fixture excerpts with live search.
             keys = [RESULT_KEYS[n] for n in NODES if RESULT_KEYS[n] in state]
@@ -142,8 +146,17 @@ def build_main_graph(
                 source,
                 previous=previous,
                 refresh_technologies=refresh_technologies,
+                log=log,
             )
             out = graph.invoke({}, config={"recursion_limit": 80})["output"]
+            log.emit(
+                "node_end",
+                node=name,
+                status=out.status,
+                verdict=out.verdict,
+                fix_count=out.fix_count,
+                claims=len(out.result.claims),
+            )
             cited = used_ids(out)
             delta = {RESULT_KEYS[name]: out, "sources": [e for e in out.evidence if e.id in cited]}
             # 노드가 끝나는 즉시 저장한다. 뒤 단계가 실패해도 여기까지의 조사 결과는 남는다
@@ -180,11 +193,14 @@ def build_main_graph(
     for name in NODES:
         builder.add_node(name, runners[name])
 
-    def collect(state):
+    def collect(state, config: RunnableConfig):
         runs = {role: state[RESULT_KEYS[role]] for role in NODES[:4]}
         # Validate reducer entries before using them; concatenation alone is not deduplication.
         merge_evidence(state["sources"])
-        return {"gaps": collect_gaps(runs, settings)}
+        gaps = collect_gaps(runs, settings)
+        log = ProgressLog(config.get("configurable", {}).get("output_dir"))
+        log.emit("collect", gaps=len(gaps))
+        return {"gaps": gaps}
 
     builder.add_node("collect", collect)
 
@@ -198,6 +214,8 @@ def build_main_graph(
         working = dict(state)
         updates = {"supplement_round": state["supplement_round"] + 1}
         new_sources: list[Evidence] = []
+        log = ProgressLog(config.get("configurable", {}).get("output_dir"))
+        log.emit("supplement_start", round=updates["supplement_round"], roles=sorted(roles))
         changed_techs = set()
         for name in NODES[:4]:
             if name not in roles:
@@ -252,6 +270,7 @@ def build_main_graph(
         runs = {role: working[RESULT_KEYS[role]] for role in NODES[:4]}
         updates["gaps"] = collect_gaps(runs, settings)
         updates["sources"] = new_sources
+        log.emit("supplement_end", round=updates["supplement_round"], gaps=len(updates["gaps"]))
         return updates
 
     builder.add_node("supplement", supplement)
@@ -287,6 +306,12 @@ def build_main_graph(
             else "needs_revision"
             if "needs_revision" in statuses or (mode != "mock" and not validation["ready"])
             else "completed"
+        )
+        ProgressLog(folder).emit(
+            "check_report",
+            status=status,
+            ready=validation["ready"],
+            problems=len(validation["problems"]),
         )
         return {"run_status": status, "report_path": path, "report_check": validation}
 

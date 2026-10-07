@@ -2,6 +2,12 @@ schema_version: 2
 target_techs:
   sw: KIVI
   hw: ITME
+# Search-planner context only (never a technology/assessment-matched field): short
+# technical identity per bare codename above, since e.g. "ITME" alone is too generic
+# a token for web search to reliably match against.
+tech_descriptions:
+  KIVI: KV cache 2bit quantization (key per-channel, value per-token), tuning-free
+  ITME: CXL 하이브리드 메모리 기반 KV cache 계층 확장, SK hynix 연구
 domain: 데이터센터·클라우드 LLM 서빙
 # 보고서 표지. 설계서 표지와 같은 구성으로 조판한다.
 report:

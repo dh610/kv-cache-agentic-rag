@@ -9,6 +9,7 @@ from pathlib import Path
 
 from langsmith import Client, tracing_context
 
+from runtime.progress import ProgressLog
 from runtime.settings import ROOT, require_key
 from schemas.contracts import NODES, NodeInput
 
@@ -57,6 +58,8 @@ def execute(graph, label: str, mode: str, metadata: dict) -> tuple[dict, Path]:
     )
     output = base / f"{stamp}-{label}-{run_id.hex[:8]}"
     output.mkdir(parents=True, exist_ok=False)
+    progress = ProgressLog(output)
+    progress.emit("run_start", run_id=str(run_id), label=label, mode=mode)
     manifest = {
         "run_id": str(run_id),
         "mode": mode,
@@ -91,7 +94,11 @@ def execute(graph, label: str, mode: str, metadata: dict) -> tuple[dict, Path]:
                 )
             except Exception as exc:
                 manifest["trace_warning"] = f"Trace URL unavailable: {type(exc).__name__}"
+        progress.emit("run_end", status=final.get("run_status"))
         return final, output
+    except Exception as exc:
+        progress.emit("run_failed", error=type(exc).__name__)
+        raise
     finally:
         (output / "run.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -111,7 +118,7 @@ def save_json(path: Path, value) -> None:
 
 def show_run(output: Path, status: str) -> int:
     meta = json.loads((output / "run.json").read_text())
-    print(f"Status: {status}\nResults: {output}")
+    print(f"Status: {status}\nResults: {output}\nProgress log: {output / 'progress.jsonl'}")
     if meta["mode"] == "mock":
         print("MOCK: offline wiring check only; no LLM quality evaluation or LangSmith upload.")
     if meta.get("trace_url"):

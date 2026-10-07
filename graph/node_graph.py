@@ -18,6 +18,7 @@ from runtime.aliases import (
     split_absence_claims,
 )
 from runtime.node_rules import DRAFT_RULES
+from runtime.progress import ProgressLog
 from runtime.prompts import load_rubric, render
 from runtime.synthesis_check import synthesis_errors
 from runtime.validation import (
@@ -224,8 +225,10 @@ def build_node_graph(
     *,
     previous: NodeRun | None = None,
     refresh_technologies: set[str] | None = None,
+    log: ProgressLog | None = None,
 ):
     """Eight bounded stages shared by every role; every question retains its own budget."""
+    log = log or ProgressLog(None)
     if not data.questions or len(data.questions) > settings.limits.questions:
         raise ValueError(f"Provide 1..{settings.limits.questions} questions")
     criteria = {c.id for c in load_rubric(node).criteria}
@@ -343,6 +346,7 @@ def build_node_graph(
             initial["queries"] = planned(pending(initial) if live_search else data.questions, [])
         except Exception as exc:
             initial.update(fatal=True, errors=[f"Planning failed: {type(exc).__name__}"])
+        log.emit("plan", node=node, ok=not initial["fatal"], errors=initial["errors"])
         return initial
 
     def layered_queries(q, base, intent, count, live):
@@ -423,6 +427,20 @@ def build_node_graph(
                     record.error = f"Search failed: {type(exc).__name__}"
                     record.evidence_ids = []
                 records.append(record)
+        log.emit(
+            "search",
+            node=node,
+            round_attempts=[
+                {
+                    "question_id": r.question_id,
+                    "intent": r.intent,
+                    "found": len(r.evidence_ids),
+                    "error": r.error,
+                }
+                for r in records[len(state["searches"]) :]
+            ],
+            total_evidence=len(evidence),
+        )
         return {
             "search_results": evidence,
             "search_count": counts,
@@ -489,6 +507,7 @@ def build_node_graph(
         if not state["search_results"]:
             # Nothing to judge: record insufficiency without a model call so an
             # empty search stays "insufficient evidence" instead of an execution failure.
+            log.emit("sufficiency", node=node, sufficient=False, reason="근거 없음")
             return {
                 **base,
                 "coverage": [
@@ -519,12 +538,19 @@ def build_node_graph(
                 }
             )
             coverage = [updated[q.id] for q in data.questions]
+            log.emit(
+                "sufficiency",
+                node=node,
+                sufficient=all(c.sufficient for c in coverage),
+                unmet=[c.question_id for c in coverage if not c.sufficient],
+            )
             return {
                 **base,
                 "coverage": coverage,
                 "is_sufficient": all(c.sufficient for c in coverage),
             }
         except Exception as exc:
+            log.emit("sufficiency", node=node, sufficient=False, error=type(exc).__name__)
             return {
                 "is_sufficient": False,
                 "fatal": True,
@@ -570,6 +596,7 @@ def build_node_graph(
         prompt_evidence = labelled
         system, user, digest = render(node, current, labelled)
         if state.get("fatal"):
+            log.emit("draft", node=node, ok=False, reason="upstream fatal state")
             return {
                 "draft": empty_result(node, "; ".join(state["errors"])),
                 "prompt_hash": digest,
@@ -606,16 +633,18 @@ def build_node_graph(
                 draft = backend.generate_scoped(node, packets)
             else:
                 draft = backend.generate(node, current, prompt_evidence, system, user)
+            draft = split_absence_claims(
+                carry_forward_unverified(
+                    drop_cross_technology(
+                        restore_result(NodeResult.model_validate(draft), back),
+                        state["search_results"],
+                    ),
+                    data,
+                )
+            )[0]
+            log.emit("draft", node=node, ok=True, claims=len(draft.claims))
             return {
-                "draft": split_absence_claims(
-                    carry_forward_unverified(
-                        drop_cross_technology(
-                            restore_result(NodeResult.model_validate(draft), back),
-                            state["search_results"],
-                        ),
-                        data,
-                    )
-                )[0],
+                "draft": draft,
                 "prompt_hash": digest,
                 "rendered_system": system,
                 "rendered_user": user,
@@ -623,6 +652,7 @@ def build_node_graph(
             }
         except Exception as exc:
             reason = f"Generator failed: {type(exc).__name__}; check provider configuration"
+            log.emit("draft", node=node, ok=False, reason=reason)
             return {
                 "draft": empty_result(node, reason),
                 "prompt_hash": digest,
@@ -641,6 +671,7 @@ def build_node_graph(
             data, state["draft"], state["search_results"]
         )
         if rule_errors and state["fix_count"] < settings.limits.fix:
+            log.emit("verify", node=node, verdict="표현 오류", errors=rule_errors)
             return {"judge": JudgeResult(checks=[]), "errors": rule_errors, "verdict": "표현 오류"}
         try:
             # No claims means nothing to verify; never let a model invent checks for them.
@@ -676,6 +707,7 @@ def build_node_graph(
                 if expression_error
                 else "통과"
             )
+            log.emit("verify", node=node, verdict=verdict, errors=errors)
             return {
                 "judge": judge,
                 "draft": draft,
@@ -684,6 +716,7 @@ def build_node_graph(
                 "retry_from_verification": True,
             }
         except Exception as exc:
+            log.emit("verify", node=node, verdict="추가 근거 필요", error=type(exc).__name__)
             return {
                 "judge": JudgeResult(checks=[]),
                 "fatal": True,
@@ -725,6 +758,7 @@ def build_node_graph(
                     data,
                 )
             )[0]
+            log.emit("fix", node=node, ok=True, fix_count=state["fix_count"] + 1)
             return {
                 "draft": draft,
                 "fix_count": state["fix_count"] + 1,
@@ -734,6 +768,13 @@ def build_node_graph(
                 "errors": [],
             }
         except Exception as exc:
+            log.emit(
+                "fix",
+                node=node,
+                ok=False,
+                fix_count=state["fix_count"] + 1,
+                error=type(exc).__name__,
+            )
             return {
                 "fatal": True,
                 "fix_count": state["fix_count"] + 1,
@@ -744,7 +785,19 @@ def build_node_graph(
             }
 
     def return_result(state):
-        return finalize_node(node, data, mode, state, backend.name)
+        update = finalize_node(node, data, mode, state, backend.name)
+        run = update["output"]
+        log.emit(
+            "result",
+            node=node,
+            status=run.status,
+            verdict=state["verdict"],
+            fix_count=state["fix_count"],
+            claims=len(run.result.claims),
+            unverified=len(run.result.unverified),
+            errors=len(run.validation_errors),
+        )
+        return update
 
     builder = StateGraph(RAGSubState)
     for fn in (

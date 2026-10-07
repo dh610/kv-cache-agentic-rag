@@ -138,6 +138,10 @@ class TechTerms(SettingsModel):
 class Settings(SettingsModel):
     schema_version: Literal[2]
     target_techs: dict[str, str]
+    # Short technical identity per target_techs value (e.g. ITME -> "CXL hybrid memory").
+    # target_techs itself stays bare codenames since claim/assessment.technology match
+    # against it directly; this is planner-only context, never a contract-matched field.
+    tech_descriptions: dict[str, str] = Field(default_factory=dict)
     domain: str
     report: ReportMeta = Field(default_factory=ReportMeta)
     models: Models
