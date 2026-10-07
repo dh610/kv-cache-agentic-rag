@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +58,7 @@ def execute(graph, label: str, mode: str, metadata: dict) -> tuple[dict, Path]:
     )
     output = base / f"{stamp}-{label}-{run_id.hex[:8]}"
     output.mkdir(parents=True, exist_ok=False)
+    started = time.monotonic()
     manifest = {
         "run_id": str(run_id),
         "mode": mode,
@@ -93,6 +95,9 @@ def execute(graph, label: str, mode: str, metadata: dict) -> tuple[dict, Path]:
                 manifest["trace_warning"] = f"Trace URL unavailable: {type(exc).__name__}"
         return final, output
     finally:
+        # 실행 시간을 산출물에 남긴다. 패턴·설정을 바꿔 가며 비교할 때 외부 계측에
+        # 의존하지 않으려는 것이고, 제출 트레이스와 대조하는 기준점이기도 하다.
+        manifest["elapsed_seconds"] = round(time.monotonic() - started, 1)
         (output / "run.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -111,7 +116,9 @@ def save_json(path: Path, value) -> None:
 
 def show_run(output: Path, status: str) -> int:
     meta = json.loads((output / "run.json").read_text())
-    print(f"Status: {status}\nResults: {output}")
+    elapsed = meta.get("elapsed_seconds")
+    timing = f" ({elapsed / 60:.1f}분)" if elapsed else ""
+    print(f"Status: {status}{timing}\nResults: {output}")
     if meta["mode"] == "mock":
         print("MOCK: offline wiring check only; no LLM quality evaluation or LangSmith upload.")
     if meta.get("trace_url"):

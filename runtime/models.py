@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Literal, Protocol, Union
 
 from langchain_core.runnables.config import ContextThreadPoolExecutor
@@ -27,7 +28,8 @@ from schemas.contracts import (
 )
 
 # 주장 판정의 동시 실행 수. 주장끼리 독립이고, 속도 제한을 고려해 보수적으로 잡는다.
-JUDGE_WORKERS = 4
+# JUDGE_WORKERS=1 로 두면 병렬화 이전의 직렬 동작이 되어 효과를 직접 비교할 수 있다.
+JUDGE_WORKERS = max(1, int(os.getenv("JUDGE_WORKERS", "4")))
 
 
 class ModelBackend(Protocol):

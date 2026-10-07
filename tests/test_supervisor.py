@@ -261,7 +261,9 @@ def test_quality_failure_routes_back_to_the_responsible_agents():
     control["report"] = done("report")
     verdict = QualityVerdict(
         passed=False,
-        checks=[{"criterion": "neutrality", "passed": False, "reason": "우열 표현", "source": "rule"}],
+        checks=[
+            {"criterion": "neutrality", "passed": False, "reason": "우열 표현", "source": "rule"}
+        ],
         remediation_roles=["report"],
     )
     action, targets, reason = decide(base_state(control=control, quality=verdict), policy)

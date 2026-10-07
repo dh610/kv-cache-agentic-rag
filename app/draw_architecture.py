@@ -100,10 +100,14 @@ def _head(draw, previous, tip, colour, size=7):
     s = size * SCALE
     if abs(x1 - x0) >= abs(y1 - y0):
         d = 1 if x1 > x0 else -1
-        draw.polygon([(x1, y1), (x1 - d * s, y1 - s * 0.6), (x1 - d * s, y1 + s * 0.6)], fill=colour)
+        draw.polygon(
+            [(x1, y1), (x1 - d * s, y1 - s * 0.6), (x1 - d * s, y1 + s * 0.6)], fill=colour
+        )
     else:
         d = 1 if y1 > y0 else -1
-        draw.polygon([(x1, y1), (x1 - s * 0.6, y1 - d * s), (x1 + s * 0.6, y1 - d * s)], fill=colour)
+        draw.polygon(
+            [(x1, y1), (x1 - s * 0.6, y1 - d * s), (x1 + s * 0.6, y1 - d * s)], fill=colour
+        )
 
 
 def verify(graph) -> list[str]:
@@ -194,7 +198,9 @@ def draw(output: Path) -> Path:
         fill=(226, 230, 240),
         width=SCALE,
     )
-    _dashed_line(d, (46 * SCALE, (legend_y + 24) * SCALE), (96 * SCALE, (legend_y + 24) * SCALE), DISPATCH, 2)
+    _dashed_line(
+        d, (46 * SCALE, (legend_y + 24) * SCALE), (96 * SCALE, (legend_y + 24) * SCALE), DISPATCH, 2
+    )
     text(d, (106, legend_y + 18), "조건부 배정 — 매 스텝 State 로 결정 (재작업 포함)", 9.5, INK)
     d.line(
         [(446 * SCALE, (legend_y + 24) * SCALE), (496 * SCALE, (legend_y + 24) * SCALE)],
