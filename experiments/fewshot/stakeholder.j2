@@ -1,0 +1,25 @@
+
+## 판단 연습: 발언 근거 → 주체·방향 → 판정
+아래 EXAMPLE-Q / EXAMPLE-M과 SAMPLE ID는 가상 교육용 사례다. 실제 출력에 이름·수치·문장을 복사하거나 근거로 인용하지 않는다. 이번 evidence_json의 원문에만 근거하고 기존 rubric을 적용한다.
+
+사례 1 — 원 저자의 성능 주장은 사용자의 반응이 아니다.
+근거 SAMPLE-A: EXAMPLE-Q 논문 저자가 "Our method reduces cache memory by 62%."라고 썼고, 뉴스가 그 문장을 재게시했다.
+해석: 기술 효과에 대한 저자 주장이지 제3자의 사용 경험이 아니다. 뉴스로 재게시돼도 독립 검증으로 바뀌지 않는다.
+출력의 요지: adopters용 claim을 만들지 않는다. 다른 사용자 근거가 없다면 adopters는 확인 불가, unverified에 실제 도입자 발언 필요를 기록한다. 부정으로 판정하지 않는다.
+
+사례 2 — 독립 사용자의 조건부 경험은 유효한 근거다.
+근거 SAMPLE-B: 원문에서 자신을 외부 개발자라고 밝힌 작성자가 "I tested EXAMPLE-Q on my GPU. Memory use dropped, but I had to patch the kernel."라고 썼다.
+해석: 저자와 구별되는 실제 사용자의 경험이다. 이득과 도입 조건이 함께 있으므로 무조건 긍정으로 확대하지 않는다.
+출력의 요지: adopters claim은 원문 문장을 그대로 인용하고 작성자·날짜·실사용 조건을 연결한다. 조건부 효과가 확인되므로 중립으로 판단하고 양쪽 측면을 rationale에 설명한다. 자신의 환경 한 건을 전체 산업 채택으로 확대하지 않는다.
+
+사례 3 — 발언의 방향이 핵심이다.
+근거 SAMPLE-C: EXAMPLE-M 저자가 "Competitor-Y requires an expensive accelerator."라고 주장했다.
+해석: EXAMPLE-M → 경쟁 기술에 대한 발언이다. 경쟁 진영 → EXAMPLE-M의 반응이 아니다.
+출력의 요지: 이 문장으로 EXAMPLE-M의 competitors 반응을 부정으로 판정하지 않는다. 해당 방향의 실제 발언이 없으면 확인 불가다.
+반대 사례 SAMPLE-D: 경쟁 기술 개발사가 "We consider the EXAMPLE-M approach complementary to our design."라고 실제 발표했다면 competitors의 긍정 근거가 된다. 원문 주체와 방향이 확인될 때만 해당 문장을 claim으로 인용한다.
+
+사례 4 — 업계 소개와 전망을 구분한다.
+근거 SAMPLE-E: 독립 매체가 "EXAMPLE-Q was presented at Conference-Z."라고 보도했다.
+해석: 사건 소개만 있고 성장·투자 전망은 없다. industry에 쓸 수 있는 실제 매체 발언이라면 동향 소개에 해당하는 중립이며, 투자 호재라는 긍정으로 바꾸지 않는다. 논문을 그대로 재게시한 자료라면 독립 반응으로 채택하지 않는다.
+
+답변 전 각 질문에서 발언 주체 / 실제 인용문 / 선정 기술을 향한 발언인지 / 실사용·비교·전망 중 어느 종류인지 / rubric 판정을 짧게 대응시킨다. 원문 발언이 있으면 필요한 claim을 작성하고, 없으면 부재를 claim으로 꾸미지 않는다. rationale에는 판정 논거와 공개 정보 기반 추정임을 간결하게 적는다. 긴 사고과정은 출력하지 않는다.
