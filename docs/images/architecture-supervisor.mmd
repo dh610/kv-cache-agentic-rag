@@ -1,0 +1,40 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	initialize(initialize)
+	supervisor(supervisor)
+	tech(tech)
+	market(market)
+	stakeholder(stakeholder)
+	domain(domain)
+	synthesis(synthesis)
+	report(report)
+	quality(quality)
+	finalize(finalize)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> initialize;
+	domain --> supervisor;
+	initialize --> supervisor;
+	market --> supervisor;
+	quality --> supervisor;
+	report --> supervisor;
+	stakeholder --> supervisor;
+	supervisor -.-> domain;
+	supervisor -.-> finalize;
+	supervisor -.-> market;
+	supervisor -.-> quality;
+	supervisor -.-> report;
+	supervisor -.-> stakeholder;
+	supervisor -.-> synthesis;
+	supervisor -.-> tech;
+	synthesis --> supervisor;
+	tech --> supervisor;
+	finalize --> __end__;
+	supervisor -.-> supervisor;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
