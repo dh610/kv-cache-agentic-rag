@@ -18,6 +18,11 @@ STAKEHOLDER_CRITERIA = {"competitors", "adopters", "industry"}
 PAPER_MIRROR_HOSTS = ("arxiv.org", "ar5iv.org", "alphaxiv.org", "liner.com")
 
 
+# Tavily 기본 검색 응답에는 publisher·author가 없다(확인: 2026-10-07 실제 호출). 발행처가 비면 사이트 호스트명을 쓴다.
+def publisher_for(item: dict, url: str) -> str | None:
+    return item.get("publisher") or urlparse(url).hostname
+
+
 def is_paper_mirror(url: str, criterion: str) -> bool:
     if criterion not in STAKEHOLDER_CRITERIA:
         return False
@@ -89,7 +94,7 @@ class WebSource:
                     retrieved_at=datetime.now(timezone.utc).isoformat(),
                     published_at=item.get("published_date"),
                     authors=item.get("author"),
-                    publisher=item.get("publisher"),
+                    publisher=publisher_for(item, url),
                     site=urlparse(url).hostname,
                 )
             )

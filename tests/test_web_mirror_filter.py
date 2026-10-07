@@ -2,7 +2,7 @@
 
 import pytest
 
-from rag.web import is_paper_mirror
+from rag.web import is_paper_mirror, publisher_for
 
 
 @pytest.mark.parametrize(
@@ -37,3 +37,14 @@ def test_other_criteria_keep_paper_mirrors():
 def test_lookalike_hosts_are_not_dropped():
     # 호스트 접미사 비교라서 "notarxiv.org" 같은 이름은 걸리지 않아야 한다.
     assert not is_paper_mirror("https://notarxiv.org/post", "adopters")
+
+
+def test_publisher_falls_back_to_site_host_when_api_omits_it():
+    # Tavily 기본 응답에는 publisher가 없어서 호스트명으로 채운다.
+    assert publisher_for({}, "https://www.example.org/post/1") == "www.example.org"
+
+
+def test_api_publisher_wins_when_present():
+    assert (
+        publisher_for({"publisher": "Example Press"}, "https://x.example.org/a") == "Example Press"
+    )
