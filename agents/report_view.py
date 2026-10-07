@@ -57,6 +57,33 @@ def placeholder(role: str, mode: str, control=None) -> NodeRun:
     )
 
 
+def confirmed_trl(state, settings) -> dict:
+    """확정 TRL. 합쳐진 평가 종합 결과에서 조판 직전에 계산한다.
+
+    종합이 기술별로 쪼개져 동시에 돌아오므로, 조각이 저마다 State 에 쓰면 서로를 덮는다.
+    기술 조사의 **잠정** 추정은 여기서 승격시키지 않는다 — 확정은 종합의 일이다.
+    """
+    run = state.get("results", {}).get("synthesis")
+    confirmed = (
+        {t.technology: t.model_dump() for t in run.result.trl_estimates if not t.provisional}
+        if run is not None
+        else {}
+    )
+    return {
+        tech: confirmed.get(
+            tech,
+            {
+                "technology": tech,
+                "level": None,
+                "rationale": "확정 TRL 근거 부족",
+                "evidence_ids": [],
+                "disclaimer": "공개 정보 기반 추정",
+            },
+        )
+        for tech in settings.target_techs.values()
+    }
+
+
 def flat_state(state, settings, mode: str = "mock") -> dict:
     """``assemble_report`` · ``validate_report`` 가 읽는 키만 추려 평면 dict 로 만든다."""
     results = state.get("results", {})
@@ -64,19 +91,7 @@ def flat_state(state, settings, mode: str = "mock") -> dict:
     view = {
         "target_techs": state["target_techs"],
         "domain": state["domain"],
-        "trl_result": {
-            tech: state.get("trl_result", {}).get(
-                tech,
-                {
-                    "technology": tech,
-                    "level": None,
-                    "rationale": "평가 종합 결과 없음",
-                    "evidence_ids": [],
-                    "disclaimer": "공개 정보 기반 추정",
-                },
-            )
-            for tech in state["target_techs"].values()
-        },
+        "trl_result": confirmed_trl(state, settings),
         "sources": state.get("sources", []),
         "gaps": gaps_from_results(state, settings),
     }

@@ -411,14 +411,26 @@ def _assessment_table(run, techs):
     return rows
 
 
-def findings_line(run, tech) -> str:
+def _judgement_line(assessment, label) -> str:
+    """판정 한 건을 본문 문장으로. 제출본에서는 '- 기술 항목:' 꼬리표를 떼고 문장만 싣는다."""
+    body = f"{assessment.judgment}. {assessment.rationale}{_ids(assessment.evidence_ids)}"
+    if _COMPACT:
+        return _cell(f"{assessment.technology} {label} — {body}")
+    return _cell(f"- {assessment.technology} {label}: {body}")
+
+
+def findings_line(run, tech, only: str | None = None) -> str:
     """그 관점이 이 기술에 대해 실제로 내린 판정을 한 줄로 먼저 보여 준다.
 
     절이 "KIVI 절 구성: 확인 불가" 로 시작하면 읽는 사람은 아무것도 안 나왔다고 읽는다.
     그 문장은 기술에 대한 평가가 아니라 **이 절이 구성됐는지**에 대한 파이프라인 상태인데,
     실제 판정은 절 끝 비교표에 묻혀 있었다. 결과를 먼저 놓고 상태는 뒤로 보낸다.
     """
-    items = [a for a in run.result.assessments if a.technology == tech]
+    items = [
+        a
+        for a in run.result.assessments
+        if a.technology == tech and (only is None or a.criterion == only)
+    ]
     if not items:
         return f"> {tech}: 이 관점의 평가 결과가 없다."
     decided = [a for a in items if a.judgment != "확인 불가"]
@@ -431,12 +443,13 @@ def findings_line(run, tech) -> str:
     parts = ", ".join(entry(a) for a in items)
     head = f"{tech} — {parts}."
     unknown = len(items) - len(decided)
-    if not decided:
-        head += " (공개 근거 부족으로 전 항목 보류)"
-    elif unknown:
-        head += f" ({len(items)}항목 중 {unknown}항목은 공개 근거 부족으로 보류)"
-    else:
-        head += f" ({len(items)}항목 모두 판정)"
+    if len(items) > 1:
+        if not decided:
+            head += " (공개 근거 부족으로 전 항목 보류)"
+        elif unknown:
+            head += f" ({len(items)}항목 중 {unknown}항목은 공개 근거 부족으로 보류)"
+        else:
+            head += f" ({len(items)}항목 모두 판정)"
     return "> " + _cell(head)
 
 
@@ -640,19 +653,16 @@ def _render_report(state, result_keys, mode, sources):
 
     lines.append("# 5. 시사점")
     shown = set()
+    # 5장은 절마다 항목이 하나뿐이라 띠를 절마다 두면 바로 아래 문장과 같은 말이 된다.
+    # 장 머리에 한 번만 두고 두 항목을 함께 싣는다.
     for tech in techs:
-        lines.extend(_narrative(report, "implications", tech, shown))
+        lines.append(findings_line(synthesis, tech))
     lines.append("## 5.1 관점 간 상충 지점")
     synth_summary = _cell(synthesis.result.summary)
     lines.append(synth_summary if _COMPACT else f"평가 종합 노드 요약: {synth_summary}")
     for a in synthesis.result.assessments:
         if a.criterion == "consistency":
-            lines.append(
-                _cell(
-                    f"- {a.technology} {LABELS['consistency']}: {a.judgment}. "
-                    f"{a.rationale}{_ids(a.evidence_ids)}"
-                )
-            )
+            lines.append(_judgement_line(a, LABELS["consistency"]))
     lines.append("표 5-1 관점×기술 교차표")
     lines.append(f"| 관점 | {' | '.join(techs)} |")
     lines.append(f"| --- |{' --- |' * len(techs)}")
@@ -671,6 +681,8 @@ def _render_report(state, result_keys, mode, sources):
             )
         lines.append(f"| {ROLE_LABELS[role]} | {' | '.join(cells)} |")
     lines.append("## 5.2 조건부 시사점과 보완 관계 가능성")
+    for tech in techs:
+        lines.extend(_narrative(report, "implications", tech, shown))
     for a in synthesis.result.assessments:
         if a.criterion != "consistency":
             lines.append(
@@ -900,7 +912,7 @@ def write_report(
         base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
         return ParagraphStyle(name, **{**base, **kw})
 
-    dense = 0.72 if compact else 1.0
+    dense = 0.70 if compact else 1.0
     normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
     cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
     cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)

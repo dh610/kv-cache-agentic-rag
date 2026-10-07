@@ -814,7 +814,7 @@ def finalize_node(node, data, mode, state, model):
             # 루브릭에 없는 값(오염된 문자열 등)은 판정으로 쓰지 않는다.
             a.judgment, a.rationale, a.evidence_ids = (
                 "확인 불가",
-                "허용되지 않은 판정 값이어서 보류합니다.",
+                "루브릭에 없는 판정 값이어서 보류했다.",
                 [],
             )
             continue
@@ -840,7 +840,7 @@ def finalize_node(node, data, mode, state, model):
         if not verified or not set(a.evidence_ids).issubset(verified):
             a.judgment, a.rationale, a.evidence_ids = (
                 "확인 불가",
-                "근거 검증 실패로 판정을 보류합니다.",
+                "인용한 근거가 검증을 통과하지 못해 판정을 보류했다.",
                 [],
             )
     for t in result.trl_estimates:
@@ -850,7 +850,7 @@ def finalize_node(node, data, mode, state, model):
             result, state["judge"].checks, state["search_results"], t.technology
         )
         if not t.evidence_ids or not set(t.evidence_ids).issubset(supported):
-            t.level, t.evidence_ids, t.rationale = None, [], "근거 검증 실패"
+            t.level, t.evidence_ids, t.rationale = None, [], "인용한 근거가 검증을 통과하지 못했다"
     # TRL 이 같은 노드의 등급과 어긋나면 근거가 확인되더라도 그 기술의 단계는 남기지
     # 않는다. 판정은 기술별로만 적용한다.
     for name in {t.technology for t in result.trl_estimates}:

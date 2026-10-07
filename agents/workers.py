@@ -189,8 +189,9 @@ def make_worker(
                 )
             },
         }
-        if role == "synthesis":
-            delta["trl_result"] = _trl_from_synthesis(out, settings)
+        # 확정 TRL 은 여기서 쓰지 않는다. 종합이 기술별로 쪼개져 동시에 돌아오므로 조각
+        # 하나가 쓰면 다른 조각의 값을 덮는다. 합쳐진 결과에서 조판 직전에 계산한다
+        # (agents/report_view.py).
         return delta
 
     run_worker.__name__ = f"worker_{role}"
