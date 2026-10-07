@@ -106,15 +106,44 @@ def check_bias_control(state, settings, sources) -> CriterionVerdict:
             )
         if pool and not any(e.affiliation == "independent" for e in pool):
             problems.append(f"{tech}: 독립 출처 없음(자사·미분류 자료만)")
-    stances = {e.stance for e in sources}
-    if not ({"positive", "critical"} <= stances or "mixed" in stances):
-        problems.append("긍정·비판 양쪽 입장의 원문이 확인되지 않음")
+    # 유리한 근거만 모았는지는 "무엇을 찾으러 갔는가"로 잰다. 질문마다 긍정·비판 질의를
+    # 쌍으로 내는데, 한쪽만 실제로 수행됐다면 그 질문의 근거는 한쪽으로 기운 것이다.
+    #
+    # 자료가 실제로 비판적인가(Evidence.stance)로 재지 않는 이유: 그 값은 사람이
+    # source_annotations.yaml 에 적어야 채워진다. live 실행에서 수집한 367건이 전부
+    # unknown 이었고, 그대로 두면 이 항목은 사람이 손대기 전까지 영원히 미달이다.
+    # 항상 미달인 검사는 엄격한 것이 아니라 아무것도 알려주지 않는다. 내용 수준의 편중
+    # ("비판 자료가 있는데도 긍정만 인용했는가")은 2층 Judge 가 본문을 읽고 판정한다.
+    one_sided = _one_sided_questions(state)
+    if one_sided:
+        problems.append(f"한쪽 질의만 수행된 질문 {len(one_sided)}건: {', '.join(one_sided[:4])}")
+    unclassified = sum(1 for e in sources if e.stance == "unknown")
+    note = (
+        f" / 출처 {unclassified}건은 입장 미분류 — 검색 수행과 자료의 실제 입장은 다르다"
+        if unclassified
+        else ""
+    )
     return CriterionVerdict(
         criterion="bias_control",
         passed=not problems,
-        reason="단일 출처·편중 없음" if not problems else "; ".join(problems[:6]),
+        reason=("단일 출처·편중 없음" if not problems else "; ".join(problems[:6])) + note,
         source="rule",
     )
+
+
+def _one_sided_questions(state) -> list[str]:
+    """긍정·비판 중 한쪽 검색만 성공한 질문. 고정 근거(fixture)는 양면 대상이 아니다."""
+    out = []
+    for role, _ in PERSPECTIVES.values():
+        run = state.get("results", {}).get(role)
+        if run is None:
+            continue
+        for question in sorted({r.question_id for r in run.searches}):
+            intents = {r.intent for r in run.searches if r.question_id == question and not r.error}
+            if "fixture" in intents or {"positive", "critical"} <= intents:
+                continue
+            out.append(question)
+    return out
 
 
 def check_coverage(state, text) -> CriterionVerdict:
