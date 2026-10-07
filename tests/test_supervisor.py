@@ -660,7 +660,7 @@ def test_sufficiency_score_rises_with_resolved_items():
 
 def test_quality_rules_run_against_a_real_mock_report(tmp_path):
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report, report_sources
+    from runtime.report import assemble_report, report_sources
 
     final = build().invoke(
         {},
@@ -739,7 +739,7 @@ def test_rework_gets_a_narrower_search_budget_than_the_first_attempt(monkeypatch
 def test_compact_layout_keeps_required_structure_and_cuts_bulk(tmp_path):
     """제출본은 분량만 줄이고 필수 목차·비교표·판정은 전체본과 같아야 한다."""
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report
+    from runtime.report import assemble_report
 
     final = build().invoke(
         {},
@@ -770,7 +770,7 @@ def test_compact_reference_lists_only_what_the_text_cites(tmp_path):
     import re
 
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report
+    from runtime.report import assemble_report
 
     final = build().invoke(
         {},
@@ -802,7 +802,7 @@ def test_compact_submission_is_written_next_to_the_full_report(tmp_path):
 
 def test_a_run_never_overwrites_the_submission_copy_outside_its_output_dir(tmp_path, monkeypatch):
     """제출본 복사는 고정 경로를 덮어쓴다. 테스트·실험이 실제 산출물 자리를 건드리면 안 된다."""
-    from runtime.reporting import write_report
+    from runtime.report import write_report
     from runtime.settings import ROOT, load_settings
 
     monkeypatch.setenv("RUN_OUTPUT_DIR", str(tmp_path))
@@ -974,7 +974,7 @@ def test_compact_body_never_leaks_raw_evidence_ids(tmp_path):
     실측에서 그 때문에 본문이 24,986자에서 45,451자로 늘고 제출본이 10장을 넘겼다.
     """
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report
+    from runtime.report import assemble_report
 
     final = build().invoke(
         {},
@@ -1282,7 +1282,7 @@ def test_an_oversized_summary_still_produces_a_pdf(tmp_path):
     """분량 위반은 검사가 잡는다. 조판이 죽어 산출물이 아예 안 나오는 일은 없어야 한다."""
     from pypdf import PdfReader
 
-    from runtime.reporting import write_report
+    from runtime.report import write_report
     from runtime.settings import load_settings
 
     long_summary = "KIVI는 key cache를 채널별로 양자화한다. " * 120

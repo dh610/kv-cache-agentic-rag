@@ -28,7 +28,7 @@ from langchain_core.runnables import RunnableConfig
 from agents.observability import log_from_config
 from agents.report_view import RESULT_KEYS, flat_state
 from agents.state import CriterionVerdict, QualityVerdict
-from runtime.reporting import RECOMMENDATION_PHRASES, assemble_report, report_sources
+from runtime.report import RECOMMENDATION_PHRASES, assemble_report, report_sources
 
 # 관점 커버리지의 4개 관점 ↔ 보고서 절 ↔ 하위 에이전트 역할.
 PERSPECTIVES = {

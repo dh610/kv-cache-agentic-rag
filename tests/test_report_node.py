@@ -5,7 +5,7 @@ import re
 from graph.main_graph import RESULT_KEYS, build_main_graph
 from runtime.models import MockBackend
 from runtime.prompts import load_rubric, render
-from runtime.reporting import (
+from runtime.report import (
     REPORT_SECTIONS,
     SUMMARY_MAX_CHARS,
     assemble_report,

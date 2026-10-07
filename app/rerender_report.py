@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from agents.report_view import RESULT_KEYS, flat_state
-from runtime.reporting import assemble_report, validate_report, write_report
+from runtime.report import assemble_report, validate_report, write_report
 from runtime.settings import load_settings
 from schemas.contracts import Evidence, Gap, NodeRun
 

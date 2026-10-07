@@ -96,7 +96,7 @@ def test_supplement_accumulates_sources_without_overwrite():
 
 
 def test_report_excludes_superseded_citations_but_keeps_source_history():
-    from runtime.reporting import assemble_report, validate_report
+    from runtime.report import assemble_report, validate_report
 
     state, _ = run()
     previous = state["sources"][0].model_copy(update={"id": "superseded-source"})

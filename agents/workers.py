@@ -26,8 +26,8 @@ from agents.sufficiency import rework_feedback
 from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
+from runtime.report import used_ids
 from runtime.report_draft import assemble_report_node
-from runtime.reporting import used_ids
 from schemas.contracts import JudgeResult, NodeInput, NodeRun
 
 RESEARCH_ROLES = ("tech", "market", "stakeholder", "domain")

@@ -1,13 +1,13 @@
 """Supervisor State → 기존 보고서 조립기가 기대하는 평면 State 로의 어댑터.
 
-보고서 조판(``runtime.reporting``)은 RAG 과제에서 검증된 코드 그대로 쓴다. 조정 계층만
+보고서 조판(``runtime.report``)은 RAG 과제에서 검증된 코드 그대로 쓴다. 조정 계층만
 패턴에 맞게 바뀌었으므로, 여기서 키 이름만 맞춰 준다. 조정 계층(``agents``)과 산출
 계층(``runtime``)을 섞지 않으려고 어댑터를 따로 둔다.
 """
 
 from __future__ import annotations
 
-from runtime.reporting import collect_gaps
+from runtime.gaps import collect_gaps
 from schemas.contracts import NODES, NodeRun, empty_result
 
 # 기존 메인 그래프가 쓰던 결과 키 이름. 보고서 조립기의 계약이다.
