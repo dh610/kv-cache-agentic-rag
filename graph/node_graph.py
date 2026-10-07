@@ -916,6 +916,11 @@ def finalize_node(node, data, mode, state, model):
             result.summary = notice
         elif not result.summary.startswith(notice):
             result.summary = f"{notice} {result.summary.strip()}"
+    if node == "report":
+        from runtime.aliases import trim_summary
+        from runtime.reporting import SUMMARY_MAX_CHARS
+
+        result.summary = trim_summary(result.summary, SUMMARY_MAX_CHARS)
     errors.extend(state.get("plan_errors", []))
     errors.extend(
         f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error

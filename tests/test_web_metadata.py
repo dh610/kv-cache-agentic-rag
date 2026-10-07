@@ -27,7 +27,9 @@ def test_falls_back_to_json_ld_then_time_tag():
         "publisher": "Business Wire",
         "authors": None,
     }
-    assert page_metadata('<time datetime="2023-11-02T10:00">x</time>')["published_at"] == "2023-11-02"
+    assert (
+        page_metadata('<time datetime="2023-11-02T10:00">x</time>')["published_at"] == "2023-11-02"
+    )
 
 
 def test_missing_metadata_stays_none_not_guessed():
@@ -46,3 +48,14 @@ def test_manual_source_skips_network_fetch():
     source = WebSource.__new__(WebSource)
     assert source.metadata_fetch is False
     assert source.fill_metadata([]) == []
+
+
+def test_report_summary_is_trimmed_at_sentence_boundary():
+    from runtime.aliases import trim_summary
+
+    text = "첫 문장이다. " + "둘째 문장은 조금 더 길다. " * 30
+    out = trim_summary(text, 120)
+    assert len(out) <= 120
+    assert out.endswith("…(이하 생략)")
+    assert out.startswith("첫 문장이다. 둘째 문장은 조금 더 길다.")
+    assert trim_summary("짧은 요약.", 600) == "짧은 요약."
