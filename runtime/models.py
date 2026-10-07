@@ -13,16 +13,21 @@ from schemas.contracts import (
     Claim,
     ClaimCheck,
     Coverage,
+    CriterionVerdict,
     Evidence,
     JudgeResult,
     NodeInput,
     NodeName,
     NodeResult,
+    QualityReview,
     QueryPair,
     QueryPlan,
     SufficiencyResult,
     TRLEstimate,
 )
+
+# 주장 판정의 동시 실행 수. 주장끼리 독립이고, 속도 제한을 고려해 보수적으로 잡는다.
+JUDGE_WORKERS = 4
 
 
 class ModelBackend(Protocol):
@@ -37,6 +42,9 @@ class ModelBackend(Protocol):
     def plan(self, data: NodeInput, feedback: list) -> QueryPlan: ...
 
     def sufficiency(self, data: NodeInput, evidence: list[Evidence]) -> SufficiencyResult: ...
+
+    # quality_review 는 선택 메서드다. 구현하지 않은 백엔드(mock)에서는 보고서 품질
+    # 평가가 코드 규칙 1층만 돌고 judge_available=False 로 기록된다.
 
 
 class MockBackend:
@@ -190,6 +198,9 @@ class OpenAIBackend:
         self.evaluator = ChatOpenAI(model=settings.models.judge, **kwargs).with_structured_output(
             JudgeResult, method="json_schema"
         )
+        self.quality_judge = ChatOpenAI(
+            model=settings.models.judge, **kwargs
+        ).with_structured_output(QualityReview, method="json_schema")
 
     def generate(self, node, data, evidence, system, user):
         if node not in self.generators:
@@ -229,6 +240,51 @@ class OpenAIBackend:
         merged.summary = "\n".join(r.summary for r in results)
         return merged
 
+    def quality_review(self, text, criteria, used_sources) -> list[CriterionVerdict]:
+        """보고서 품질 평가의 2층. 코드 규칙이 통과시킨 항목만 내용으로 다시 본다.
+
+        규칙이 이미 떨어뜨린 항목은 묻지 않는다(결론이 정해졌고 호출만 낭비된다).
+        판정 대상 항목 이름은 코드가 고정하므로, 모델이 다른 항목을 지어내도 버린다.
+        """
+        import json
+
+        from runtime.settings import ROOT
+
+        if not criteria:
+            return []
+        prompt = (ROOT / "prompts/quality/judge.j2").read_text(encoding="utf-8")
+        payload = json.dumps(
+            {
+                "criteria": list(criteria),
+                "report": text,
+                "sources": [
+                    {
+                        "id": e.id,
+                        "title": e.title,
+                        "url": e.url,
+                        "technology": e.technology,
+                        "source_type": e.source_type,
+                        "scope": e.scope,
+                        "affiliation": e.affiliation,
+                        "stance": e.stance,
+                    }
+                    for e in used_sources
+                ],
+            },
+            ensure_ascii=False,
+        )
+        review = QualityReview.model_validate(
+            self.quality_judge.invoke([("system", prompt), ("human", payload)])
+        )
+        wanted, seen = set(criteria), set()
+        items = []
+        for item in review.items:
+            if item.criterion not in wanted or item.criterion in seen:
+                continue
+            seen.add(item.criterion)
+            items.append(item.model_copy(update={"source": "judge"}))
+        return items
+
     def judge(self, result, evidence):
         """주장 하나씩, 그 주장이 인용한 근거만 보여주고 판정한다.
 
@@ -244,19 +300,17 @@ class OpenAIBackend:
 
         prompt = (ROOT / "prompts/shared/judge.j2").read_text(encoding="utf-8")
         by_id = {e.id: e for e in evidence}
-        checks = []
-        for claim in result.claims:
+
+        def one_claim(claim):
+            """주장 하나를 판정한다. 주장끼리 독립이므로 순서가 결과를 바꾸지 않는다."""
             cited = [by_id[eid] for eid in dict.fromkeys(claim.evidence_ids) if eid in by_id]
             if not cited:
-                checks.append(
-                    ClaimCheck(
-                        claim_id=claim.id,
-                        label="unsupported",
-                        evidence_ids=[],
-                        reason="인용한 근거가 현재 근거 목록에 없다.",
-                    )
+                return ClaimCheck(
+                    claim_id=claim.id,
+                    label="unsupported",
+                    evidence_ids=[],
+                    reason="인용한 근거가 현재 근거 목록에 없다.",
                 )
-                continue
             labelled, back = alias(cited)
             payload = json.dumps(
                 {
@@ -270,25 +324,28 @@ class OpenAIBackend:
             )
             check = one.checks[0] if one.checks else None
             if check is None:
-                checks.append(
-                    ClaimCheck(
-                        claim_id=claim.id,
-                        label="unsupported",
-                        evidence_ids=[],
-                        reason="판정 결과가 비어 있다.",
-                    )
+                return ClaimCheck(
+                    claim_id=claim.id,
+                    label="unsupported",
+                    evidence_ids=[],
+                    reason="판정 결과가 비어 있다.",
                 )
-                continue
             known = {e.id for e in labelled}
             ids = [back[i] for i in dict.fromkeys(check.evidence_ids) if i in known]
-            checks.append(
-                ClaimCheck(
-                    claim_id=claim.id,  # 판정기가 바꿔 적어도 대상 주장은 코드가 고정한다.
-                    label=check.label,
-                    evidence_ids=ids,
-                    reason=check.reason,
-                )
+            return ClaimCheck(
+                claim_id=claim.id,  # 판정기가 바꿔 적어도 대상 주장은 코드가 고정한다.
+                label=check.label,
+                evidence_ids=ids,
+                reason=check.reason,
             )
+
+        # 주장 수만큼의 직렬 왕복이 live 실행 시간의 대부분이었다 (노드당 10~20콜 × 6노드).
+        # 판정은 주장마다 독립이라 동시에 돌려도 결과가 같다. pool.map 이 입력 순서를
+        # 유지하므로 checks 의 순서도 claims 순서 그대로다.
+        if not result.claims:
+            return JudgeResult(checks=[])
+        with ContextThreadPoolExecutor(max_workers=JUDGE_WORKERS) as pool:
+            checks = list(pool.map(one_claim, result.claims))
         return JudgeResult(checks=checks)
 
     def plan(self, data, feedback):

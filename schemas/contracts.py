@@ -140,6 +140,37 @@ class JudgeResult(Contract):
     checks: list[ClaimCheck]
 
 
+QualityCriterion = Literal["groundedness", "neutrality", "bias_control", "coverage"]
+
+
+class CriterionVerdict(Contract):
+    """보고서 품질 평가 항목 하나의 판정 (가이드 D)."""
+
+    criterion: QualityCriterion
+    passed: bool
+    reason: str
+    # 코드 규칙(rule)·LLM Judge(judge) 중 어느 층의 판정인지. Hybrid 결합의 근거.
+    source: Literal["rule", "judge", "both"] = "rule"
+
+
+class QualityReview(Contract):
+    """LLM Judge 층의 구조화 출력."""
+
+    items: list[CriterionVerdict]
+
+
+class QualityVerdict(Contract):
+    """네 항목을 합친 최종 판정. 미달이면 Supervisor 가 재작업 루프를 돈다."""
+
+    passed: bool
+    checks: list[CriterionVerdict]
+    remediation_roles: list[str] = Field(default_factory=list)
+    judge_available: bool = True
+
+    def failed_criteria(self) -> list[str]:
+        return [c.criterion for c in self.checks if not c.passed]
+
+
 class SearchRecord(Contract):
     question_id: str
     attempt: int

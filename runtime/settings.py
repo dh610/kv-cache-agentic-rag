@@ -135,6 +135,34 @@ class TechTerms(SettingsModel):
         return self
 
 
+class QualityPolicy(SettingsModel):
+    """보고서 품질 평가(가이드 D)의 기준. 1층 규칙의 임계값과 2층 Judge 사용 여부."""
+
+    judge: bool = True
+    min_groundedness: float = Field(default=0.9, ge=0, le=1)
+
+
+class SupervisorPolicy(SettingsModel):
+    """조정 계층의 한도와 근거 충분성 기준.
+
+    네 한도는 종료 보장 장치다(가이드 C "종료 보장"). 어느 하나라도 소진되면
+    Supervisor 는 finalize 로만 분기하므로 그래프는 반드시 끝난다.
+    """
+
+    max_steps: int = Field(default=24, ge=4, le=100)  # Supervisor 분기 횟수 상한
+    max_attempts: int = Field(default=2, ge=1, le=4)  # 하위 에이전트 1명당 실행 횟수
+    max_revisions: int = Field(default=2, ge=0, le=5)  # 근거 부족 재작업 라운드
+    max_quality_rounds: int = Field(default=2, ge=0, le=5)  # 품질 미달 재작성 라운드
+    min_sufficiency: float = Field(default=0.6, ge=0, le=1)  # 역할별 근거 충분도 기준
+    min_sources_per_tech: int = Field(default=2, ge=1, le=10)  # 기술당 서로 다른 출처 수
+    # 벽시계 예산(초). 넘기면 "더 파는 것"(재작업)만 멈추고 보고서는 반드시 낸다.
+    # 0 이면 끔. live 실행이 마감을 넘기지 않게 하는 장치이며, 품질 기준을 낮추지 않는다.
+    max_seconds: int = Field(default=1500, ge=0, le=14400)
+    # 재작업했는데 근거가 한 건도 늘지 않은 역할은 다시 재작업하지 않는다.
+    stop_on_no_new_evidence: bool = True
+    quality: QualityPolicy = Field(default_factory=QualityPolicy)
+
+
 class Settings(SettingsModel):
     schema_version: Literal[2]
     target_techs: dict[str, str]
@@ -147,6 +175,7 @@ class Settings(SettingsModel):
     gap_policy: GapPolicy = Field(default_factory=GapPolicy)
     evidence_policy: EvidencePolicy = Field(default_factory=EvidencePolicy)
     search_terms: dict[str, TechTerms] = Field(default_factory=dict)
+    supervisor: SupervisorPolicy = Field(default_factory=SupervisorPolicy)
 
     @model_validator(mode="after")
     def terms_cover_targets(self):
@@ -170,6 +199,15 @@ def load_settings() -> Settings:
     ):
         if os.getenv(env):
             raw["limits"][key] = int(os.environ[env])
+    # Supervisor 한도도 같은 방식으로 임시 조정할 수 있다. 제출 설정은 config.yaml 이다.
+    for env, key in (
+        ("SUPERVISOR_MAX_STEPS", "max_steps"),
+        ("SUPERVISOR_MAX_ATTEMPTS", "max_attempts"),
+        ("SUPERVISOR_MAX_REVISIONS", "max_revisions"),
+        ("SUPERVISOR_MAX_QUALITY_ROUNDS", "max_quality_rounds"),
+    ):
+        if os.getenv(env):
+            raw.setdefault("supervisor", {})[key] = int(os.environ[env])
     return Settings.model_validate(raw)
 
 
