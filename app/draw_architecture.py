@@ -138,7 +138,7 @@ def draw(output: Path) -> Path:
     text(
         d,
         (40, 60),
-        "순서는 간선이 아니라 Supervisor 의 판단에 있다. 모든 하위 에이전트는 Supervisor 하고만 통신한다.",
+        "순서는 간선이 아니라 Supervisor 의 판단에 있다. 배정은 Send 로 나가고, 그 개수는 실행 중에 정해진다.",
         11,
         MUTED,
     )
@@ -154,9 +154,10 @@ def draw(output: Path) -> Path:
     # 허브
     box(d, (380, 300, 610, 410), HUB_FILL, HUB_EDGE, width=3)
     text(d, (495, 327), "SUPERVISOR", 16, HUB_EDGE, anchor="mm")
-    text(d, (495, 352), "현재 State 만 읽고 다음 분기를 고른다", 9.5, INK, anchor="mm")
-    text(d, (495, 372), "add_conditional_edges", 9.5, MUTED, anchor="mm")
-    text(d, (495, 391), "수집된 관점 · 근거 충분도 · 남은 한도", 9, MUTED, anchor="mm")
+    text(d, (495, 350), "합쳐진 결과로 근거 충분성을 재판정하고", 9.5, INK, anchor="mm")
+    text(d, (495, 366), "작업 항목 목록을 만든다", 9.5, INK, anchor="mm")
+    text(d, (495, 385), "add_conditional_edges → Send", 9.5, MUTED, anchor="mm")
+    text(d, (495, 400), "수집된 관점 · 근거 충분도 · 남은 한도", 9, MUTED, anchor="mm")
     arrow(d, [(330, 355), (380, 355)], LINE)
 
     # 하위 에이전트
@@ -171,12 +172,20 @@ def draw(output: Path) -> Path:
         text(d, (left + 18, y + 40), detail, 9, MUTED)
         mid = y + box_h / 2
 
-        # 배정(조건부·동적)
-        arrow(d, [(610, 345), (690, 345), (690, mid - 9), (left, mid - 9)], DISPATCH, dashed=True)
+        # 배정 (Send · 개수가 실행마다 다름)
+        arrow(d, [(610, 342), (690, 342), (690, mid - 9), (left, mid - 9)], DISPATCH, dashed=True)
         # 보고(무조건) — Supervisor 로만 돌아온다
         arrow(d, [(left, mid + 9), (740, mid + 9), (740, 390), (610, 390)], RETURN)
 
-    text(d, (790, 95 + 7 * (box_h + gap) + 4), "quality 는 보고서 생성 뒤에만 배정된다", 9, MUTED)
+    caption_y = 95 + 7 * (box_h + gap) + 2
+    text(d, (790, caption_y), "조사 4역할은 기술별로 쪼개 배정한다 (한 스텝 최대 6건).", 8.5, MUTED)
+    text(
+        d,
+        (790, caption_y + 14),
+        "종합·보고서·품질은 기술 대조가 일이라 통째로 배정한다.",
+        8.5,
+        MUTED,
+    )
 
     # 종료 경로
     box(d, (380, 500, 610, 560), CODE_FILL, LINE)
@@ -201,7 +210,7 @@ def draw(output: Path) -> Path:
     _dashed_line(
         d, (46 * SCALE, (legend_y + 24) * SCALE), (96 * SCALE, (legend_y + 24) * SCALE), DISPATCH, 2
     )
-    text(d, (106, legend_y + 18), "조건부 배정 — 매 스텝 State 로 결정 (재작업 포함)", 9.5, INK)
+    text(d, (106, legend_y + 18), "Send 배정 — 개수·범위가 실행 중에 결정 (재작업 포함)", 9.5, INK)
     d.line(
         [(446 * SCALE, (legend_y + 24) * SCALE), (496 * SCALE, (legend_y + 24) * SCALE)],
         fill=RETURN,
