@@ -6,12 +6,12 @@ domain: 데이터센터·클라우드 LLM 서빙
 # 보고서 표지. 설계서 표지와 같은 구성으로 조판한다.
 report:
   title: KV cache 최적화 기술 다관점 평가 보고서
-  subtitle: LangGraph 기반 Multi-Agent · Agentic RAG
+  subtitle: LangGraph 기반 Multi-Agent · Supervisor 패턴
   lead: SW 압축 KIVI / HW 메모리 확장 ITME
   campus: 판교 · 8반
   members: [김계원, 박유진, 윤동현, 인수연, 정재웅]
   # 과제 규칙의 제출 파일명. outputs/ 아래에 이 이름으로 최종본을 복사한다.
-  submission: RAG-Output_판교_8반_김계원+박유진+윤동현+인수연+정재웅.pdf
+  submission: Agent-Output_판교_8반_김계원+박유진+윤동현+인수연+정재웅.pdf
 
 models:
   generator: gpt-4.1-mini

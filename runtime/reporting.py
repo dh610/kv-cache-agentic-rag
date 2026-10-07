@@ -239,8 +239,14 @@ def reference_entries(sources):
     return lines
 
 
+# 모델이 프롬프트의 임시 근거 번호(E1, E12 …)를 문장에 그대로 섞어 쓴다. 괄호에 묶인
+# 형태뿐 아니라 "이는 E1, E12, E240 근거에 기반한" 처럼 맨몸으로 나열하거나 "E1~E375"
+# 처럼 범위로 쓰기도 한다. 독자에게는 의미가 없고 인용은 REFERENCE 번호로 따로 붙는다.
+_E_RUN = r"E\d+(?:\s*[,;·~]\s*E\d+)*"
 INTERNAL = re.compile(
-    r"\s*[\(\[]\s*E\d+(\s*[,;·]\s*E\d+)*\s*[\)\]]"  # (E1, E3) 같은 임시 근거 번호
+    rf"\s*(이는|이것은)?\s*{_E_RUN}\s*근거(?:\s*전반)?에\s*기반한\s*"  # 문장 속 나열
+    rf"|\s*[\(\[]\s*{_E_RUN}\s*[\)\]]"  # (E1, E3) 같은 임시 근거 번호
+    rf"|\s*\b{_E_RUN}\b"  # 남은 맨몸 번호
     r"|\b(tech|market|stakeholder|domain|synthesis|report)/[A-Za-z]+/[a-z_]+"
     r"(\s*[·,]\s*[a-z_]+)*\s*:?\s*"  # 내부 키 경로(나열 포함)
     # rubric 이 "market/기술/기준: 등급" 형식을 지시하는데, 모델이 그 형식 설명을
@@ -255,7 +261,9 @@ def strip_internal(value: str) -> str:
     E 번호는 프롬프트에서만 쓰는 임시 근거 번호이고 `tech/KIVI/overview:` 는 노드 내부
     키다. 독자에게는 의미가 없고, 인용은 REFERENCE 번호로 따로 붙는다.
     """
-    return re.sub(r"\s{2,}", " ", INTERNAL.sub("", value)).strip()
+    cleaned = INTERNAL.sub(" ", value)  # 지운 자리에 공백을 남겨 단어가 붙지 않게 한다
+    cleaned = re.sub(r"\s+([.,;)\]])", r"\1", cleaned)  # 구두점 앞에 생긴 공백은 거둔다
+    return re.sub(r"\s{2,}", " ", cleaned).strip()
 
 
 def _cell(text):
@@ -407,7 +415,7 @@ def findings_line(run, tech) -> str:
     """
     items = [a for a in run.result.assessments if a.technology == tech]
     if not items:
-        return f"{tech}: 이 관점의 평가 결과가 없다."
+        return f"> {tech}: 이 관점의 평가 결과가 없다."
     decided = [a for a in items if a.judgment != "확인 불가"]
     def entry(a):
         label = LABELS.get(a.criterion, a.criterion)
@@ -424,7 +432,7 @@ def findings_line(run, tech) -> str:
         head += f" ({len(items)}항목 중 {unknown}항목은 공개 근거 부족으로 보류)"
     else:
         head += f" ({len(items)}항목 모두 판정)"
-    return _cell(head)
+    return "> " + _cell(head)
 
 
 def _narrative(report_run, criterion, tech, shown=None):
@@ -883,7 +891,7 @@ def write_report(
         base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
         return ParagraphStyle(name, **{**base, **kw})
 
-    dense = 0.66 if compact else 1.0
+    dense = 0.72 if compact else 1.0
     normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
     cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
     cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)
@@ -907,8 +915,41 @@ def write_report(
         textColor=faint,
     )
 
+    # 절 머리의 판정 줄. 본문에서 가장 먼저 읽어야 할 내용이라 따로 꾸민다.
+    finding = style("finding", fontSize=9.5, leading=15, spaceAfter=2)
     story = []
-    if meta:
+    if meta and compact:
+        # 제출본은 표지에 한 쪽을 쓰지 않는다. 같은 정보를 머리말로 올리고 본문이
+        # 바로 이어진다. 10장 한도에서 표지 한 쪽은 본문 한 쪽과 바꾸는 선택이다.
+        story += [
+            Paragraph(
+                "A G E N T - O U T P U T",
+                style("l", fontSize=8, textColor=faint),
+            ),
+            Spacer(1, 6),
+            Paragraph(pdf_text(meta.title), style("t", fontSize=18, leading=24)),
+            Spacer(1, 2),
+            Paragraph(
+                pdf_text(f"{meta.subtitle} · {meta.lead}"),
+                style("s", fontSize=9.5, leading=15, textColor=faint),
+            ),
+            Spacer(1, 7),
+            _rule(accent, 505),
+            Spacer(1, 5),
+            Paragraph(
+                pdf_text(
+                    f"{meta.campus}  ·  {' · '.join(meta.members)}  ·  "
+                    f"{date.today():%Y년 %m월 %d일}"
+                ),
+                style("m", fontSize=8.5, leading=13, textColor=faint),
+            ),
+            Paragraph(
+                "자동 생성 초안입니다. 모든 판정은 공개 정보 기반 추정이며 사람의 검토가 필요합니다.",
+                style("d", fontSize=8, leading=13, textColor=faint),
+            ),
+            Spacer(1, 10),
+        ]
+    elif meta:
         big = style("t", alignment=TA_CENTER, fontSize=21, leading=32)
         mid = style("s", alignment=TA_CENTER, fontSize=12, leading=21, textColor=faint)
         small = style("m", alignment=TA_CENTER, fontSize=9.5, leading=18)
@@ -935,9 +976,7 @@ def write_report(
             ),
             PageBreak(),
         ]
-        if not compact:
-            # 10장짜리 문서에서 목차는 한 쪽을 통째로 쓰고 절반만 찬다. 분량 한도가
-            # 걸린 제출본에서는 그 한 쪽을 본문에 쓴다. 표지와 절 제목은 그대로 둔다.
+        if True:
             toc = TableOfContents()
             toc.levelStyles = [
                 style("toc0", fontSize=10, leading=20, spaceAfter=2),
@@ -992,10 +1031,39 @@ def write_report(
         )
         story.extend([box, Spacer(1, 16)])
 
+    def findings_band(lines):
+        """절 머리의 판정 줄 묶음. 읽는 사람이 이 절의 결론을 먼저 보게 한다."""
+        body = [Paragraph(pdf_text(line), finding) for line in lines]
+        box = Table([[body]], colWidths=[505])
+        box.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), wash),
+                    ("LINEBEFORE", (0, 0), (0, -1), 2.2, accent),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 11),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 11),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story.extend([box, Spacer(1, 9)])
+
     pending_summary, in_summary = [], False
+    pending_findings = []
+
+    def flush_findings():
+        if pending_findings:
+            findings_band(list(pending_findings))
+            pending_findings.clear()
+
     for line in text.splitlines():
         if not line.strip():
             continue
+        if line.startswith("> "):
+            pending_findings.append(line[2:])
+            continue
+        flush_findings()
         if line.startswith("|"):
             if line.startswith("| ---"):
                 continue
@@ -1022,6 +1090,7 @@ def write_report(
             continue
         style_for = caption if line.startswith("표 ") else normal
         story.append(Paragraph(pdf_text(line), style_for))
+    flush_findings()
     if in_summary and pending_summary:
         summary_box(pending_summary)
     flush()
