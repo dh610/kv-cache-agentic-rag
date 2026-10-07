@@ -436,15 +436,17 @@ ITME:
     stance: unknown
   https://www.solidigm.com/products/technology/what-is-cmx-context-memory-storage.html:
     affiliation: first_party
-    affiliation_reason: Solidigm은 SK hynix 자회사(동일 기업집단). 독립 반응으로 보지 않음
+    affiliation_reason: Solidigm은 SK hynix 자회사(동일 기업집단). ITME 논문 저자 8명 소속은 'Memory Systems Research, SK hynix'(논문 1쪽 확인).
+      페이지 주제는 NVIDIA CMX이지만 편향 통제 목적상 자사로 분류
     publisher: Solidigm
-    reviewed_by: 박유진 (발행 기관·URL 기준 초안, 본문 검토 전)
+    reviewed_by: 팀 검토 2026-10-07 (자회사 관계·논문 저자 소속 확인)
     stance: unknown
   https://www.solidigmtechnology.kr/products/technology/what-is-cmx-context-memory-storage.html:
     affiliation: first_party
-    affiliation_reason: Solidigm은 SK hynix 자회사(동일 기업집단). 독립 반응으로 보지 않음
+    affiliation_reason: Solidigm은 SK hynix 자회사(동일 기업집단). ITME 논문 저자 8명 소속은 'Memory Systems Research, SK hynix'(논문 1쪽 확인).
+      페이지 주제는 NVIDIA CMX이지만 편향 통제 목적상 자사로 분류
     publisher: Solidigm
-    reviewed_by: 박유진 (발행 기관·URL 기준 초안, 본문 검토 전)
+    reviewed_by: 팀 검토 2026-10-07 (자회사 관계·논문 저자 소속 확인)
     stance: unknown
   https://www.sphericalinsights.com/reports/cxl-memory-expansion-market:
     affiliation: independent
@@ -665,15 +667,17 @@ KIVI:
     stance: unknown
   https://turbo-quant.com/en/turboquant-vs-kivi:
     affiliation: independent
-    affiliation_reason: TurboQuant 비교 사이트. KIVI 저자와 무관. Google 공식 여부는 미확인
+    affiliation_reason: 사이트 본문이 스스로 독립 참고 사이트이며 Google·Alphabet과 무관하다고 명시. 작성자는 'TurboQuant Team'으로만 표기된 익명 운영 주체 → 경쟁 진영(Google)의
+      발언으로 쓸 수 없고, 독립 자료로도 신뢰도 낮음. 비교 수치는 원 논문 인용 권장
     publisher: turbo-quant.com
-    reviewed_by: 박유진 (발행 기관·URL 기준 초안, 본문 검토 전)
+    reviewed_by: 팀 검토 2026-10-07 (사이트 본문 확인)
     stance: unknown
   https://turbo-quant.com/turboquant-vs-kivi:
     affiliation: independent
-    affiliation_reason: TurboQuant 비교 사이트. KIVI 저자와 무관. Google 공식 여부는 미확인
+    affiliation_reason: 사이트 본문이 스스로 독립 참고 사이트이며 Google·Alphabet과 무관하다고 명시. 작성자는 'TurboQuant Team'으로만 표기된 익명 운영 주체 → 경쟁 진영(Google)의
+      발언으로 쓸 수 없고, 독립 자료로도 신뢰도 낮음. 비교 수치는 원 논문 인용 권장
     publisher: turbo-quant.com
-    reviewed_by: 박유진 (발행 기관·URL 기준 초안, 본문 검토 전)
+    reviewed_by: 팀 검토 2026-10-07 (사이트 본문 확인)
     stance: unknown
   https://venturebeat.com/orchestration/nvidia-shrinks-llm-memory-20x-without-changing-model-weights:
     affiliation: independent
