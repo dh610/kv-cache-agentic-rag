@@ -212,10 +212,12 @@ live에서는 재작업 1라운드가 전체의 56%(28.2분 중 15.9분)를 썼�
 
 ## Contributors
 
+이전 RAG 과제와 담당 영역은 그대로이고, 이번 과제에서 각 영역에 더해진 작업을 함께 적는다.
+
 | 팀원 | GitHub | 담당 역할 |
 | --- | --- | --- |
-| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 조사·도메인 에이전트, 근거 충분성 평가 기준(항목 충족·핵심 항목) 설계 |
-| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 에이전트, 보고서 품질 평가 — 편향 통제·중립성 규칙 및 Judge 프롬프트 |
-| 윤동현 | [dh610](https://github.com/dh610) | 논문 RAG·인덱싱·검색 평가, 지속성 비용 설계(근거 디스크 분리·인용 상속) |
-| 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 에이전트, 보고서 품질 평가 — Groundedness·관점 커버리지 규칙 |
-| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | Supervisor 라우팅·State 스키마·reducer, 종료 보장 및 fall-back, 그래프 연결·검증 |
+| 김계원 | [wonn2k](https://github.com/wonn2k) | 기술 조사 에이전트, 도메인 조사 에이전트, 도메인·기술 프롬프트·rubric·TRL 평가 사례 및 검증 — 근거 충분성 판정 기준(항목 충족·핵심 항목) 설계 |
+| 박유진 | [youjin09222](https://github.com/youjin09222) | 이해관계자 평가 에이전트, 이해관계자 프롬프트·rubric·평가 사례 및 검증 — 보고서 품질 평가의 편향 통제·중립성 규칙과 Judge 프롬프트 |
+| 윤동현 | [dh610](https://github.com/dh610) | 논문 RAG, PDF 청킹·임베딩·인덱싱, 검색 평가 코드·절차 — State 지속성 비용 설계(근거 디스크 분리·인용 상속) |
+| 인수연 | [1nyeonart](https://github.com/1nyeonart) | 시장성 평가 에이전트, 시장 프롬프트·rubric·평가 사례 및 검증 — 보고서 품질 평가의 Groundedness·관점 커버리지 규칙 |
+| 정재웅 | [Jae-Ung-Jeong](https://github.com/Jae-Ung-Jeong) | 웹 검색, 공통 서브그래프와 그래프 연결·검증 — Supervisor 라우팅·Send 배정·State 스키마와 reducer, 종료 보장과 fall-back |
