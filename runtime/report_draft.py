@@ -3,7 +3,7 @@
 import hashlib
 
 from rag.evidence import merge_evidence
-from runtime.reporting import used_ids
+from runtime.report import used_ids
 from schemas.contracts import Assessment, NodeResult, NodeRun
 
 SECTION_ROLES = {

@@ -1,4 +1,4 @@
-"""Deterministic report assembly and final validation; generated files are not approval.
+"""보고서 재료를 설계서 목차로 조립한다. 검사와 PDF 출력은 이웃 모듈의 일이다.
 
 The report node's LLM output (claims per section, SUMMARY, limitations, per-section
 coverage assessments) is placed into the design's E.2 outline here. Chapters 1-2, the
@@ -8,21 +8,20 @@ fixed prose in prompts/report/sections.j2, as design E.3 specifies.
 
 from __future__ import annotations
 
-import os
 import re
 from collections import Counter
-from pathlib import Path
-from xml.sax.saxutils import escape
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from rag.evidence import merge_evidence
-from runtime.handoff import reference_issues
+from runtime.report.renderer import write_report  # noqa: F401  (조립 → 출력 재노출)
 from runtime.settings import ROOT
-from schemas.contracts import Gap
 
 # Design E.1: SUMMARY must stay within half a page. Counted on the LLM summary only.
 SUMMARY_MAX_CHARS = 600
+# 이보다 긴 요약은 강조 상자에 넣지 않는다. A4 한 쪽(약 724pt)에 들어가지 않는 단일 셀
+# 표는 쪼개지지 못하고 조판 전체를 중단시킨다.
+SUMMARY_BOX_CHARS = 1400
 # Guide E: the report never recommends a technology or ranks the two.
 RECOMMENDATION_PHRASES = (
     "추천한다",
@@ -86,48 +85,6 @@ def report_sources(state, result_keys):
     for estimate in state.get("trl_result", {}).values():
         used.update(estimate.get("evidence_ids", []))
     return [e for e in merge_evidence(state["sources"]) if e.id in used]
-
-
-def collect_gaps(runs, settings):
-    """역할별 보완 대상. 같은 사유가 여러 번 쌓이면 보고서 6장이 같은 줄로 채워진다."""
-    gaps = []
-    for role, run in runs.items():
-        items = run.result.assessments
-        unknown = [a for a in items if a.judgment == "확인 불가"]
-        if not items or len(unknown) / len(items) >= settings.gap_policy.unknown_fraction:
-            gaps.append(
-                Gap(
-                    role=role,
-                    criterion="coverage",
-                    reason="확인 불가 항목 비율이 기준 이상이거나 평가 항목 없음",
-                )
-            )
-        for a in unknown:
-            if a.criterion in settings.gap_policy.critical_criteria.get(role, []):
-                gaps.append(
-                    Gap(
-                        role=role,
-                        criterion=f"{a.technology}/{a.criterion}",
-                        reason="핵심 항목 확인 불가",
-                    )
-                )
-        for reason in run.validation_errors + run.result.unverified:
-            gaps.append(Gap(role=role, criterion="verification", reason=reason))
-        questions = {r.question_id for r in run.searches}
-        for question in sorted(questions):
-            intents = {r.intent for r in run.searches if r.question_id == question and not r.error}
-            if not {"positive", "critical"}.issubset(intents):
-                gaps.append(Gap(role=role, criterion=question, reason="긍정·비판 양쪽 검색 미완료"))
-        if not questions:
-            gaps.append(Gap(role=role, criterion="search", reason="검색 이력 없음"))
-    unique, seen = [], set()
-    for gap in gaps:
-        key = (gap.role, gap.criterion, gap.reason)
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(gap)
-    return unique
 
 
 def reference_text(e):
@@ -278,7 +235,7 @@ def _summary_paragraphs(summary, label=None):
     줄바꿈을 문단 경계로 유지하고, 파이프라인 말투 라벨은 첫 문단에만 단다.
     """
     parts = [_cell(part) for part in summary.splitlines() if part.strip()]
-    if label and parts and not _COMPACT:
+    if label and parts:
         parts[0] = f"{label}: {parts[0]}"
     return parts
 
@@ -377,9 +334,13 @@ def _unique_claim_lines(claims, shown, *, per_technology=False):
 
 def _claim_line(c):
     if _COMPACT:
-        # 제출본은 문장을 그대로 싣는다. "- KIVI:" 접두사와 "조건:" 꼬리는 노트의
-        # 표기이지 보고서의 문장이 아니다. 적용 조건은 비교표의 각 칸이 따로 적는다.
-        return _cell(f"{c.text}{_ids(c.evidence_ids)}")
+        # 제출본은 "- KIVI:" 접두사를 떼고 문장만 싣는다. 적용 조건은 **버리지 않는다** —
+        # 어떤 실험 환경에서 성립하는 수치인지가 기술 평가의 내용 자체이고, 비교표의
+        # 각 칸은 판정 기준과 직접 근거 유무만 적지 실험 조건을 적지 않는다.
+        line = f"{c.text}{_ids(c.evidence_ids)}"
+        if c.conditions:
+            line += " (조건: " + "; ".join(c.conditions) + ")"
+        return _cell(line)
     line = f"- {c.technology}: {c.text}{_ids(c.evidence_ids)}"
     if c.conditions:
         line += " 조건: " + "; ".join(c.conditions)
@@ -424,14 +385,26 @@ def _assessment_table(run, techs):
     return rows
 
 
-def findings_line(run, tech) -> str:
+def _judgement_line(assessment, label) -> str:
+    """판정 한 건을 본문 문장으로. 제출본에서는 '- 기술 항목:' 꼬리표를 떼고 문장만 싣는다."""
+    body = f"{assessment.judgment}. {assessment.rationale}{_ids(assessment.evidence_ids)}"
+    if _COMPACT:
+        return _cell(f"{assessment.technology} {label} — {body}")
+    return _cell(f"- {assessment.technology} {label}: {body}")
+
+
+def findings_line(run, tech, only: str | None = None) -> str:
     """그 관점이 이 기술에 대해 실제로 내린 판정을 한 줄로 먼저 보여 준다.
 
     절이 "KIVI 절 구성: 확인 불가" 로 시작하면 읽는 사람은 아무것도 안 나왔다고 읽는다.
     그 문장은 기술에 대한 평가가 아니라 **이 절이 구성됐는지**에 대한 파이프라인 상태인데,
     실제 판정은 절 끝 비교표에 묻혀 있었다. 결과를 먼저 놓고 상태는 뒤로 보낸다.
     """
-    items = [a for a in run.result.assessments if a.technology == tech]
+    items = [
+        a
+        for a in run.result.assessments
+        if a.technology == tech and (only is None or a.criterion == only)
+    ]
     if not items:
         return f"> {tech}: 이 관점의 평가 결과가 없다."
     decided = [a for a in items if a.judgment != "확인 불가"]
@@ -445,13 +418,42 @@ def findings_line(run, tech) -> str:
     parts = ", ".join(entry(a) for a in items)
     head = f"{tech} — {parts}."
     unknown = len(items) - len(decided)
-    if not decided:
-        head += " (공개 근거 부족으로 전 항목 보류)"
-    elif unknown:
-        head += f" ({len(items)}항목 중 {unknown}항목은 공개 근거 부족으로 보류)"
-    else:
-        head += f" ({len(items)}항목 모두 판정)"
+    if len(items) > 1:
+        if not decided:
+            head += " (공개 근거 부족으로 전 항목 보류)"
+        elif unknown:
+            head += f" ({len(items)}항목 중 {unknown}항목은 공개 근거 부족으로 보류)"
+        else:
+            head += f" ({len(items)}항목 모두 판정)"
     return "> " + _cell(head)
+
+
+def divergence_line(run, techs, only: str | None = None) -> str:
+    """두 기술의 판정이 갈리는 항목을 짚는다.
+
+    대조는 LLM 에게 맡길 수 없다 — Claim 은 technology 를 하나만 갖는 구조라, 주장 한
+    문장은 언제나 한 기술에 대한 것이다. 그래서 "A는 …인 반면 B는 …" 을 쓰라고 시켜도
+    모델이 쓸 수 있는 형태가 아니다. 갈린 지점은 판정에서 코드가 읽어 낸다.
+    """
+    if len(techs) != 2:
+        return ""
+    left, right = techs
+    verdicts = {
+        (a.technology, a.criterion): a.judgment
+        for a in run.result.assessments
+        if only is None or a.criterion == only
+    }
+    criteria = list(dict.fromkeys(c for _, c in verdicts))
+    split = [
+        f"{LABELS.get(c, c)} — {left} {verdicts[left, c]} / {right} {verdicts[right, c]}"
+        for c in criteria
+        if (left, c) in verdicts
+        and (right, c) in verdicts
+        and verdicts[left, c] != verdicts[right, c]
+    ]
+    if not split:
+        return "> 갈리는 항목 없음 — 두 기술이 같은 판정을 받았다."
+    return "> 갈리는 지점: " + _cell(" · ".join(split))
 
 
 def _narrative(report_run, criterion, tech, shown=None):
@@ -572,23 +574,25 @@ def _render_report(state, result_keys, mode, sources):
     lines = [
         "# SUMMARY",
         report.result.summary,
-        f"자동 생성 초안 / 실행 모드: {mode}. 공개 정보 기반 추정. 사람의 원문·등급 검토가 필요합니다.",
         "# 1. 분석 배경",
         sections.background(domain=state["domain"], sw=sw, hw=hw),
         "# 2. 기술 선정",
         sections.selection(sw=sw, hw=hw),
         "# 3. 기술 개요",
     ]
+    for tech in techs:
+        lines.append(findings_line(tech_run, tech))
+    lines.append(divergence_line(tech_run, techs))
     for number, tech in enumerate(techs, 1):
         lines.append(f"## 3.{number} {tech}")
         shown: set[str] = set()
-        lines.append(findings_line(tech_run, tech))
         lines.extend(_narrative(report, "overview", tech, shown))
         lines.extend(
             _unique_claim_lines([c for c in tech_run.result.claims if c.technology == tech], shown)
         )
     # Design E.1: the two-technology comparison table closes the section.
-    lines.extend(_summary_paragraphs(tech_run.result.summary, "기술 조사 노드 요약"))
+    if not _COMPACT:
+        lines.extend(_summary_paragraphs(tech_run.result.summary, "기술 조사 노드 요약"))
     lines.append("표 3-1 기술 조사 결과 비교")
     lines.extend(_assessment_table(tech_run, techs))
 
@@ -642,8 +646,12 @@ def _render_report(state, result_keys, mode, sources):
         # 판정 → 그 관점의 서술 → 기술별 소절(서술·근거 문장) → 비교표 순서로 읽히게 한다.
         for tech in techs:
             lines.append(findings_line(run, tech))
-        # 제출본에서는 "시장성 노드 요약:" 같은 파이프라인 말투를 빼고 문단만 싣는다.
-        lines.extend(_summary_paragraphs(run.result.summary, f"{ROLE_LABELS[role]} 노드 요약"))
+        lines.append(divergence_line(run, techs))
+        # 제출본에서는 관점 요약 문단을 싣지 않는다. 바로 위의 판정 띠와 갈리는 지점,
+        # 아래의 비교표가 같은 내용을 더 조밀하게 말한다. 분량 한도가 걸린 문서에서
+        # 같은 말을 세 번 하는 자리를 근거 문장과 표에 넘긴다.
+        if not _COMPACT:
+            lines.extend(_summary_paragraphs(run.result.summary, f"{ROLE_LABELS[role]} 노드 요약"))
         # 두 기술의 문장이 한 흐름에 섞이면 경계가 사라진다. 기술별 소제목으로 구획한다.
         for tech in techs:
             lines.append(f"### {tech}")
@@ -656,18 +664,17 @@ def _render_report(state, result_keys, mode, sources):
 
     lines.append("# 5. 시사점")
     shown = set()
+    # 5장은 절마다 항목이 하나뿐이라 띠를 절마다 두면 바로 아래 문장과 같은 말이 된다.
+    # 장 머리에 한 번만 두고 두 항목을 함께 싣는다.
     for tech in techs:
-        lines.extend(_narrative(report, "implications", tech, shown))
+        lines.append(findings_line(synthesis, tech))
+    lines.append(divergence_line(synthesis, techs))
     lines.append("## 5.1 관점 간 상충 지점")
-    lines.extend(_summary_paragraphs(synthesis.result.summary, "평가 종합 노드 요약"))
+    if not _COMPACT:
+        lines.extend(_summary_paragraphs(synthesis.result.summary, "평가 종합 노드 요약"))
     for a in synthesis.result.assessments:
         if a.criterion == "consistency":
-            lines.append(
-                _cell(
-                    f"- {a.technology} {LABELS['consistency']}: {a.judgment}. "
-                    f"{a.rationale}{_ids(a.evidence_ids)}"
-                )
-            )
+            lines.append(_judgement_line(a, LABELS["consistency"]))
     lines.append("표 5-1 관점×기술 교차표")
     lines.append(f"| 관점 | {' | '.join(techs)} |")
     lines.append(f"| --- |{' --- |' * len(techs)}")
@@ -686,6 +693,8 @@ def _render_report(state, result_keys, mode, sources):
             )
         lines.append(f"| {ROLE_LABELS[role]} | {' | '.join(cells)} |")
     lines.append("## 5.2 조건부 시사점과 보완 관계 가능성")
+    for tech in techs:
+        lines.extend(_narrative(report, "implications", tech, shown))
     for a in synthesis.result.assessments:
         if a.criterion != "consistency":
             lines.append(
@@ -795,408 +804,3 @@ def _render_report(state, result_keys, mode, sources):
     entries = reference_entries(sources)
     lines.extend(entries or ["인용된 출처 없음"])
     return "\n\n".join(lines) + "\n"
-
-
-def report_text_issues(report_run):
-    """Guide E constraints on the LLM-authored report material."""
-    problems = []
-    summary = report_run.result.summary
-    if len(summary) > SUMMARY_MAX_CHARS:
-        problems.append(
-            f"SUMMARY가 1/2 페이지 한도({SUMMARY_MAX_CHARS}자)를 초과: {len(summary)}자"
-        )
-    texts = [summary, *(c.text for c in report_run.result.claims)]
-    for phrase in RECOMMENDATION_PHRASES:
-        if any(phrase in t for t in texts):
-            problems.append(f"우열·추천 표현 검출: {phrase}")
-    return problems
-
-
-def validate_report(state, result_keys, text, mode):
-    problems = []
-    if mode == "mock":
-        problems.append("mock은 제출 보고서가 아닙니다")
-    evidence = {e.id: e for e in report_sources(state, result_keys)}
-    for key in result_keys.values():
-        run = state[key]
-        if run.status != "completed":
-            problems.append(f"{run.node}: {run.status}")
-        for eid in used_ids(run):
-            if eid not in evidence:
-                problems.append(f"{run.node}: 인용 출처 누락 {eid}")
-    for e in evidence.values():
-        problems.extend(reference_issues(e))
-        if e.affiliation == "unknown":
-            problems.append(f"{e.id}: 출처 이해관계 미분류")
-    for tech in state["target_techs"].values():
-        if state["trl_result"][tech].get("level") is None:
-            problems.append(f"{tech}: TRL 미확인")
-    if state["gaps"]:
-        problems.append("미해결 gaps가 있습니다")
-    if not text.startswith("# SUMMARY") or "\n# REFERENCE\n" not in text:
-        problems.append("SUMMARY/REFERENCE 형식 오류")
-    problems.extend(report_text_issues(state[result_keys["report"]]))
-    return {
-        "ready": not problems,
-        "problems": sorted(set(problems)),
-        "human_review_required": True,
-        "note": "형식·인용 연결 검사이며 사실성/평가 타당성의 최종 승인이 아님",
-    }
-
-
-def _rule(color, width):
-    from reportlab.platypus import Table, TableStyle
-
-    line = Table([[""]], colWidths=[width], rowHeights=[1])
-    line.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.9, color)]))
-    line.hAlign = "CENTER" if width < 300 else "LEFT"
-    return line
-
-
-def pdf_text(value: str) -> str:
-    """표 칸에서 쓰는 최소 서식만 남기고 나머지는 이스케이프한다.
-
-    내장 글꼴이 가운뎃점을 제대로 그리므로 문자 치환은 하지 않는다. 표 칸은 등급·판단
-    기준·사유를 줄로 나누고 등급에 색을 주기 위해 <br/> 와 <font> 만 통과시킨다.
-    """
-    out = escape(value)
-    for tag in ("<br/>", '<font color="#2F5D8C">', "</font>"):
-        out = out.replace(escape(tag), tag)
-    return out
-
-
-def write_report(
-    text,
-    output: Path,
-    meta=None,
-    mode: str = "live",
-    *,
-    compact: bool = False,
-    publish: bool = True,
-):
-    """설계서 표지·목차 구성으로 조판하고 한글 글꼴을 PDF 안에 내장한다.
-
-    compact 는 줄간격과 문단 간격만 좁힌다. 조판기는 본문의 모든 줄을 개별 문단으로
-    올리기 때문에 문단 간격이 쪽수를 크게 좌우하는데, 기본값(글꼴 9.5pt 에 줄간격 16)은
-    쪽당 1,800자 수준이라 과제 규칙의 10장 한도 안에서 내용을 더 버려야만 했다.
-    여백을 먼저 줄이면 버리는 내용이 그만큼 줄어든다. 글자 크기는 건드리지 않는다.
-    """
-    from datetime import date
-
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import (
-        BaseDocTemplate,
-        Frame,
-        LongTable,
-        PageBreak,
-        PageTemplate,
-        Paragraph,
-        Spacer,
-        Table,
-        TableStyle,
-    )
-    from reportlab.platypus.tableofcontents import TableOfContents
-
-    output.mkdir(parents=True, exist_ok=True)
-    (output / "report.md").write_text(text, encoding="utf-8")
-    font = "ReportKorean"
-    pdfmetrics.registerFont(TTFont(font, str(ROOT / "assets/fonts/NanumGothic-Regular.ttf")))
-    ink = colors.HexColor("#1B2530")
-    accent = colors.HexColor("#2F5D8C")
-    faint = colors.HexColor("#8A97A6")
-    hair = colors.HexColor("#D7DDE4")
-    wash = colors.HexColor("#F4F7FA")
-
-    def style(name, **kw):
-        base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
-        return ParagraphStyle(name, **{**base, **kw})
-
-    dense = 0.72 if compact else 1.0
-    normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
-    cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
-    cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)
-    chapter = style(
-        "chapter",
-        fontSize=16,
-        leading=22 * dense,
-        spaceBefore=22 * dense,
-        spaceAfter=2,
-        textColor=accent,
-    )
-    section = style(
-        "section", fontSize=11.5, leading=17 * dense, spaceBefore=15 * dense, spaceAfter=5 * dense
-    )
-    # 4장 각 절 안의 기술별 소절 머리(### KIVI). 목차에는 올리지 않는다.
-    subsection = style(
-        "subsection",
-        fontSize=10,
-        leading=15 * dense,
-        spaceBefore=10 * dense,
-        spaceAfter=3 * dense,
-        textColor=accent,
-    )
-    # "- " 목록 줄. 대시를 글자로 찍는 대신 들여쓰기와 글머리표로 조판한다.
-    bullet = style(
-        "bullet",
-        fontSize=9.5,
-        leading=15 * dense,
-        spaceAfter=4 * dense,
-        leftIndent=14,
-        bulletIndent=3,
-        bulletFontName=font,
-    )
-    caption = style(
-        "caption",
-        fontSize=8.5,
-        leading=13 * dense,
-        spaceBefore=6 * dense,
-        spaceAfter=3 * dense,
-        textColor=faint,
-    )
-
-    # 절 머리의 판정 줄. 본문에서 가장 먼저 읽어야 할 내용이라 따로 꾸민다.
-    finding = style("finding", fontSize=9.5, leading=15, spaceAfter=2)
-    story = []
-    if meta and compact:
-        # 제출본은 표지에 한 쪽을 쓰지 않는다. 같은 정보를 머리말로 올리고 본문이
-        # 바로 이어진다. 10장 한도에서 표지 한 쪽은 본문 한 쪽과 바꾸는 선택이다.
-        story += [
-            Paragraph(
-                "A G E N T - O U T P U T",
-                style("l", fontSize=8, textColor=faint),
-            ),
-            Spacer(1, 6),
-            Paragraph(pdf_text(meta.title), style("t", fontSize=18, leading=24)),
-            Spacer(1, 2),
-            Paragraph(
-                pdf_text(f"{meta.subtitle} · {meta.lead}"),
-                style("s", fontSize=9.5, leading=15, textColor=faint),
-            ),
-            Spacer(1, 7),
-            _rule(accent, 505),
-            Spacer(1, 5),
-            Paragraph(
-                pdf_text(
-                    f"{meta.campus}  ·  {' · '.join(meta.members)}  ·  "
-                    f"{date.today():%Y년 %m월 %d일}"
-                ),
-                style("m", fontSize=8.5, leading=13, textColor=faint),
-            ),
-            Paragraph(
-                "자동 생성 초안입니다. 모든 판정은 공개 정보 기반 추정이며 사람의 검토가 필요합니다.",
-                style("d", fontSize=8, leading=13, textColor=faint),
-            ),
-            Spacer(1, 10),
-        ]
-    elif meta:
-        big = style("t", alignment=TA_CENTER, fontSize=21, leading=32)
-        mid = style("s", alignment=TA_CENTER, fontSize=12, leading=21, textColor=faint)
-        small = style("m", alignment=TA_CENTER, fontSize=9.5, leading=18)
-        story += [
-            Spacer(1, 150),
-            Paragraph(
-                "R A G - O U T P U T",
-                style("l", alignment=TA_CENTER, fontSize=8.5, textColor=faint),
-            ),
-            Spacer(1, 24),
-            Paragraph(pdf_text(meta.subtitle), mid),
-            Paragraph(pdf_text(meta.title), big),
-            Paragraph(pdf_text(meta.lead), mid),
-            Spacer(1, 18),
-            _rule(accent, 90),
-            Spacer(1, 54),
-            Paragraph(pdf_text(f"캠퍼스 · 반    {meta.campus}"), small),
-            Paragraph(pdf_text("조원    " + " · ".join(meta.members)), small),
-            Paragraph(f"작성    {date.today():%Y년 %m월 %d일}", small),
-            Spacer(1, 34),
-            Paragraph(
-                "자동 생성 초안입니다. 모든 판정은 공개 정보 기반 추정이며 사람의 검토가 필요합니다.",
-                style("d", alignment=TA_CENTER, fontSize=8, textColor=faint),
-            ),
-            PageBreak(),
-        ]
-        if True:
-            toc = TableOfContents()
-            toc.levelStyles = [
-                style("toc0", fontSize=10, leading=20, spaceAfter=2),
-                style("toc1", fontSize=9, leading=17, leftIndent=16, textColor=faint),
-            ]
-            story += [Paragraph("목차", chapter), Spacer(1, 6), toc, PageBreak()]
-
-    rows = []
-
-    def flush():
-        if not rows:
-            return
-        columns = len(rows[0])
-        first = min(84, 505 / columns)
-        widths = (
-            [505] if columns == 1 else [first] + [(505 - first) / (columns - 1)] * (columns - 1)
-        )
-        table = LongTable(rows, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
-        commands = [
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BACKGROUND", (0, 0), (-1, 0), wash),
-            ("LINEABOVE", (0, 0), (-1, 0), 0.8, accent),
-            ("LINEBELOW", (0, 0), (-1, 0), 0.5, hair),
-            ("LINEBELOW", (0, -1), (-1, -1), 0.8, accent),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 7),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-        ]
-        for index in range(2, len(rows), 2):
-            commands.append(("BACKGROUND", (0, index), (-1, index), colors.HexColor("#FAFBFD")))
-        for index in range(1, len(rows)):
-            commands.append(("LINEBELOW", (0, index), (-1, index), 0.25, hair))
-        table.setStyle(TableStyle(commands))
-        story.extend([Spacer(1, 3), table, Spacer(1, 14)])
-        rows.clear()
-
-    def summary_box(lines):
-        body = [Paragraph(pdf_text(line), normal) for line in lines]
-        box = Table([[body]], colWidths=[505])
-        box.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), wash),
-                    ("LINEBEFORE", (0, 0), (0, -1), 2.2, accent),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 14),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-                    ("TOPPADDING", (0, 0), (-1, -1), 12),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
-        story.extend([box, Spacer(1, 16)])
-
-    def findings_band(lines):
-        """절 머리의 판정 줄 묶음. 읽는 사람이 이 절의 결론을 먼저 보게 한다."""
-        body = [Paragraph(pdf_text(line), finding) for line in lines]
-        box = Table([[body]], colWidths=[505])
-        box.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), wash),
-                    ("LINEBEFORE", (0, 0), (0, -1), 2.2, accent),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 11),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 11),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ]
-            )
-        )
-        story.extend([box, Spacer(1, 9)])
-
-    pending_summary, in_summary = [], False
-    pending_findings = []
-
-    def flush_findings():
-        if pending_findings:
-            findings_band(list(pending_findings))
-            pending_findings.clear()
-
-    for line in text.splitlines():
-        if not line.strip():
-            continue
-        if line.startswith("> "):
-            pending_findings.append(line[2:])
-            continue
-        flush_findings()
-        if line.startswith("|"):
-            if line.startswith("| ---"):
-                continue
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            first_row = not rows
-            rows.append([Paragraph(pdf_text(c), cellhd if first_row else cellst) for c in cells])
-            continue
-        flush()
-        if line.startswith("### "):
-            # 기술별 소절 머리. 목차·꼬리말 챕터명에는 올리지 않는다.
-            story.append(Paragraph(pdf_text(line[4:].strip()), subsection))
-            continue
-        if line.startswith("#"):
-            if in_summary and pending_summary:
-                summary_box(pending_summary)
-                pending_summary, in_summary = [], False
-            title = line.lstrip("# ").strip()
-            level = 1 if line.startswith("## ") else 0
-            paragraph = Paragraph(pdf_text(title), section if level else chapter)
-            paragraph._toc_level = level
-            story.append(paragraph)
-            if not level:
-                story.append(_rule(hair, 505))
-            in_summary = title == "SUMMARY"
-            continue
-        if in_summary:
-            pending_summary.append(line)
-            continue
-        if line.startswith("- "):
-            story.append(Paragraph(pdf_text(line[2:].strip()), bullet, bulletText="•"))
-            continue
-        style_for = caption if line.startswith("표 ") else normal
-        story.append(Paragraph(pdf_text(line), style_for))
-    flush_findings()
-    if in_summary and pending_summary:
-        summary_box(pending_summary)
-    flush()
-
-    path = output / "report.pdf"
-    label = meta.title if meta else "평가 보고서"
-    chapters = {}
-
-    def footer(canvas, doc):
-        canvas.saveState()
-        canvas.setStrokeColor(hair)
-        canvas.setLineWidth(0.4)
-        canvas.line(45, 40, 550, 40)
-        canvas.setFont(font, 7.5)
-        canvas.setFillColor(faint)
-        canvas.drawString(45, 28, chapters.get(canvas.getPageNumber(), label))
-        canvas.drawRightString(550, 28, str(doc.page))
-        canvas.restoreState()
-
-    class Report(BaseDocTemplate):
-        def afterFlowable(self, flowable):
-            level = getattr(flowable, "_toc_level", None)
-            if level is None:
-                return
-            title = flowable.getPlainText()
-            self.notify("TOCEntry", (level, title, self.page))
-            if level == 0:
-                chapters.setdefault(self.page, title)
-
-    from reportlab.lib.pagesizes import A4
-
-    doc = Report(
-        str(path),
-        pagesize=A4,
-        leftMargin=45,
-        rightMargin=45,
-        topMargin=50,
-        bottomMargin=56,
-        title=label,
-    )
-    frame = Frame(45, 56, 505, doc.height, id="body", showBoundary=0)
-    doc.addPageTemplates(
-        [
-            PageTemplate(id="cover", frames=[frame]),
-            PageTemplate(id="page", frames=[frame], onPage=footer),
-        ]
-    )
-    doc.multiBuild(story)
-    if publish and meta and meta.submission and mode != "mock":
-        # 과제 제출 파일명으로 한 부 더 둔다. 실행 폴더의 원본은 그대로 남는다.
-        # runner.execute 와 같은 규칙으로 RUN_OUTPUT_DIR 을 따른다. 이 복사는 고정 경로를
-        # 덮어쓰므로, 테스트나 실험이 제출본 자리를 건드리지 않게 하려면 반드시 필요하다.
-        base = (
-            Path(os.environ["RUN_OUTPUT_DIR"]) if os.getenv("RUN_OUTPUT_DIR") else ROOT / "outputs"
-        )
-        submitted = base / meta.submission
-        submitted.parent.mkdir(parents=True, exist_ok=True)
-        submitted.write_bytes(path.read_bytes())
-    return str(path)

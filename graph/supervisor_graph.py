@@ -32,7 +32,7 @@ from agents.supervisor import ROUTES, initial_control, make_supervisor, route
 from agents.workers import NEEDS_TECH, dump_state_digest, make_worker
 from rag.interface import EvidenceSource
 from runtime.models import ModelBackend
-from runtime.reporting import assemble_report, validate_report, write_report
+from runtime.report import assemble_report, validate_report, write_report
 from runtime.settings import Settings
 from schemas.contracts import NODES, NodeInput
 

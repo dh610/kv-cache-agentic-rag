@@ -491,9 +491,42 @@ def test_routing_reads_only_control_fields():
     assert roles(items) == ["tech"]
 
 
+def sample_run(node="market", tech="KIVI", judgment="보통", summary="요약", criterion="adoption"):
+    from schemas.contracts import Assessment, NodeResult, NodeRun
+
+    return NodeRun(
+        node=node,
+        mode="mock",
+        status="completed",
+        result=NodeResult(
+            node=node,
+            summary=summary,
+            claims=[],
+            assessments=[
+                Assessment(
+                    technology=tech,
+                    criterion=criterion,
+                    judgment=judgment,
+                    rationale="r",
+                    evidence_ids=[],
+                )
+            ],
+            unverified=[],
+            limitations=[],
+        ),
+        evidence=[],
+        checks=[],
+        validation_errors=[],
+        searches=[],
+        prompt_hash="h",
+        model="m",
+    )
+
+
 def test_reducers_merge_concurrent_writes():
     # 병렬 하위 에이전트가 같은 필드에 동시에 쓴다.
-    assert merge_results({"tech": 1}, {"market": 2}) == {"tech": 1, "market": 2}
+    merged = merge_results({"tech": sample_run("tech")}, {"market": sample_run("market")})
+    assert set(merged) == {"tech", "market"}
     assert set(merge_control({"tech": 1}, {"market": 2})) == {"tech", "market"}
 
     def ev(eid, tech):
@@ -627,7 +660,7 @@ def test_sufficiency_score_rises_with_resolved_items():
 
 def test_quality_rules_run_against_a_real_mock_report(tmp_path):
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report, report_sources
+    from runtime.report import assemble_report, report_sources
 
     final = build().invoke(
         {},
@@ -706,7 +739,7 @@ def test_rework_gets_a_narrower_search_budget_than_the_first_attempt(monkeypatch
 def test_compact_layout_keeps_required_structure_and_cuts_bulk(tmp_path):
     """제출본은 분량만 줄이고 필수 목차·비교표·판정은 전체본과 같아야 한다."""
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report
+    from runtime.report import assemble_report
 
     final = build().invoke(
         {},
@@ -737,7 +770,7 @@ def test_compact_reference_lists_only_what_the_text_cites(tmp_path):
     import re
 
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report
+    from runtime.report import assemble_report
 
     final = build().invoke(
         {},
@@ -769,7 +802,7 @@ def test_compact_submission_is_written_next_to_the_full_report(tmp_path):
 
 def test_a_run_never_overwrites_the_submission_copy_outside_its_output_dir(tmp_path, monkeypatch):
     """제출본 복사는 고정 경로를 덮어쓴다. 테스트·실험이 실제 산출물 자리를 건드리면 안 된다."""
-    from runtime.reporting import write_report
+    from runtime.report import write_report
     from runtime.settings import ROOT, load_settings
 
     monkeypatch.setenv("RUN_OUTPUT_DIR", str(tmp_path))
@@ -941,7 +974,7 @@ def test_compact_body_never_leaks_raw_evidence_ids(tmp_path):
     실측에서 그 때문에 본문이 24,986자에서 45,451자로 늘고 제출본이 10장을 넘겼다.
     """
     from agents.report_view import RESULT_KEYS, flat_state
-    from runtime.reporting import assemble_report
+    from runtime.report import assemble_report
 
     final = build().invoke(
         {},
@@ -1135,3 +1168,186 @@ def test_a_synthesis_judgement_with_no_verified_premise_still_falls_back():
         "output"
     ]
     assert out.result.assessments[0].judgment == "확인 불가"
+
+
+def test_rework_does_not_carry_the_old_summary_forward():
+    """재작업 전 문장이 요약에 남으면 고칠 수 없는 미달이 된다.
+
+    중립성 미달로 "KIVI가 더 우수하다" 를 고쳐 쓰게 해도, 옛 요약이 이어 붙으면 품질
+    검사가 같은 표현을 계속 잡아내고 라운드만 돈다.
+    """
+    from agents.merge import merge_runs
+
+    first = merge_runs(None, sample_run(tech="KIVI", summary="KIVI가 더 우수하다"))
+    assert "KIVI" in first.result.summary
+
+    fixed = merge_runs(first, sample_run(tech="KIVI", summary="두 기술은 적용 조건이 다르다"))
+    assert "더 우수하다" not in fixed.result.summary, "고친 뒤에도 옛 문장이 남으면 안 된다"
+    assert "적용 조건이 다르다" in fixed.result.summary
+
+
+def test_merging_another_technology_keeps_both_summaries():
+    """다른 기술의 조각이 들어온 것은 재작업이 아니다. 둘 다 남아야 한다."""
+    from agents.merge import merge_runs
+
+    merged = merge_runs(
+        merge_runs(None, sample_run(tech="KIVI", summary="KIVI 는 양자화로 메모리를 줄인다")),
+        sample_run(tech="ITME", summary="ITME 는 메모리 계층을 넓힌다"),
+    )
+    assert "양자화로 메모리를 줄인다" in merged.result.summary
+    assert "메모리 계층을 넓힌다" in merged.result.summary
+
+
+def test_quality_feedback_reaches_the_agent_that_must_fix_it():
+    """'다시 하라'만 전하고 사유를 빼면 같은 글이 한 번 더 온다."""
+    control = all_research_done()
+    control["synthesis"] = done("synthesis")
+    control["report"] = done("report")
+    verdict = QualityVerdict(
+        passed=False,
+        checks=[
+            {
+                "criterion": "neutrality",
+                "passed": False,
+                "reason": "검출된 표현: 더 우수",
+                "source": "rule",
+                "owners": ["report"],
+            }
+        ],
+        remediation_roles=["report"],
+    )
+    _, items, _ = decide(base_state(control=control, quality=verdict), settings().supervisor)
+    assert items and items[0].role == "report"
+    assert any("더 우수" in note for note in items[0].feedback), "미달 사유가 배정에 실려야 한다"
+
+    # 그 사유가 실제로 하위 에이전트 입력에 들어가는지.
+    from agents.workers import _node_input
+
+    data = _node_input(
+        "report",
+        base_state(control=control, results={}),
+        node_inputs(),
+        "mock",
+        items[0],
+    )
+    assert "더 우수" in data.description
+
+
+def test_a_full_rework_replaces_the_summary_even_without_technology_labels():
+    """보고서처럼 기술별로 쪼개지 않는 역할은 요약에 라벨이 붙지 않는다.
+
+    줄 단위로 걷어낼 수 없으니, 기존 범위를 전부 다시 만든 조각은 통째로 바꿔야 한다.
+    이어 붙이면 live 실행에서처럼 요약이 1,859자로 불어 조판이 실패한다.
+    """
+    from agents.merge import merge_runs
+    from schemas.contracts import Assessment, NodeResult, NodeRun
+
+    def report_run(summary):
+        return NodeRun(
+            node="report",
+            mode="mock",
+            status="completed",
+            result=NodeResult(
+                node="report",
+                summary=summary,
+                claims=[],
+                assessments=[
+                    Assessment(
+                        technology=tech,
+                        criterion="market",
+                        judgment="구성 충족",
+                        rationale="r",
+                        evidence_ids=[],
+                    )
+                    for tech in ("KIVI", "ITME")
+                ],
+                unverified=[],
+                limitations=[],
+            ),
+            evidence=[],
+            checks=[],
+            validation_errors=[],
+            searches=[],
+            prompt_hash="h",
+            model="m",
+        )
+
+    first = merge_runs(None, report_run("KIVI가 더 우수하다는 초안 요약"))
+    again = merge_runs(first, report_run("두 기술은 적용 조건이 다르다"))
+    assert again.result.summary == "두 기술은 적용 조건이 다르다"
+    assert "더 우수" not in again.result.summary
+
+
+def test_an_oversized_summary_still_produces_a_pdf(tmp_path):
+    """분량 위반은 검사가 잡는다. 조판이 죽어 산출물이 아예 안 나오는 일은 없어야 한다."""
+    from pypdf import PdfReader
+
+    from runtime.report import write_report
+    from runtime.settings import load_settings
+
+    long_summary = "KIVI는 key cache를 채널별로 양자화한다. " * 120
+    text = f"# SUMMARY\n\n{long_summary}\n\n# 1. 분석 배경\n\n본문\n\n# REFERENCE\n\n없음\n"
+    path = write_report(text, tmp_path, load_settings().report, "mock")
+    assert PdfReader(path).pages, "요약이 길어도 PDF 는 나와야 한다"
+
+
+def test_a_slice_returns_only_the_technology_it_was_assigned():
+    """상위 결과는 범위와 무관하게 다 넘어가므로, 생성기가 남의 기술까지 판정할 수 있다.
+
+    live 실행에서 종합의 KIVI 조각이 ITME 판정을 '확인 불가'로 써냈고, 도착 순서에 따라
+    ITME 조각의 제대로 된 판정을 덮을 수 있었다.
+    """
+    from agents.state import WorkItem
+    from agents.workers import _scoped_to_assignment
+    from schemas.contracts import Assessment, Claim, ClaimCheck, NodeResult, NodeRun
+
+    run = NodeRun(
+        node="synthesis",
+        mode="mock",
+        status="completed",
+        result=NodeResult(
+            node="synthesis",
+            summary="s",
+            claims=[
+                Claim(
+                    id=f"c-{tech}",
+                    technology=tech,
+                    criterion="adoption",
+                    text="t",
+                    kind="fact",
+                    evidence_ids=["e1"],
+                    conditions=[],
+                )
+                for tech in ("KIVI", "ITME")
+            ],
+            assessments=[
+                Assessment(
+                    technology=tech,
+                    criterion="consistency",
+                    judgment=judgment,
+                    rationale="r",
+                    evidence_ids=[],
+                )
+                for tech, judgment in (("KIVI", "일치"), ("ITME", "확인 불가"))
+            ],
+            unverified=[],
+            limitations=[],
+        ),
+        evidence=[],
+        checks=[
+            ClaimCheck(claim_id=f"c-{tech}", label="supported", evidence_ids=["e1"], reason="r")
+            for tech in ("KIVI", "ITME")
+        ],
+        validation_errors=[],
+        searches=[],
+        prompt_hash="h",
+        model="m",
+    )
+    scoped = _scoped_to_assignment(run, WorkItem(role="synthesis", technologies=["KIVI"]))
+    assert {a.technology for a in scoped.result.assessments} == {"KIVI"}
+    assert {c.technology for c in scoped.result.claims} == {"KIVI"}
+    assert {c.claim_id for c in scoped.checks} == {"c-KIVI"}, "버린 주장의 판정도 함께 간다"
+
+    # 범위가 없는 배정(보고서 등)은 그대로 둔다.
+    whole = _scoped_to_assignment(run, WorkItem(role="report"))
+    assert len(whole.result.assessments) == 2

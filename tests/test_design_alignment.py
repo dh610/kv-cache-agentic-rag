@@ -6,8 +6,9 @@ from graph.main_graph import RESULT_KEYS, MainState, build_main_graph
 from graph.node_graph import RAGSubState, build_node_graph
 from rag.evaluation import EvalCase, metrics, passed, resolve_gold, select_model, validate_dataset
 from rag.interface import FixedEvidence
+from runtime.gaps import collect_gaps
 from runtime.models import MockBackend
-from runtime.reporting import assemble_report, collect_gaps, validate_report
+from runtime.report import assemble_report, validate_report
 from runtime.runner import load_input
 from runtime.settings import load_settings
 from schemas.contracts import NODES, QueryPlan, SufficiencyResult

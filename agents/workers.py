@@ -26,13 +26,38 @@ from agents.sufficiency import rework_feedback
 from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
+from runtime.report import used_ids
 from runtime.report_draft import assemble_report_node
-from runtime.reporting import used_ids
 from schemas.contracts import JudgeResult, NodeInput, NodeRun
 
 RESEARCH_ROLES = ("tech", "market", "stakeholder", "domain")
 # 관점 평가는 기술 조사 결과를 입력으로 받는다. 간선이 아니라 입력 의존성이다.
 NEEDS_TECH = ("market", "stakeholder", "domain")
+
+
+def _scoped_to_assignment(run: NodeRun, item) -> NodeRun:
+    """배정 범위 밖의 판정·주장은 버린다.
+
+    기술별로 쪼갠 조각에게도 상위 결과는 전부 넘어가므로, 생성기가 맡지 않은 기술까지
+    판정을 써내는 일이 있다 (live 실행에서 종합의 KIVI 조각이 ITME 판정을 "확인 불가"로
+    써냈고, 도착 순서에 따라 ITME 조각의 제대로 된 판정을 덮을 수 있었다). 조각은
+    자기가 맡은 것만 돌려줘야 병합이 (기술, 항목) 단위로 성립한다.
+    """
+    if item is None or not item.technologies:
+        return run
+    scope = set(item.technologies)
+    result = run.result.model_copy(deep=True)
+    kept_claims = [c for c in result.claims if c.technology in scope]
+    dropped = {c.id for c in result.claims} - {c.id for c in kept_claims}
+    result.claims = kept_claims
+    result.assessments = [a for a in result.assessments if a.technology in scope]
+    result.trl_estimates = [t for t in result.trl_estimates if t.technology in scope]
+    return run.model_copy(
+        update={
+            "result": result,
+            "checks": [c for c in run.checks if c.claim_id not in dropped],
+        }
+    )
 
 
 def _save_artifact(config: RunnableConfig, role: str, run: NodeRun, item=None) -> str | None:
@@ -75,6 +100,13 @@ def _node_input(role: str, state, inputs: dict[str, NodeInput], mode: str, item)
     control = state.get("control", {}).get(role)
     if control is not None and control.attempts:
         data.description += rework_feedback(control, item)
+    if item is not None and item.feedback:
+        # 품질 평가가 적어 준 미달 사유. 어느 문장이 왜 걸렸는지가 여기 들어와야
+        # 고쳐 쓸 수 있다. 사유 없이 "다시 하라"만 보내면 같은 글이 한 번 더 온다.
+        data.description += (
+            "\n보고서 품질 평가 미달 사유입니다. 아래를 고쳐 다시 작성하세요: "
+            + " / ".join(item.feedback[:6])
+        )
     return data
 
 
@@ -160,6 +192,7 @@ def make_worker(
                 "last_error": failure,
             }
 
+        out = _scoped_to_assignment(out, item)
         artifact = _save_artifact(config, role, out, item)
         cited = used_ids(out)
         # 충분성은 여기서 재지 않는다. 이 결과는 역할의 **조각**이라 혼자서는 그 역할이
@@ -189,8 +222,9 @@ def make_worker(
                 )
             },
         }
-        if role == "synthesis":
-            delta["trl_result"] = _trl_from_synthesis(out, settings)
+        # 확정 TRL 은 여기서 쓰지 않는다. 종합이 기술별로 쪼개져 동시에 돌아오므로 조각
+        # 하나가 쓰면 다른 조각의 값을 덮는다. 합쳐진 결과에서 조판 직전에 계산한다
+        # (agents/report_view.py).
         return delta
 
     run_worker.__name__ = f"worker_{role}"

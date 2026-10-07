@@ -18,9 +18,10 @@ from langgraph.graph import END, START, StateGraph
 from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
+from runtime.gaps import collect_gaps
 from runtime.models import ModelBackend
+from runtime.report import assemble_report, used_ids, validate_report, write_report
 from runtime.report_draft import assemble_report_node
-from runtime.reporting import assemble_report, collect_gaps, used_ids, validate_report, write_report
 from runtime.settings import Settings
 from schemas.contracts import NODES, Evidence, Gap, JudgeResult, NodeInput, NodeRun
 

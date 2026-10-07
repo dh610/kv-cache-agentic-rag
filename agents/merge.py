@@ -54,6 +54,38 @@ def _rename_collisions(current: NodeRun, incoming: NodeRun) -> NodeRun:
     return out
 
 
+def _label(run: NodeRun) -> str:
+    """요약 앞에 그 조각이 맡은 기술을 적어 둔다. 나중에 그 기술만 걷어낼 수 있게."""
+    summary = run.result.summary.strip()
+    techs = sorted({a.technology for a in run.result.assessments})
+    if not summary or len(techs) != 1:
+        return summary
+    return summary if summary.startswith(f"{techs[0]}:") else f"{techs[0]}: {summary}"
+
+
+def _merge_summary(current: NodeRun, incoming: NodeRun, redone: set[str]) -> str:
+    """다시 만든 기술의 옛 요약은 버리고 새 것으로 바꾼다.
+
+    이어 붙이기만 하면 재작업 전의 문장이 보고서에 그대로 남는다. 중립성 미달로
+    "KIVI가 더 우수하다" 를 고쳐 쓰게 해도, 옛 요약이 함께 실려 품질 검사가 계속
+    같은 표현을 잡아낸다 — 고칠 수 없는 미달이 되어 라운드만 돈다.
+    """
+    fresh = _label(incoming)
+    covered = {a.technology for a in current.result.assessments}
+    if covered and covered <= redone:
+        # 이번 조각이 기존이 맡던 범위를 전부 다시 만들었다 = 재작업이다. 옛 요약은
+        # 낡았으므로 통째로 바꾼다. 기술별로 쪼개지 않는 역할(보고서)은 라벨이 붙지
+        # 않아 줄 단위로는 걷어낼 수 없고, 이어 붙이면 고친 문장과 옛 문장이 함께
+        # 남는다 — live 실행에서 보고서 요약이 1,859자로 불어 조판이 실패했다.
+        return fresh
+    kept = [
+        line
+        for line in current.result.summary.splitlines()
+        if line.strip() and not any(line.startswith(f"{tech}:") for tech in redone)
+    ]
+    return "\n".join([*kept, fresh] if fresh else kept)
+
+
 def _keep(items, addressed):
     return [item for item in items if (item.technology, item.criterion) not in addressed]
 
@@ -61,7 +93,9 @@ def _keep(items, addressed):
 def merge_runs(current: NodeRun | None, incoming: NodeRun) -> NodeRun:
     """한 역할의 기존 결과에 새 조각을 얹는다. 교체는 (기술, 항목) 단위."""
     if current is None:
-        return incoming
+        return incoming.model_copy(
+            update={"result": incoming.result.model_copy(update={"summary": _label(incoming)})}
+        )
     if current.node != incoming.node:
         raise ValueError(f"Cannot merge {current.node} with {incoming.node}")
 
@@ -90,9 +124,7 @@ def merge_runs(current: NodeRun | None, incoming: NodeRun) -> NodeRun:
             + incoming.result.limitations
         )
     )
-    result.summary = "\n".join(
-        part for part in (current.result.summary, incoming.result.summary) if part
-    )
+    result.summary = _merge_summary(current, incoming, redone_techs)
 
     redone_questions = {c.question_id for c in incoming.coverage}
     return NodeRun(

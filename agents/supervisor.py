@@ -48,8 +48,14 @@ from agents.workers import NEEDS_TECH
 ROUTES = ("tech", "market", "stakeholder", "domain", "synthesis", "report", "quality", "finalize")
 RESEARCH_ROLES = ("tech", *NEEDS_TECH)
 PIPELINE_ROLES = (*RESEARCH_ROLES, "synthesis", "report")
-# 기술별로 쪼개도 의미가 없는 역할. 종합과 보고서는 기술 간 대조가 일이다.
-WHOLE_ROLES = ("synthesis", "report", "quality", "finalize")
+# 기술별로 쪼개지 않는 역할. 보고서는 두 기술을 나란히 조판하는 것이 일이고,
+# 품질 평가와 마무리는 문서 하나를 본다.
+#
+# 종합은 쪼갠다. 판정 단위가 (기술, 항목)이고 질문도 그렇게 주어지는데, 한 번의 호출로
+# 두 기술을 다 맡기면 한쪽이 통째로 빠진다 — live 실행에서 종합이 KIVI 주장만 2건 쓰고
+# ITME 는 하나도 쓰지 않아, 근거와 무관하게 ITME 의 종합 판정이 보류됐다. 관점 간 대조에
+# 필요한 상위 결과는 배정 범위와 무관하게 전부 넘어가므로 비교는 그대로 할 수 있다.
+WHOLE_ROLES = ("report", "quality", "finalize")
 
 
 def initial_control() -> dict[str, RoleControl]:
@@ -196,7 +202,8 @@ def decide(state, policy, now: float | None = None) -> tuple[str, list[WorkItem]
         if over_budget:
             note += " / 시간 예산 소진으로 추가 재작업 중단"
         reason = f"네 관점 근거 충분성 판정 완료 — 종합{note}"
-        return "synthesize", whole("synthesis", reason), reason
+        items = plan_items("synthesis", control["synthesis"], technologies, reason, first=True)
+        return "synthesize", items, reason
     if control["report"].status == "pending":
         reason = "종합 완료 — 보고서 작성"
         return "report", whole("report", reason), reason
@@ -234,8 +241,12 @@ def decide(state, policy, now: float | None = None) -> tuple[str, list[WorkItem]
                 f"품질 미달이나 재작업 예산 없음 — 미달 항목을 남기고 종료: {failed}",
             )
         reason = f"품질 미달 ({failed}) — {', '.join(targets)} 재작업"
+        # 미달 사유를 배정에 실어 보낸다. 판정한 쪽이 지목한 역할에게만 간다.
+        notes = [
+            f"{check.criterion}: {check.reason}" for check in verdict.checks if not check.passed
+        ]
         items = [
-            item
+            item.model_copy(update={"feedback": notes})
             for role in targets
             for item in plan_items(role, control[role], technologies, reason, first=False)
         ]

@@ -28,7 +28,7 @@ from langchain_core.runnables import RunnableConfig
 from agents.observability import log_from_config
 from agents.report_view import RESULT_KEYS, flat_state
 from agents.state import CriterionVerdict, QualityVerdict
-from runtime.reporting import RECOMMENDATION_PHRASES, assemble_report, report_sources
+from runtime.report import RECOMMENDATION_PHRASES, assemble_report, report_sources
 
 # 관점 커버리지의 4개 관점 ↔ 보고서 절 ↔ 하위 에이전트 역할.
 PERSPECTIVES = {
@@ -93,7 +93,12 @@ def check_groundedness(state, settings, sources) -> CriterionVerdict:
     )
 
 
-def check_neutrality(state, text) -> CriterionVerdict:
+def _worse(first: CriterionVerdict, second: CriterionVerdict) -> CriterionVerdict:
+    """두 조판 중 나쁜 쪽을 택한다. 어느 본에서 걸렸는지는 사유에 남는다."""
+    return first if not first.passed else second
+
+
+def check_neutrality(state, text, where: str = "") -> CriterionVerdict:
     """추천·우열 표현 검출. 보고서 본문과 LLM 이 쓴 SUMMARY·주장을 모두 본다."""
     report = state["results"]["report"]
     targets = [text, report.result.summary, *(c.text for c in report.result.claims)]
@@ -101,7 +106,11 @@ def check_neutrality(state, text) -> CriterionVerdict:
     return CriterionVerdict(
         criterion="neutrality",
         passed=not hits,
-        reason="추천·우열 표현 없음" if not hits else f"검출된 표현: {', '.join(hits)}",
+        reason=(
+            "추천·우열 표현 없음"
+            if not hits
+            else f"{where + ' ' if where else ''}검출된 표현: {', '.join(hits)}"
+        ),
         source="rule",
         owners=["report"],
     )
@@ -161,7 +170,7 @@ def _one_sided_questions(state) -> list[str]:
     return out
 
 
-def check_coverage(state, text) -> CriterionVerdict:
+def check_coverage(state, text, where: str = "") -> CriterionVerdict:
     """4개 관점이 보고서에 실제로 채워졌는가 (절 존재 + 그 관점의 등급 존재)."""
     results = state.get("results", {})
     report = results.get("report")
@@ -179,7 +188,11 @@ def check_coverage(state, text) -> CriterionVerdict:
     return CriterionVerdict(
         criterion="coverage",
         passed=not missing,
-        reason="4개 관점 모두 구성됨" if not missing else f"미구성: {', '.join(missing)}",
+        reason=(
+            "4개 관점 모두 구성됨"
+            if not missing
+            else f"{where + ' ' if where else ''}미구성: {', '.join(missing)}"
+        ),
         source="rule",
         # 비어 있는 관점의 담당자. 전부 차 있는데도 미달이면 보고서 구성 문제다.
         owners=sorted({role for label, (role, _) in PERSPECTIVES.items() if label in str(missing)})
@@ -207,23 +220,33 @@ def make_quality_node(settings, backend, mode: str):
         log = log_from_config(state, config)
         view = flat_state(state, settings, mode)
         text = assemble_report(view, RESULT_KEYS, mode)
+        # 사람이 받는 것은 제출본이다. 전체본만 검사하면 압축 조판이 떨어뜨린 문장은
+        # 아무도 보지 않은 채 나간다. 본문을 읽는 검사는 둘 다 보고, 한쪽이라도
+        # 걸리면 불합격으로 본다.
+        submission = assemble_report(view, RESULT_KEYS, mode, compact=True)
         sources = report_sources(view, RESULT_KEYS)
 
         checks = [
             check_groundedness(state, settings, sources),
-            check_neutrality(state, text),
+            _worse(check_neutrality(state, text), check_neutrality(state, submission, "제출본")),
             check_bias_control(state, settings, sources),
-            check_coverage(state, text),
+            _worse(check_coverage(state, text), check_coverage(state, submission, "제출본")),
         ]
 
         # 2층: 1층을 통과한 항목만 내용 판정을 받는다.
         judge_available = settings.supervisor.quality.judge and hasattr(backend, "quality_review")
+        unanswered: list[str] = []
         if judge_available:
             askable = [c.criterion for c in checks if c.passed and c.criterion not in RULE_ONLY]
             review = backend.quality_review(text, askable, used_sources=sources)
             by_criterion = {item.criterion: item for item in review}
+            # 물었는데 답이 오지 않은 항목은 "통과"가 아니라 "검사 미완료"다. 규칙 판정을
+            # 그대로 두면 2층을 돌린 적 없는 결과가 돌린 것처럼 보고된다.
+            unanswered = [criterion for criterion in askable if criterion not in by_criterion]
             checks = [
-                c
+                _unjudged(c)
+                if c.criterion in unanswered
+                else c
                 if not c.passed or c.criterion not in by_criterion
                 else _combine(c, by_criterion[c.criterion])
                 for c in checks
@@ -232,7 +255,8 @@ def make_quality_node(settings, backend, mode: str):
         verdict = QualityVerdict(
             passed=all(c.passed for c in checks),
             checks=checks,
-            judge_available=bool(judge_available),
+            # 일부라도 답이 오지 않았으면 2층이 끝까지 돌지 않은 것이다.
+            judge_available=bool(judge_available) and not unanswered,
         )
         verdict.remediation_roles = [] if verdict.passed else _remediation(verdict)
         log.record(
@@ -248,12 +272,20 @@ def make_quality_node(settings, backend, mode: str):
             extra={
                 "round": state.get("quality_round", 0),
                 "judge": bool(judge_available),
+                "unjudged": unanswered,
                 "checks": [c.model_dump() for c in checks],
             },
         )
         return {"quality": verdict, "report_text": text}
 
     return evaluate_quality
+
+
+def _unjudged(rule: CriterionVerdict) -> CriterionVerdict:
+    """물었지만 답이 오지 않은 항목. 규칙 판정은 남기되 내용 판정은 안 했다고 적는다."""
+    return rule.model_copy(
+        update={"reason": f"{rule.reason} / Judge 응답 없음 — 내용 판정 미수행", "source": "rule"}
+    )
 
 
 def _combine(rule: CriterionVerdict, judge: CriterionVerdict) -> CriterionVerdict:
