@@ -270,6 +270,10 @@ _CITED: set[str] = set()
 COMPACT_CLAIMS = 0
 # 한계점에서 같은 분류로 싣는 줄 수.
 COMPACT_BULLETS = 1
+# 한 문장·한 칸이 본문에 드러내는 REFERENCE 번호의 수. 판정 하나가 근거를 열 건 넘게
+# 달고 있어서, 이 제한이 없으면 REFERENCE 가 본문보다 길어진다 (live 실측: 본문 7.3쪽에
+# REFERENCE 11.7쪽, 177건). 가린 인용은 산출물 JSON 의 evidence_ids 에 그대로 있다.
+COMPACT_CITATIONS = 3
 
 
 def citation_numbers(sources) -> dict[str, tuple[int, int | None]]:
@@ -286,20 +290,37 @@ def _ids(ids):
     if not ids:
         return ""
     pages: dict[int, list[int]] = {}
+    by_number: dict[int, list[str]] = {}
     unknown = []
     for i in ids:
         if i not in _CITATIONS:
             unknown.append(i)
             continue
         number, page = _CITATIONS[i]
-        _CITED.add(i)
+        by_number.setdefault(number, []).append(i)
         slot = pages.setdefault(number, [])
         if page and page not in slot:
             slot.append(page)
+    shown = sorted(pages.items())
+    hidden = 0
+    if _COMPACT:
+        # 압축 조판은 두 번 돌고, 두 번째에는 목록이 좁아져 있다. 거기서 빠진 ID 를
+        # unknown 으로 흘리면 긴 원문 청크 ID 가 본문에 그대로 찍힌다 (실측에서 본문이
+        # 24,986자에서 45,451자로 늘었다). 가린 인용은 건수로만 센다.
+        hidden = len(unknown)
+        unknown = []
+        if len(shown) > COMPACT_CITATIONS:
+            hidden += len(shown) - COMPACT_CITATIONS
+            shown = shown[:COMPACT_CITATIONS]
+    # 실제로 드러낸 번호만 인용으로 센다. REFERENCE 는 본문이 가리키는 것만 싣는다.
+    for number, _ in shown:
+        _CITED.update(by_number.get(number, ()))
     parts = [
         f"{number} p.{','.join(str(p) for p in sorted(slot))}" if slot else str(number)
-        for number, slot in sorted(pages.items())
+        for number, slot in shown
     ]
+    if hidden:
+        parts.append(f"외 {hidden}건")
     return f" [{'; '.join(parts + unknown)}]" if parts or unknown else ""
 
 

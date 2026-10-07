@@ -932,3 +932,37 @@ def test_each_assignment_runs_only_its_own_questions(tmp_path):
     assert any(len(r["questions"]) < 6 for r in scoped), "배정이 질문을 실제로 좁혀야 한다"
     # 역할 전체 결과는 조각이 합쳐져 완성된다.
     assert len(final["results"]["market"].result.assessments) == 6
+
+
+def test_compact_body_never_leaks_raw_evidence_ids(tmp_path):
+    """압축 조판은 두 번 돌고 두 번째에는 목록이 좁아져 있다.
+
+    거기서 빠진 ID 를 '모르는 인용'으로 흘리면 긴 원문 청크 ID 가 본문에 그대로 찍힌다.
+    실측에서 그 때문에 본문이 24,986자에서 45,451자로 늘고 제출본이 10장을 넘겼다.
+    """
+    from agents.report_view import RESULT_KEYS, flat_state
+    from runtime.reporting import assemble_report
+
+    final = build().invoke(
+        {},
+        config={"recursion_limit": 160, "configurable": {"output_dir": str(tmp_path)}},
+    )
+    view = flat_state(final, settings(), "mock")
+    compact = assemble_report(view, RESULT_KEYS, "mock", compact=True)
+    body = compact.split("# REFERENCE")[0]
+    for evidence in final["sources"]:
+        assert evidence.id not in body, f"원문 ID {evidence.id} 가 본문에 노출됐다"
+
+
+def test_submission_pdf_stays_within_the_page_limit(tmp_path):
+    """과제 규칙은 보고서를 최대 10장으로 한정한다."""
+    from pypdf import PdfReader
+
+    build("fixture").invoke(
+        {},
+        config={"recursion_limit": 160, "configurable": {"output_dir": str(tmp_path)}},
+    )
+    submission = tmp_path / "submission" / "report.pdf"
+    assert submission.exists()
+    pages = len(PdfReader(submission).pages)
+    assert pages <= 10, f"제출본이 {pages}장으로 한도를 넘었다"
