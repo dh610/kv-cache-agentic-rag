@@ -160,6 +160,11 @@ class SupervisorPolicy(SettingsModel):
     max_seconds: int = Field(default=1500, ge=0, le=14400)
     # 재작업했는데 근거가 한 건도 늘지 않은 역할은 다시 재작업하지 않는다.
     stop_on_no_new_evidence: bool = True
+    # 재작업 때 질문당 허용할 추가 검색 횟수. 비워 두면 limits.search 를 그대로 쓴다.
+    # live 실측에서 재작업 1라운드가 전체 시간의 56%(28.2분 중 15.9분)를 썼는데,
+    # 그 대부분이 "질문마다 처음과 똑같은 검색 예산을 다시 받는" 데서 나왔다.
+    # 줄이면 빨라지고 근거는 덜 모인다. 조별 설계에서 고르는 값이다.
+    rework_search: int | None = Field(default=None, ge=1, le=3)
     quality: QualityPolicy = Field(default_factory=QualityPolicy)
 
 

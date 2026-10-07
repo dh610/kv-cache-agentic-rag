@@ -561,3 +561,32 @@ def test_changed_research_does_re_run_synthesis_and_report():
     delta = supervise(base_state(control=control), {})
     assert delta["control"]["synthesis"].status == "pending"
     assert delta["control"]["report"].status == "pending"
+
+
+def test_rework_gets_a_narrower_search_budget_than_the_first_attempt(monkeypatch):
+    """재작업은 '처음부터 다시'가 아니라 '부족한 것만 더'. 예산이 줄어야 한다."""
+    from agents.workers import make_worker
+
+    config = settings()
+    config.supervisor.rework_search = 1
+    config.limits.search = 3
+    seen = []
+
+    import agents.workers as workers
+
+    original = workers.build_node_graph
+
+    def record(role, data, mode, used, *args, **kwargs):
+        seen.append(used.limits.search)
+        return original(role, data, mode, used, *args, **kwargs)
+
+    monkeypatch.setattr(workers, "build_node_graph", record)
+    inputs = {node: load_input(node, "acceptance") for node in NODES}
+    worker = make_worker("tech", inputs, "mock", config, MockBackend())
+
+    first = worker(base_state(results={}, sources=[]), {})
+    assert seen == [3], "첫 실행은 설정된 검색 예산을 그대로 쓴다"
+
+    control = {**initial_control(), "tech": done("tech", attempts=1)}
+    worker(base_state(control=control, results=first["results"], sources=[]), {})
+    assert seen == [3, 1], "재작업은 축소된 예산을 쓴다"

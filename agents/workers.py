@@ -94,6 +94,12 @@ def make_worker(
         data.evidence = merge_evidence(data.evidence, *_inherited_evidence(role, state))
 
         previous = state.get("results", {}).get(role) if attempt > 1 else None
+        # 재작업은 "처음부터 다시"가 아니라 "부족한 것만 더". 질문마다 첫 실행과 같은
+        # 검색 예산을 다시 주면 라운드 하나가 첫 실행만큼 비싸진다 (live 실측 16분).
+        budget = settings
+        if previous is not None and settings.supervisor.rework_search:
+            budget = settings.model_copy(deep=True)
+            budget.limits.search = settings.supervisor.rework_search
         try:
             if role == "report" and first_pass:
                 out = assemble_report_node(data, dict(state.get("results", {})), mode)
@@ -110,7 +116,7 @@ def make_worker(
                     else FixedEvidence(data)
                 )
                 graph = build_node_graph(
-                    role, data, mode, settings, backend, source, previous=previous
+                    role, data, mode, budget, backend, source, previous=previous
                 )
                 out = graph.invoke({}, config={"recursion_limit": 80})["output"]
         except Exception as exc:  # 하위 에이전트 실패는 실행 전체를 멈추지 않는다 (fallback).
