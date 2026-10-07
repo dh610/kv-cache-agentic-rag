@@ -12,23 +12,27 @@
 
 | 고정 순서(이전) | Supervisor(현재) |
 | --- | --- |
-| 간선이 순서를 정함 | `add_conditional_edges`가 **State를 읽고** 다음 노드를 고름. 라우팅 함수는 노드 **리스트**를 반환할 수 있어 독립 관점은 한 스텝에 병렬 배정 |
+| 간선이 순서를 정함 | `add_conditional_edges`가 **State를 읽고** 다음 배정을 만듦 |
+| 배정 단위가 역할 (`market` 전체) | 배정 단위가 **작업 항목** (`market × ITME × adoption,growth`). `Send`로 각자 자기 범위를 들고 떠남 |
+| fan-out 폭이 코드에 고정 (관점 3개) | **fan-out 폭이 실행 중 결정** — 처음엔 역할×기술 6개, 재작업은 부족한 항목 수만큼 |
 | 보완 재실행이 "종합 뒤 최대 1라운드"로 고정 | **근거 충분성을 판정한 뒤** 부족한 역할에만 재작업 지시. 충분해질 때까지 스텝 수가 가변 |
 | 보고서 생성이 마지막 | 보고서 뒤 **품질 평가 노드**가 4항목을 판정하고, 미달이면 책임 에이전트로 되돌림 |
 | 실패 시 중단 | 하위 에이전트 실패·예산 소진을 **제외하고 진행**(fall-back)하되 그 사실을 보고서에 남김 |
 
-실행 예 (mock, 8스텝) — 같은 그래프가 State에 따라 다른 경로를 돈다:
+실행 예 (mock) — 같은 그래프가 State에 따라 다른 경로를 돌고, **배정 개수도 달라진다**:
 
 ```text
-[ 1] dispatch   → tech                         기술 조사 결과 없음 — 기술 조사 에이전트 배정
-[ 2] rework     → tech                         기술 조사 근거 부족 (충분도 0.5, 미해결 10건) — 재작업
-[ 3] dispatch   → market, stakeholder, domain  미수집 관점 — 병렬 배정
-[ 4] rework     → market, stakeholder, domain  근거 부족 관점 재작업 — market(0.5), stakeholder(0.5), domain(0.5)
-[ 5] synthesize → synthesis                    근거 충분성 판정 완료 / 재작업해도 근거 증가 없음: tech, market, …
-[ 6] report     → report                       종합 완료 — 보고서 작성
-[ 7] quality    → quality                      보고서 초안 완성 — 품질 평가 수행
-[ 8] finalize   → finalize                     품질 미달이나 재작업 예산 없음 — 미달 항목을 남기고 종료
+[ 1] dispatch   2건  tech:KIVI, tech:ITME
+[ 2] rework     2건  tech:ITME/limitations,maturity,mechanism, tech:KIVI/...   ← 부족한 항목만
+[ 3] dispatch   6건  market:KIVI, market:ITME, stakeholder:KIVI, stakeholder:ITME, domain:KIVI, domain:ITME
+[ 4] rework     6건  market:ITME/adoption,ecosystem,growth, ... domain:KIVI/cost,operations,...
+[ 5] synthesize 1건  근거 충분성 판정 완료 / 재작업해도 근거 증가 없음: tech, market, …
+[ 6] report     1건  종합 완료 — 보고서 작성
+[ 7] quality    1건  보고서 초안 완성 — 품질 평가 수행
+[ 8] finalize   1건  품질 미달이나 재작업 예산 없음 — 미달 항목을 남기고 종료
 ```
+
+live 실행에서는 3단계에서 tech·market이 충분으로 판정돼 **stakeholder·domain의 부족 항목만** 재작업 배정이 나갔다. 같은 코드가 입력에 따라 다른 폭으로 펼쳐진다.
 
 ## Selected Technologies
 
@@ -43,7 +47,7 @@
 
 - **PDF 자료 기반 정보 추출** : KIVI·ITME 논문 2편(`target`)과 TurboQuant·InfiniGen 보조 논문 2편(`reference`)을 청킹·임베딩하고, 주장마다 원문 청크 ID와 페이지를 연결한다.
 - **웹 근거 보완** : Tavily로 시장 전망·채택·프레임워크 지원·이해관계자 반응 원문을 수집한다. 검색 요약문만으로는 근거로 채택하지 않는다.
-- **동적 라우팅** : Supervisor가 `control` 블록(역할별 상태·시도 횟수·근거 충분도)만 읽고 분기한다. 페이로드를 읽어야 분기할 수 있다면 제어 상태로 승격한다.
+- **동적 라우팅 (Send 기반 fan-out)** : Supervisor가 `control` 블록(역할별 상태·시도 횟수·근거 충분도)만 읽고 **작업 항목 목록**을 만들어 `Send`로 내보낸다. 목록의 길이가 실행 중에 정해지므로 fan-out 폭이 코드에 고정돼 있지 않다. 돌아온 조각은 reducer가 (기술, 항목) 단위로 합친다 — 다시 만든 것만 교체하고 나머지는 보존한다.
 - **근거 충분성 평가 → 재작업** : 항목 충족·출처 다양성·양면 검색 3축을 코드 규칙으로 계산하고, 기준 미달 역할에만 **부족 항목을 명시해** 재작업을 지시한다.
 - **확증 편향 방지 전략** : ① 긍정·비판 질의를 쌍으로 발행하고 둘 다 수행되지 않은 질문은 충분도에서 감점 ② 기술마다 서로 다른 문서/사이트가 2건 이상인지 검사 ③ 자사(`first_party`)·독립(`independent`) 출처를 분류하고 자사 자료만 있으면 gap으로 기록 ④ 관점 간 의견 차이는 보존하며, 의견을 맞추기 위한 재조사는 하지 않는다.
 - **보고서 품질 평가** : 보고서 생성 **후** Groundedness·중립성·편향 통제·관점 커버리지 4항목을 **Hybrid(코드 규칙 + LLM Judge)** 로 판정하고, 미달이면 책임 에이전트로 루프한다.
@@ -74,7 +78,7 @@
 
 | 에이전트 | 역할 | 평가 항목 |
 | --- | --- | --- |
-| **Supervisor** (`agents/supervisor.py`) | 매 스텝 제어 상태를 읽어 다음 분기를 고르고, 근거 부족 시 재작업을 지시하며, 종료를 판정 | — |
+| **Supervisor** (`agents/supervisor.py`) | 합쳐진 결과로 근거 충분성을 재판정하고, 작업 항목 목록을 만들어 `Send`로 배정하며, 종료를 판정 | — |
 | 기술 조사 (`tech`) | 원리·적용 전제·실험 조건·한계 추출, TRL 잠정 추정 | mechanism / maturity / limitations |
 | 시장성 평가 (`market`) | 시장 규모·성장성, 상용화·채택, 생태계 지지 | growth / adoption / ecosystem |
 | 이해관계자 평가 (`stakeholder`) | 경쟁 기술 진영, 도입 기업·개발자, 투자·업계 반응 | competitors / adopters / industry |
@@ -109,7 +113,7 @@
 - **지속성 비용** : 근거 원문·검색 이력은 노드가 끝나는 즉시 `<output_dir>/nodes/<role>.json`으로 내보내고, State의 `sources`에는 **실제 인용된** 근거만 올린다. `decisions`는 윈도우(40)로, `control`은 역할당 1건으로 상한이 있다. 종합·보고서가 상속하는 근거도 상위 노드 풀 전체가 아니라 인용된 원문만이다.
 - **상관** : `trace_id`·`run_id`가 State · `decisions.jsonl` 모든 줄 · LangSmith 실행 메타데이터에 함께 실린다. 외부 로그 한 줄에서 State의 몇 번째 스텝인지 역추적할 수 있다.
 - **재개/복구** : `control[role]`이 역할별 `status` · `attempts` · `last_error` · `sufficiency` · `artifact`(결과 파일 경로)를 들고 있어, 중단 지점에서 "무엇이 끝났고 무엇을 몇 번 시도했는지"를 State만으로 복원한다. 실행이 끝나면 같은 내용을 `supervisor.json`으로 남긴다.
-- **동시 처리** : Supervisor가 독립 관점을 한 스텝에 함께 보내므로(`route`가 리스트 반환) `results` · `sources` · `control` · `decisions`가 동시 쓰기 필드이며 **전부 reducer를 갖는다**. 특히 `sources`는 단순 concat이 아니라 ID 단위 병합이다 — concat은 중복 제거가 아니고, 같은 ID의 본문이 상충하면 조용히 덮어쓰는 대신 오류로 드러나야 한다.
+- **동시 처리** : `Send` 배정이 한 스텝에 여러 개 나가므로 `results` · `sources` · `control` · `decisions` · `last_error`가 전부 동시 쓰기 필드이며 **모두 reducer를 갖는다**. `results`는 가장 까다롭다 — 같은 역할의 KIVI 조각과 ITME 조각이 같은 키에 동시에 쓰는데, 덮어쓰면 먼저 온 기술의 조사 결과가 사라지고 이어 붙이면 재작업한 항목의 옛 판정이 함께 남는다. 그래서 `agents/merge.py`가 **(기술, 항목) 단위로 교체**하고 겹친 주장 ID는 이름을 바꾸며 그 주장을 가리키던 검증 기록도 따라 고친다. `sources`는 ID 단위 병합이라 같은 ID의 본문이 상충하면 조용히 덮어쓰는 대신 오류로 드러난다. `last_error`에도 reducer가 필요하다 — 한 역할의 조각 둘이 같은 스텝에 실패하면 reducer 없이는 LangGraph가 실행 전체를 중단시켜, fall-back이 지키려던 것을 그 자리에서 깨뜨린다.
 - **종료 보장** : 네 겹의 상한을 둔다 — `step`/`max_steps`(24), `RoleControl.attempts`/`max_attempts`(2), `revision_round`/`max_revisions`(2), `quality_round`/`max_quality_rounds`(1). 여기에 **벽시계 예산**(`max_seconds`, 기본 25분)과 **수확 체감 감지**(`stalled`)를 더한다. 뒤의 둘은 재작업만 멈추고 보고서 생성·품질 평가는 계속하므로 **산출물은 반드시 나온다**. 한도를 소진한 종료는 실패가 아니라 "미해결을 남긴 채 종료"이며 사유를 `stop_reason`에 적는다.
 
 ## Architecture
@@ -126,7 +130,8 @@ kv-cache-agentic-rag/
 │   ├── state.py            #   State 스키마 · reducer · 제어/페이로드 분리
 │   ├── supervisor.py       #   동적 라우팅 · 재작업 지시 · 종료 판정
 │   ├── sufficiency.py      #   근거 충분성 평가 (페이로드 → 제어 메타 요약)
-│   ├── workers.py          #   하위 에이전트 래퍼 (Supervisor와만 통신)
+│   ├── workers.py          #   하위 에이전트 래퍼 (배정 하나를 수행)
+│   ├── merge.py            #   같은 역할의 조각 병합 ((기술,항목) 단위 교체)
 │   ├── quality.py          #   보고서 품질 평가 4항목 (Hybrid)
 │   ├── observability.py    #   결정 로그를 State 밖으로 (trace_id 상관)
 │   └── report_view.py      #   State → 보고서 조립기 어댑터
