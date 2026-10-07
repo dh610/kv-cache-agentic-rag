@@ -561,7 +561,6 @@ def _render_report(state, result_keys, mode, sources):
     lines = [
         "# SUMMARY",
         report.result.summary,
-        f"자동 생성 초안 / 실행 모드: {mode}. 공개 정보 기반 추정. 사람의 원문·등급 검토가 필요합니다.",
         "# 1. 분석 배경",
         sections.background(domain=state["domain"], sw=sw, hw=hw),
         "# 2. 기술 선정",
