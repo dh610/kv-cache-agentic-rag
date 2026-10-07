@@ -604,10 +604,13 @@ def build_node_graph(
                 "rendered_user": user,
             }
         try:
-            # 조사 노드는 검색 결과를, 종합은 상위 결과·인용 근거를 기술별로 나눠 동시에 생성한다.
+            # 조사 노드는 검색 결과를, 종합·보고서는 상위 결과·인용 근거를 기술별로 나눠 동시에 생성한다.
+            # (live 점검: 보고서 단일 호출이 10개 절 중 6개만 쓰고 이해관계자 절을 통째로 비웠다.)
             # 종합의 질문(일치·상충, 시사점)은 기술 단위이고 우열 비교를 금지하므로 분할해도 입력이
             # 줄어들 뿐 판정 단위는 같다 (live 실측: 종합 초안 한 호출이 116~184초).
-            if (live_search or node == "synthesis") and hasattr(backend, "generate_scoped"):
+            if (live_search or node in ("synthesis", "report")) and hasattr(
+                backend, "generate_scoped"
+            ):
                 packets = []
                 for tech in dict.fromkeys(q.technology for q in data.questions):
                     questions = [q for q in data.questions if q.technology == tech]
@@ -617,6 +620,9 @@ def build_node_graph(
                         key: value for key, value in data.target_techs.items() if value == tech
                     }
                     scoped.description += f"\n이번 생성은 {tech}만 담당합니다. 다른 기술의 claim/assessment/TRL을 생성하지 마세요."
+                    if node == "report":
+                        # 두 기술의 summary 를 이어 붙이므로 각 패킷은 절반 한도(300자)만 쓴다.
+                        scoped.description += f"\nsummary는 {tech}에 대한 300자 이내 요약만 쓴다(두 기술 합산 600자 한도). 상위 결과의 확인 불가가 아닌 판정(이해관계자·도메인 포함)은 그 근거 claim을 빠짐없이 해당 절의 claims로 옮긴다."
                     for prior in scoped.prior_results.values():
                         prior.claims = [c for c in prior.claims if c.technology == tech]
                         prior.assessments = [a for a in prior.assessments if a.technology == tech]
@@ -903,7 +909,13 @@ def finalize_node(node, data, mode, state, model):
                 if t.technology == name:
                     t.level, t.evidence_ids, t.rationale = None, [], "등급과 불일치"
     if dropped or state.get("errors") or state.get("fatal"):
-        result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
+        notice = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
+        # 요약을 통째로 지우면 보고서 SUMMARY 가 안내문만 남는다 (live 점검). 살아남은
+        # claims·assessments 가 있으면 안내문을 앞에 두고 요약은 보존해 사람이 검토하게 한다.
+        if state.get("fatal") or not kept or not result.summary.strip():
+            result.summary = notice
+        elif not result.summary.startswith(notice):
+            result.summary = f"{notice} {result.summary.strip()}"
     errors.extend(state.get("plan_errors", []))
     errors.extend(
         f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error
