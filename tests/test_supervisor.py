@@ -1231,3 +1231,123 @@ def test_quality_feedback_reaches_the_agent_that_must_fix_it():
         items[0],
     )
     assert "더 우수" in data.description
+
+
+def test_a_full_rework_replaces_the_summary_even_without_technology_labels():
+    """보고서처럼 기술별로 쪼개지 않는 역할은 요약에 라벨이 붙지 않는다.
+
+    줄 단위로 걷어낼 수 없으니, 기존 범위를 전부 다시 만든 조각은 통째로 바꿔야 한다.
+    이어 붙이면 live 실행에서처럼 요약이 1,859자로 불어 조판이 실패한다.
+    """
+    from agents.merge import merge_runs
+    from schemas.contracts import Assessment, NodeResult, NodeRun
+
+    def report_run(summary):
+        return NodeRun(
+            node="report",
+            mode="mock",
+            status="completed",
+            result=NodeResult(
+                node="report",
+                summary=summary,
+                claims=[],
+                assessments=[
+                    Assessment(
+                        technology=tech,
+                        criterion="market",
+                        judgment="구성 충족",
+                        rationale="r",
+                        evidence_ids=[],
+                    )
+                    for tech in ("KIVI", "ITME")
+                ],
+                unverified=[],
+                limitations=[],
+            ),
+            evidence=[],
+            checks=[],
+            validation_errors=[],
+            searches=[],
+            prompt_hash="h",
+            model="m",
+        )
+
+    first = merge_runs(None, report_run("KIVI가 더 우수하다는 초안 요약"))
+    again = merge_runs(first, report_run("두 기술은 적용 조건이 다르다"))
+    assert again.result.summary == "두 기술은 적용 조건이 다르다"
+    assert "더 우수" not in again.result.summary
+
+
+def test_an_oversized_summary_still_produces_a_pdf(tmp_path):
+    """분량 위반은 검사가 잡는다. 조판이 죽어 산출물이 아예 안 나오는 일은 없어야 한다."""
+    from pypdf import PdfReader
+
+    from runtime.reporting import write_report
+    from runtime.settings import load_settings
+
+    long_summary = "KIVI는 key cache를 채널별로 양자화한다. " * 120
+    text = f"# SUMMARY\n\n{long_summary}\n\n# 1. 분석 배경\n\n본문\n\n# REFERENCE\n\n없음\n"
+    path = write_report(text, tmp_path, load_settings().report, "mock")
+    assert PdfReader(path).pages, "요약이 길어도 PDF 는 나와야 한다"
+
+
+def test_a_slice_returns_only_the_technology_it_was_assigned():
+    """상위 결과는 범위와 무관하게 다 넘어가므로, 생성기가 남의 기술까지 판정할 수 있다.
+
+    live 실행에서 종합의 KIVI 조각이 ITME 판정을 '확인 불가'로 써냈고, 도착 순서에 따라
+    ITME 조각의 제대로 된 판정을 덮을 수 있었다.
+    """
+    from agents.state import WorkItem
+    from agents.workers import _scoped_to_assignment
+    from schemas.contracts import Assessment, Claim, ClaimCheck, NodeResult, NodeRun
+
+    run = NodeRun(
+        node="synthesis",
+        mode="mock",
+        status="completed",
+        result=NodeResult(
+            node="synthesis",
+            summary="s",
+            claims=[
+                Claim(
+                    id=f"c-{tech}",
+                    technology=tech,
+                    criterion="adoption",
+                    text="t",
+                    kind="fact",
+                    evidence_ids=["e1"],
+                    conditions=[],
+                )
+                for tech in ("KIVI", "ITME")
+            ],
+            assessments=[
+                Assessment(
+                    technology=tech,
+                    criterion="consistency",
+                    judgment=judgment,
+                    rationale="r",
+                    evidence_ids=[],
+                )
+                for tech, judgment in (("KIVI", "일치"), ("ITME", "확인 불가"))
+            ],
+            unverified=[],
+            limitations=[],
+        ),
+        evidence=[],
+        checks=[
+            ClaimCheck(claim_id=f"c-{tech}", label="supported", evidence_ids=["e1"], reason="r")
+            for tech in ("KIVI", "ITME")
+        ],
+        validation_errors=[],
+        searches=[],
+        prompt_hash="h",
+        model="m",
+    )
+    scoped = _scoped_to_assignment(run, WorkItem(role="synthesis", technologies=["KIVI"]))
+    assert {a.technology for a in scoped.result.assessments} == {"KIVI"}
+    assert {c.technology for c in scoped.result.claims} == {"KIVI"}
+    assert {c.claim_id for c in scoped.checks} == {"c-KIVI"}, "버린 주장의 판정도 함께 간다"
+
+    # 범위가 없는 배정(보고서 등)은 그대로 둔다.
+    whole = _scoped_to_assignment(run, WorkItem(role="report"))
+    assert len(whole.result.assessments) == 2

@@ -23,6 +23,9 @@ from schemas.contracts import Gap
 
 # Design E.1: SUMMARY must stay within half a page. Counted on the LLM summary only.
 SUMMARY_MAX_CHARS = 600
+# 이보다 긴 요약은 강조 상자에 넣지 않는다. A4 한 쪽(약 724pt)에 들어가지 않는 단일 셀
+# 표는 쪼개지지 못하고 조판 전체를 중단시킨다.
+SUMMARY_BOX_CHARS = 1400
 # Guide E: the report never recommends a technology or ranks the two.
 RECOMMENDATION_PHRASES = (
     "추천한다",
@@ -1042,6 +1045,13 @@ def write_report(
 
     def summary_box(lines):
         body = [Paragraph(pdf_text(line), normal) for line in lines]
+        if sum(len(line) for line in lines) > SUMMARY_BOX_CHARS:
+            # 단일 셀 표는 쪽 사이로 쪼개지지 않는다. 한 쪽에 안 들어갈 만큼 긴 요약을
+            # 표에 넣으면 조판이 LayoutError 로 죽고 보고서가 아예 안 나온다. 분량
+            # 규칙 위반은 validate_report 가 따로 잡으므로, 여기서는 상자를 포기하고
+            # 본문으로 흘려보내 산출물은 반드시 만든다.
+            story.extend([_rule(accent, 505), *body, _rule(hair, 505), Spacer(1, 12)])
+            return
         box = Table([[body]], colWidths=[505])
         box.setStyle(
             TableStyle(

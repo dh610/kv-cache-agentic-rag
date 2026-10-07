@@ -35,6 +35,31 @@ RESEARCH_ROLES = ("tech", "market", "stakeholder", "domain")
 NEEDS_TECH = ("market", "stakeholder", "domain")
 
 
+def _scoped_to_assignment(run: NodeRun, item) -> NodeRun:
+    """배정 범위 밖의 판정·주장은 버린다.
+
+    기술별로 쪼갠 조각에게도 상위 결과는 전부 넘어가므로, 생성기가 맡지 않은 기술까지
+    판정을 써내는 일이 있다 (live 실행에서 종합의 KIVI 조각이 ITME 판정을 "확인 불가"로
+    써냈고, 도착 순서에 따라 ITME 조각의 제대로 된 판정을 덮을 수 있었다). 조각은
+    자기가 맡은 것만 돌려줘야 병합이 (기술, 항목) 단위로 성립한다.
+    """
+    if item is None or not item.technologies:
+        return run
+    scope = set(item.technologies)
+    result = run.result.model_copy(deep=True)
+    kept_claims = [c for c in result.claims if c.technology in scope]
+    dropped = {c.id for c in result.claims} - {c.id for c in kept_claims}
+    result.claims = kept_claims
+    result.assessments = [a for a in result.assessments if a.technology in scope]
+    result.trl_estimates = [t for t in result.trl_estimates if t.technology in scope]
+    return run.model_copy(
+        update={
+            "result": result,
+            "checks": [c for c in run.checks if c.claim_id not in dropped],
+        }
+    )
+
+
 def _save_artifact(config: RunnableConfig, role: str, run: NodeRun, item=None) -> str | None:
     """조각을 그대로 남긴다. 같은 역할의 조각이 서로 덮어쓰지 않게 배정을 파일명에 쓴다."""
     folder = (config or {}).get("configurable", {}).get("output_dir")
@@ -167,6 +192,7 @@ def make_worker(
                 "last_error": failure,
             }
 
+        out = _scoped_to_assignment(out, item)
         artifact = _save_artifact(config, role, out, item)
         cited = used_ids(out)
         # 충분성은 여기서 재지 않는다. 이 결과는 역할의 **조각**이라 혼자서는 그 역할이
