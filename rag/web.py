@@ -12,6 +12,18 @@ from rag.web_text import clean, focus, on_topic
 from runtime.settings import Settings, require_key
 from schemas.contracts import Evidence, Question
 
+# 이해관계자 평가에서 논문 원문·미러·요약 사이트는 저자 자기 평가의 재게시라서 근거가 될 수 없다
+# (prompts/stakeholder 규칙 7-1). 생성 단계에서 버리기 전에 검색 단계에서 걸러서, 그 자리를 실제 토론·비교 자료가 채우게 한다.
+STAKEHOLDER_CRITERIA = {"competitors", "adopters", "industry"}
+PAPER_MIRROR_HOSTS = ("arxiv.org", "ar5iv.org", "alphaxiv.org", "liner.com")
+
+
+def is_paper_mirror(url: str, criterion: str) -> bool:
+    if criterion not in STAKEHOLDER_CRITERIA:
+        return False
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == h or host.endswith("." + h) for h in PAPER_MIRROR_HOSTS)
+
 
 class WebSource:
     retryable = True
@@ -53,6 +65,8 @@ class WebSource:
             if not raw:
                 continue
             url = item["url"]
+            if is_paper_mirror(url, question.criterion):
+                continue
             title = item.get("title", url)
             body = clean(raw)
             if not body or not on_topic(body, title, self.context_terms):
