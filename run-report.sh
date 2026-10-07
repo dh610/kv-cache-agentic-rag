@@ -4,18 +4,21 @@ set -eu
 cd "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 mode=live
 first_pass=false
+quick=false
 case "${1:-}" in
   '') ;;
   --mock) mode=mock ;;
   --first-pass) first_pass=true ;;
+  --quick) quick=true ;;
   --prepare-only) mode=prepare ;;
   --help|-h)
-    printf '%s\n' 'Usage: ./run-report.sh [--mock | --prepare-only | --first-pass]' \
+    printf '%s\n' 'Usage: ./run-report.sh [--mock | --prepare-only | --first-pass | --quick]' \
       'Default: prepare dependencies, papers and embeddings, then generate a live report.' \
       'Set OPENAI_API_KEY and TAVILY_API_KEY in .env or exported environment variables.' \
       '--prepare-only: prepare local resources without calling paid APIs.' \
       '--mock: generate a wiring-test report without keys, papers or model downloads.' \
-      '--first-pass: generate a reviewed first draft without follow-up search/fix/supplement rounds.'
+      '--first-pass: generate a reviewed first draft without follow-up search/fix/supplement rounds.' \
+      '--quick: full search/fix rounds but no post-synthesis supplement round (SUPPLEMENT_LIMIT=0).'
     exit 0 ;;
   *) printf '%s\n' 'Unknown option. Use ./run-report.sh --help' >&2; exit 1 ;;
 esac
@@ -47,6 +50,11 @@ fi
 "$uv_bin" sync --frozen --python 3.11 --extra rag
 if [ "$mode" = prepare ]; then
   exec "$uv_bin" run --no-sync python -m app.run_report --prepare-only
+fi
+if [ "$quick" = true ]; then
+  # 검색·수정 라운드는 그대로, 종합 뒤 보완 재실행만 생략한다. 제출본 기본값은 config.yaml 이다.
+  SUPPLEMENT_LIMIT=0
+  export SUPPLEMENT_LIMIT
 fi
 if [ "$first_pass" = true ]; then
   exec "$uv_bin" run --no-sync python -m app.run_report --first-pass

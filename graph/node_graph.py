@@ -604,7 +604,10 @@ def build_node_graph(
                 "rendered_user": user,
             }
         try:
-            if live_search and hasattr(backend, "generate_scoped"):
+            # 조사 노드는 검색 결과를, 종합은 상위 결과·인용 근거를 기술별로 나눠 동시에 생성한다.
+            # 종합의 질문(일치·상충, 시사점)은 기술 단위이고 우열 비교를 금지하므로 분할해도 입력이
+            # 줄어들 뿐 판정 단위는 같다 (live 실측: 종합 초안 한 호출이 116~184초).
+            if (live_search or node == "synthesis") and hasattr(backend, "generate_scoped"):
                 packets = []
                 for tech in dict.fromkeys(q.technology for q in data.questions):
                     questions = [q for q in data.questions if q.technology == tech]

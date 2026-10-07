@@ -168,6 +168,10 @@ def result_schema(node):
     )
 
 
+# 주장별 Judge 호출의 동시 실행 상한. 검색 병렬(node_graph, 4)과 같은 수준으로 둔다.
+JUDGE_WORKERS = 4
+
+
 class OpenAIBackend:
     def __init__(self, settings: Settings):
         from langchain_openai import ChatOpenAI
@@ -244,19 +248,16 @@ class OpenAIBackend:
 
         prompt = (ROOT / "prompts/shared/judge.j2").read_text(encoding="utf-8")
         by_id = {e.id: e for e in evidence}
-        checks = []
-        for claim in result.claims:
+
+        def check_one(claim) -> ClaimCheck:
             cited = [by_id[eid] for eid in dict.fromkeys(claim.evidence_ids) if eid in by_id]
             if not cited:
-                checks.append(
-                    ClaimCheck(
-                        claim_id=claim.id,
-                        label="unsupported",
-                        evidence_ids=[],
-                        reason="인용한 근거가 현재 근거 목록에 없다.",
-                    )
+                return ClaimCheck(
+                    claim_id=claim.id,
+                    label="unsupported",
+                    evidence_ids=[],
+                    reason="인용한 근거가 현재 근거 목록에 없다.",
                 )
-                continue
             labelled, back = alias(cited)
             payload = json.dumps(
                 {
@@ -270,25 +271,25 @@ class OpenAIBackend:
             )
             check = one.checks[0] if one.checks else None
             if check is None:
-                checks.append(
-                    ClaimCheck(
-                        claim_id=claim.id,
-                        label="unsupported",
-                        evidence_ids=[],
-                        reason="판정 결과가 비어 있다.",
-                    )
+                return ClaimCheck(
+                    claim_id=claim.id,
+                    label="unsupported",
+                    evidence_ids=[],
+                    reason="판정 결과가 비어 있다.",
                 )
-                continue
             known = {e.id for e in labelled}
             ids = [back[i] for i in dict.fromkeys(check.evidence_ids) if i in known]
-            checks.append(
-                ClaimCheck(
-                    claim_id=claim.id,  # 판정기가 바꿔 적어도 대상 주장은 코드가 고정한다.
-                    label=check.label,
-                    evidence_ids=ids,
-                    reason=check.reason,
-                )
+            return ClaimCheck(
+                claim_id=claim.id,  # 판정기가 바꿔 적어도 대상 주장은 코드가 고정한다.
+                label=check.label,
+                evidence_ids=ids,
+                reason=check.reason,
             )
+
+        # 주장 하나가 호출 하나다. 호출끼리는 독립이므로 제한된 병렬로 돌리고 순서는 유지한다
+        # (live 실측: 도메인 검증이 주장 10~15건 × 최대 7라운드로 125초, 단일 노드 최대 구간).
+        with ContextThreadPoolExecutor(max_workers=JUDGE_WORKERS) as pool:
+            checks = list(pool.map(check_one, result.claims))
         return JudgeResult(checks=checks)
 
     def plan(self, data, feedback):
@@ -325,12 +326,31 @@ class OpenAIBackend:
         )
 
     def sufficiency(self, data, evidence):
+        """기술별로 질문을 나눠 동시에 판정한다 (generate_scoped 와 같은 분할).
+
+        한 호출에 두 기술의 질문과 근거를 모두 넣으면 입력이 두 배이고 판정기가 기술 간
+        근거를 섞는다. _sufficiency 가 질문의 기술로 근거를 좁히므로 분할해도 각 호출이
+        보는 근거는 같다. 항목은 질문 순서로 다시 합친다.
+        """
 
         from runtime.aliases import alias, restore_coverage
 
         labelled, back = alias(evidence)
-        review = SufficiencyResult.model_validate(self._sufficiency(data, labelled))
-        return SufficiencyResult(items=restore_coverage(review.items, back))
+        techs = list(dict.fromkeys(q.technology for q in data.questions))
+
+        def review(tech):
+            scoped = data.model_copy(
+                update={"questions": [q for q in data.questions if q.technology == tech]}
+            )
+            return SufficiencyResult.model_validate(self._sufficiency(scoped, labelled)).items
+
+        if len(techs) > 1:
+            with ContextThreadPoolExecutor(max_workers=len(techs)) as pool:
+                parts = list(pool.map(review, techs))
+            items = [item for part in parts for item in part]
+        else:
+            items = SufficiencyResult.model_validate(self._sufficiency(data, labelled)).items
+        return SufficiencyResult(items=restore_coverage(items, back))
 
     def _sufficiency(self, data, evidence):
         import json
