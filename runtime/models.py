@@ -238,9 +238,6 @@ class OpenAIBackend:
         생길 수 없고, claim 당 정확히 하나의 check 를 코드가 보장한다.
         """
         import json
-        from typing import Literal
-
-        from pydantic import create_model
 
         from runtime.aliases import alias
         from runtime.settings import ROOT
@@ -356,7 +353,7 @@ class OpenAIBackend:
                     json.dumps(
                         {
                             "questions": [q.model_dump() for q in data.questions],
-                            "evidence": evidence_payload(evidence, data.questions),
+                            "evidence": evidence_payload(relevant, data.questions),
                         },
                         ensure_ascii=False,
                     ),
