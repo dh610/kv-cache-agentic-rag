@@ -129,6 +129,7 @@ class SupervisorState(TypedDict, total=False):
     trl_result: dict
     report_text: str
     report_path: str
+    submission_path: str  # 10장 한도에 맞춘 제출본
     report_check: dict
     quality: QualityVerdict | None
 

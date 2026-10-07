@@ -83,6 +83,8 @@ def main(argv=None) -> int:
             print(f"  - {check.criterion:<13} {'OK ' if check.passed else 'NG '} {check.reason}")
     print(f"Report Markdown: {output / 'report.md'}")
     print(f"Report PDF: {output / 'report.pdf'}")
+    if final.get("submission_path"):
+        print(f"제출본 PDF (10장 한도): {final['submission_path']}")
     print(f"Decision log: {output / 'decisions.jsonl'}")
     skipped = [node for node in RESULT_KEYS if node not in final.get("results", {})]
     if skipped:

@@ -8,6 +8,7 @@ fixed prose in prompts/report/sections.j2, as design E.3 specifies.
 
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 from pathlib import Path
@@ -196,17 +197,44 @@ def _reference_groups(sources):
     )
 
 
+def _page_spans(items) -> str:
+    """인용한 쪽을 연속 구간으로 묶는다. 청크 ID 는 산출물 JSON 에 그대로 남는다."""
+    pages = sorted({e.page for e in items if e.page})
+    if not pages:
+        return f"인용 {len(items)}건"
+    spans, start, prev = [], pages[0], pages[0]
+    for page in pages[1:]:
+        if page == prev + 1:
+            prev = page
+            continue
+        spans.append((start, prev))
+        start = prev = page
+    spans.append((start, prev))
+    joined = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in spans)
+    return f"인용 {len(items)}건 p.{joined}"
+
+
 def reference_entries(sources):
-    """One bibliographic entry per document; cited chunk IDs and pages stay traceable."""
+    """One bibliographic entry per document; cited chunk IDs and pages stay traceable.
+
+    압축 조판에서는 청크 ID 나열 대신 쪽 범위만 싣는다. 본문 인용이 이미 `[2 p.1]` 처럼
+    REFERENCE 번호와 쪽으로 가리키므로 독자가 청크 ID 를 쓸 일이 없고, 이 나열이 보고서
+    분량의 절반을 차지했다 (live 실측 52%). 추적은 nodes/*.json 의 evidence_ids 로 한다.
+    """
     ordered = _reference_groups(sources)
     lines = []
     for number, items in enumerate(ordered, 1):
         first = items[0]
-        cited = ", ".join(f"[{e.id}]" + (f" p.{e.page}" if e.page else "") for e in items)
+        cited = (
+            _page_spans(items)
+            if _COMPACT
+            else "인용: "
+            + ", ".join(f"[{e.id}]" + (f" p.{e.page}" if e.page else "") for e in items)
+        )
         # The paper format carries no URL, so the source location follows the entry.
         origin = f" 원문: {first.url}" if first.source_type == "paper" else ""
         lines.append(
-            f"{number}. {reference_text(first)} {affiliation_marker(first)}{origin} 인용: {cited}"
+            f"{number}. {reference_text(first)} {affiliation_marker(first)}{origin} {cited}"
         )
     return lines
 
@@ -233,6 +261,15 @@ def _cell(text):
 
 # 본문 인용을 REFERENCE 번호로 바꾸기 위한 현재 보고서의 지도. assemble_report 가 채운다.
 _CITATIONS: dict[str, str] = {}
+# 압축 조판 여부. 과제 규칙의 10장 한도를 코드로 지키기 위한 것이며, assemble_report 가 채운다.
+# 줄이는 것은 "같은 내용의 반복"뿐이고, 판정·근거·조건·출처는 표와 REFERENCE 에 그대로 남는다.
+_COMPACT = False
+# 이번 조판에서 본문이 실제로 인용한 근거 ID. _ids 가 채우고 압축 조판이 읽는다.
+_CITED: set[str] = set()
+# 절·기술당 본문에 싣는 주장 문장 수. 나머지는 산출물 JSON 에 남는다.
+COMPACT_CLAIMS = 0
+# 한계점에서 같은 분류로 싣는 줄 수.
+COMPACT_BULLETS = 1
 
 
 def citation_numbers(sources) -> dict[str, tuple[int, int | None]]:
@@ -255,6 +292,7 @@ def _ids(ids):
             unknown.append(i)
             continue
         number, page = _CITATIONS[i]
+        _CITED.add(i)
         slot = pages.setdefault(number, [])
         if page and page not in slot:
             slot.append(page)
@@ -265,13 +303,29 @@ def _ids(ids):
     return f" [{'; '.join(parts + unknown)}]" if parts or unknown else ""
 
 
-def _unique_claim_lines(claims, shown):
+def _unique_claim_lines(claims, shown, *, per_technology=False):
+    """근거 문장 나열. 압축 조판에서는 기술마다 앞의 몇 건만 싣는다.
+
+    접은 문장의 판정과 등급은 같은 절의 비교표에 그대로 있고, 원문 연결은 산출물
+    JSON 의 evidence_ids 에 남는다. 본문에서 빠지면 그 문장이 끌고 오던 자료도
+    REFERENCE 에서 빠지므로, 목록이 "본문이 실제로 인용한 것"과 일치하게 된다.
+    """
     lines = []
+    count: dict[str, int] = {}
+    hidden: dict[str, int] = {}
     for c in claims:
         if c.text in shown:
             continue
         shown.add(c.text)
+        key = c.technology if per_technology else ""
+        if _COMPACT and count.get(key, 0) >= COMPACT_CLAIMS:
+            hidden[key] = hidden.get(key, 0) + 1
+            continue
+        count[key] = count.get(key, 0) + 1
         lines.append(_claim_line(c))
+    for key, number in hidden.items():
+        label = f"{key}: " if key else ""
+        lines.append(f"- {label}같은 절의 근거 문장 {number}건은 산출물 JSON 에 남겼다")
     return lines
 
 
@@ -345,11 +399,19 @@ def _narrative(report_run, criterion, tech, shown=None):
     claims = [
         c for c in report_run.result.claims if c.criterion == criterion and c.technology == tech
     ]
+    shown = 0
     for c in claims:
         if c.text in seen:
             continue  # 같은 문장을 여러 주장으로 나눠 써도 본문에는 한 번만 싣는다.
         seen.add(c.text)
+        if _COMPACT and shown >= COMPACT_CLAIMS:
+            continue
+        shown += 1
         lines.append(_claim_line(c))
+    hidden = len(claims) - shown
+    if _COMPACT and hidden > 0:
+        # 생략한 것은 본문 노출뿐이다. 판정과 근거는 아래 비교표와 REFERENCE 에 남는다.
+        lines.append(f"- {tech}: 같은 절의 근거 문장 {hidden}건은 산출물 JSON 에 남겼다")
     if not claims:
         lines.append(f"- {tech}: 확인 불가. 이 절에 인용 가능한 보고서 문장이 없음")
     return lines
@@ -393,9 +455,32 @@ def fixed_sections():
     return env.get_template("report/sections.j2").module
 
 
-def assemble_report(state, result_keys, mode):
-    global _CITATIONS
-    _CITATIONS = citation_numbers(report_sources(state, result_keys))
+def assemble_report(state, result_keys, mode, *, compact: bool = False):
+    """기본 동작은 그대로이고, compact=True 일 때만 반복을 접는다 (과제 규칙 10장 한도).
+
+    압축 조판은 두 번 조판한다. 첫 조판에서 본문이 실제로 인용한 자료를 모으고, 그것만
+    남겨 번호를 다시 매긴 뒤 다시 조판한다. REFERENCE 절 스스로 "보고서 작성에 실제로
+    인용한 자료만 기재한다"고 적고 있는데, 지금까지는 모든 노드가 인용한 자료를 합쳐
+    실었다. live 실행에서 그렇게 모인 199건이 보고서 분량의 절반을 차지했다.
+    본문에서 접은 주장이 끌고 오던 자료는 본문에 없으므로 목록에서도 빠진다.
+    """
+    global _CITATIONS, _COMPACT, _CITED
+    _COMPACT = compact
+    sources = report_sources(state, result_keys)
+    _CITATIONS = citation_numbers(sources)
+    _CITED = set()
+    text = _render_report(state, result_keys, mode, sources)
+    if not compact:
+        return text
+    kept = [e for e in sources if e.id in _CITED]
+    if not kept or len(kept) == len(sources):
+        return text
+    _CITATIONS = citation_numbers(kept)
+    _CITED = set()
+    return _render_report(state, result_keys, mode, kept)
+
+
+def _render_report(state, result_keys, mode, sources):
     techs = list(state["target_techs"].values())
     sw = state["target_techs"].get("sw", techs[0])
     hw = state["target_techs"].get("hw", techs[-1])
@@ -476,7 +561,7 @@ def assemble_report(state, result_keys, mode):
         for tech in techs:
             lines.extend(_narrative(report, role, tech, shown))
         lines.append(f"{ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)}")
-        lines.extend(_unique_claim_lines(run.result.claims, shown))
+        lines.extend(_unique_claim_lines(run.result.claims, shown, per_technology=True))
         lines.append(f"표 4-{number} {heading} 비교")
         lines.extend(_assessment_table(run, techs))
 
@@ -566,6 +651,8 @@ def assemble_report(state, result_keys, mode):
                 if key in printed:
                     continue
                 printed.add(key)
+                if _COMPACT and len(out) >= COMPACT_BULLETS:
+                    continue
                 out.append(f"- {label}: {text}")
         for title, items in grouped.items():
             key = f"{label}|{title}"
@@ -574,17 +661,28 @@ def assemble_report(state, result_keys, mode):
             printed.add(key)
             names = ", ".join(dict.fromkeys(items))
             out.append(f"- {label}: {title} — {names}")
+        remaining = len(values) - len(out)
+        if _COMPACT and remaining > 0 and out:
+            out.append(f"- {label}: 같은 분류 {remaining}건은 산출물 JSON 에 남겼다")
         return out
 
     lines.extend(bullets("보고서 통합 한계", report.result.limitations))
-    for role in roles:
+    # 압축 조판에서는 관점별 나열을 접는다. 바로 위 표 6-1 이 관점마다 확인 불가·미확인·
+    # 근거 부족 건수를 이미 싣고 있어, 아래 줄들은 같은 사실을 문장으로 한 번 더 쓰는
+    # 것이 된다. 사유 원문은 산출물 JSON 의 limitations·unverified 에 그대로 남는다.
+    for role in [] if _COMPACT else roles:
         run = state[result_keys[role]]
         lines.extend(bullets(f"{ROLE_LABELS[role]} 한계", run.result.limitations))
         lines.extend(bullets(f"{ROLE_LABELS[role]} 확인 필요", run.result.unverified))
         shortfall = [g for g in state["gaps"] if g.role == role and g.criterion != "verification"]
         lines.extend(bullets(f"{ROLE_LABELS[role]} 근거 부족", [g.reason for g in shortfall]))
+    if _COMPACT:
+        lines.append(
+            "관점별 미확인 사유와 근거 부족 항목의 원문은 산출물 JSON(nodes/*.json 의 "
+            "limitations·unverified)에 있다. 위 표가 그 건수를 관점별로 싣는다."
+        )
     lines.extend(bullets("보고서 생성 확인 필요", report.result.unverified))
-    checks = [g for g in state["gaps"] if g.criterion == "verification"]
+    checks = [] if _COMPACT else [g for g in state["gaps"] if g.criterion == "verification"]
     if checks:
         lines.append(
             "아래는 자동 검사가 남긴 기록이다. 판정 내용이 아니라 인용·형식 검사 결과이며, "
@@ -605,7 +703,7 @@ def assemble_report(state, result_keys, mode):
         "특허 출원인(YYYY-MM). 특허명, 특허번호/공개번호, URL / "
         "웹페이지 기관명 또는 작성자(YYYY-MM-DD). 제목. 사이트명, URL"
     )
-    entries = reference_entries(report_sources(state, result_keys))
+    entries = reference_entries(sources)
     lines.extend(entries or ["인용된 출처 없음"])
     return "\n\n".join(lines) + "\n"
 
@@ -678,8 +776,22 @@ def pdf_text(value: str) -> str:
     return out
 
 
-def write_report(text, output: Path, meta=None, mode: str = "live"):
-    """설계서 표지·목차 구성으로 조판하고 한글 글꼴을 PDF 안에 내장한다."""
+def write_report(
+    text,
+    output: Path,
+    meta=None,
+    mode: str = "live",
+    *,
+    compact: bool = False,
+    publish: bool = True,
+):
+    """설계서 표지·목차 구성으로 조판하고 한글 글꼴을 PDF 안에 내장한다.
+
+    compact 는 줄간격과 문단 간격만 좁힌다. 조판기는 본문의 모든 줄을 개별 문단으로
+    올리기 때문에 문단 간격이 쪽수를 크게 좌우하는데, 기본값(글꼴 9.5pt 에 줄간격 16)은
+    쪽당 1,800자 수준이라 과제 규칙의 10장 한도 안에서 내용을 더 버려야만 했다.
+    여백을 먼저 줄이면 버리는 내용이 그만큼 줄어든다. 글자 크기는 건드리지 않는다.
+    """
     from datetime import date
 
     from reportlab.lib import colors
@@ -714,15 +826,28 @@ def write_report(text, output: Path, meta=None, mode: str = "live"):
         base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
         return ParagraphStyle(name, **{**base, **kw})
 
-    normal = style("body", fontSize=9.5, leading=16, spaceAfter=8)
-    cellst = style("cell", fontSize=8.5, leading=13, spaceAfter=0)
-    cellhd = style("cellhead", fontSize=8.5, leading=13, spaceAfter=0, textColor=accent)
+    dense = 0.72 if compact else 1.0
+    normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
+    cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
+    cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)
     chapter = style(
-        "chapter", fontSize=16, leading=22, spaceBefore=22, spaceAfter=2, textColor=accent
+        "chapter",
+        fontSize=16,
+        leading=22 * dense,
+        spaceBefore=22 * dense,
+        spaceAfter=2,
+        textColor=accent,
     )
-    section = style("section", fontSize=11.5, leading=17, spaceBefore=15, spaceAfter=5)
+    section = style(
+        "section", fontSize=11.5, leading=17 * dense, spaceBefore=15 * dense, spaceAfter=5 * dense
+    )
     caption = style(
-        "caption", fontSize=8.5, leading=13, spaceBefore=6, spaceAfter=3, textColor=faint
+        "caption",
+        fontSize=8.5,
+        leading=13 * dense,
+        spaceBefore=6 * dense,
+        spaceAfter=3 * dense,
+        textColor=faint,
     )
 
     story = []
@@ -753,12 +878,15 @@ def write_report(text, output: Path, meta=None, mode: str = "live"):
             ),
             PageBreak(),
         ]
-        toc = TableOfContents()
-        toc.levelStyles = [
-            style("toc0", fontSize=10, leading=20, spaceAfter=2),
-            style("toc1", fontSize=9, leading=17, leftIndent=16, textColor=faint),
-        ]
-        story += [Paragraph("목차", chapter), Spacer(1, 6), toc, PageBreak()]
+        if not compact:
+            # 10장짜리 문서에서 목차는 한 쪽을 통째로 쓰고 절반만 찬다. 분량 한도가
+            # 걸린 제출본에서는 그 한 쪽을 본문에 쓴다. 표지와 절 제목은 그대로 둔다.
+            toc = TableOfContents()
+            toc.levelStyles = [
+                style("toc0", fontSize=10, leading=20, spaceAfter=2),
+                style("toc1", fontSize=9, leading=17, leftIndent=16, textColor=faint),
+            ]
+            story += [Paragraph("목차", chapter), Spacer(1, 6), toc, PageBreak()]
 
     rows = []
 
@@ -885,9 +1013,14 @@ def write_report(text, output: Path, meta=None, mode: str = "live"):
         ]
     )
     doc.multiBuild(story)
-    if meta and meta.submission and mode != "mock":
+    if publish and meta and meta.submission and mode != "mock":
         # 과제 제출 파일명으로 한 부 더 둔다. 실행 폴더의 원본은 그대로 남는다.
-        submitted = ROOT / "outputs" / meta.submission
+        # runner.execute 와 같은 규칙으로 RUN_OUTPUT_DIR 을 따른다. 이 복사는 고정 경로를
+        # 덮어쓰므로, 테스트나 실험이 제출본 자리를 건드리지 않게 하려면 반드시 필요하다.
+        base = (
+            Path(os.environ["RUN_OUTPUT_DIR"]) if os.getenv("RUN_OUTPUT_DIR") else ROOT / "outputs"
+        )
+        submitted = base / meta.submission
         submitted.parent.mkdir(parents=True, exist_ok=True)
         submitted.write_bytes(path.read_bytes())
     return str(path)

@@ -590,3 +590,81 @@ def test_rework_gets_a_narrower_search_budget_than_the_first_attempt(monkeypatch
     control = {**initial_control(), "tech": done("tech", attempts=1)}
     worker(base_state(control=control, results=first["results"], sources=[]), {})
     assert seen == [3, 1], "재작업은 축소된 예산을 쓴다"
+
+
+def test_compact_layout_keeps_required_structure_and_cuts_bulk(tmp_path):
+    """제출본은 분량만 줄이고 필수 목차·비교표·판정은 전체본과 같아야 한다."""
+    from agents.report_view import RESULT_KEYS, flat_state
+    from runtime.reporting import assemble_report
+
+    final = build().invoke(
+        {},
+        config={"recursion_limit": 120, "configurable": {"output_dir": str(tmp_path)}},
+    )
+    view = flat_state(final, settings(), "mock")
+    full = assemble_report(view, RESULT_KEYS, "mock")
+    compact = assemble_report(view, RESULT_KEYS, "mock", compact=True)
+
+    required = [
+        "# SUMMARY",
+        "# 1. 분석 배경",
+        "# 2. 기술 선정",
+        "# 3. 기술 개요",
+        "# 4. 관점별 평가",
+        "# 5. 시사점",
+        "# 6. 한계점",
+        "# REFERENCE",
+    ]
+    for heading in required:
+        assert heading in compact, f"제출본에서 필수 목차 {heading} 가 빠졌다"
+    assert full.count("\n표 ") == compact.count("\n표 "), "비교표는 그대로 남아야 한다"
+    assert len(compact) < len(full), "제출본은 전체본보다 짧아야 한다"
+
+
+def test_compact_reference_lists_only_what_the_text_cites(tmp_path):
+    """REFERENCE 절 스스로 '실제로 인용한 자료만'이라고 적고 있다. 압축본은 그 규칙을 지킨다."""
+    import re
+
+    from agents.report_view import RESULT_KEYS, flat_state
+    from runtime.reporting import assemble_report
+
+    final = build().invoke(
+        {},
+        config={"recursion_limit": 120, "configurable": {"output_dir": str(tmp_path)}},
+    )
+    view = flat_state(final, settings(), "mock")
+    compact = assemble_report(view, RESULT_KEYS, "mock", compact=True)
+    body, reference = compact.split("# REFERENCE")
+    listed = {
+        int(line.split(".")[0])
+        for line in reference.splitlines()
+        if line.strip()[:1].isdigit() and ". " in line[:6]
+    }
+    cited = {int(n) for n in re.findall(r"\[(\d+)(?:\s+p\.[\d,]+)?[;\]]", body)}
+    assert cited, "본문에 인용 표기가 있어야 한다"
+    assert cited <= listed, "본문이 가리키는 번호가 REFERENCE 에 모두 있어야 한다"
+    assert listed <= cited, "본문이 인용하지 않은 자료는 REFERENCE 에 싣지 않는다"
+
+
+def test_compact_submission_is_written_next_to_the_full_report(tmp_path):
+    final = build("fixture").invoke(
+        {},
+        config={"recursion_limit": 120, "configurable": {"output_dir": str(tmp_path)}},
+    )
+    assert (tmp_path / "report.pdf").exists()
+    assert (tmp_path / "submission" / "report.pdf").exists()
+    assert final["submission_path"]
+
+
+def test_a_run_never_overwrites_the_submission_copy_outside_its_output_dir(tmp_path, monkeypatch):
+    """제출본 복사는 고정 경로를 덮어쓴다. 테스트·실험이 실제 산출물 자리를 건드리면 안 된다."""
+    from runtime.reporting import write_report
+    from runtime.settings import ROOT, load_settings
+
+    monkeypatch.setenv("RUN_OUTPUT_DIR", str(tmp_path))
+    meta = load_settings().report
+    assert meta.submission, "제출 파일명이 설정되어 있어야 이 보호가 의미를 갖는다"
+    before = (ROOT / "outputs" / meta.submission).exists()
+    write_report("# SUMMARY\n\n본문\n\n# REFERENCE\n\n없음\n", tmp_path, meta, "fixture")
+    assert (tmp_path / meta.submission).exists(), "제출본은 지정된 출력 경로 아래로 간다"
+    assert (ROOT / "outputs" / meta.submission).exists() == before

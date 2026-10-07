@@ -118,7 +118,19 @@ def build_supervisor_graph(
             validation["ready"] = False
 
         folder = (config or {}).get("configurable", {}).get("output_dir")
-        path = write_report(text, Path(folder), settings.report, mode) if folder else ""
+        path = submission = ""
+        if folder:
+            # 전체본은 산출물로 남기고, 제출본은 과제 규칙의 10장 한도에 맞춰 따로 조판한다.
+            # 같은 평가 결과의 다른 조판이며 판정·비교표·출처 연결은 양쪽이 같다.
+            path = write_report(text, Path(folder), settings.report, mode, publish=False)
+            compact_text = assemble_report(view, RESULT_KEYS, mode, compact=True)
+            submission = write_report(
+                compact_text,
+                Path(folder) / "submission",
+                settings.report,
+                mode,
+                compact=True,
+            )
         if not path:
             validation["ready"] = False
             validation["problems"].append("No report output directory was configured")
@@ -148,6 +160,7 @@ def build_supervisor_graph(
         return {
             "run_status": status,
             "report_path": path,
+            "submission_path": submission,
             "report_text": text,
             "report_check": validation,
         }
