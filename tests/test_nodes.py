@@ -83,7 +83,9 @@ def test_invalid_claims_cannot_be_final_accepted_output(backend):
     assert result.status == "needs_revision"
     assert result.validation_errors
     assert all(a.judgment == "확인 불가" for a in result.result.assessments)
-    assert "검증을 통과하지" in result.result.summary
+    # 검증 실패는 한계로 남는다. summary 는 그 노드가 알아낸 것을 쓰는 자리이고
+    # 보고서의 초록으로 그대로 올라가므로, 상태 메시지로 갈아 끼우지 않는다.
+    assert any("검증을 통과하지" in note for note in result.result.limitations)
 
 
 class BrokenBackend(MockBackend):

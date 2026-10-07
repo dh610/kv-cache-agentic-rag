@@ -829,6 +829,14 @@ def finalize_node(node, data, mode, state, model):
         verified = verified_evidence_ids(
             result, state["judge"].checks, state["search_results"], a.technology, premise_criterion
         )
+        usable = set(a.evidence_ids) & verified
+        if node == "synthesis" and usable:
+            # 종합의 일은 상위 관점의 결론을 맞대 보는 것이라, 판정 하나가 여러 관점의
+            # 근거를 폭넓게 인용한다. 그 인용 전부가 종합 자신의 검증된 주장에 들어
+            # 있어야 한다고 요구하면 판정이 늘 보류된다. 검증되지 않은 인용만 떼어 내고
+            # 판정은 유지한다 — 근거 없는 판정은 여전히 아래에서 확인 불가로 내려간다.
+            a.evidence_ids = sorted(usable)
+            continue
         if not verified or not set(a.evidence_ids).issubset(verified):
             a.judgment, a.rationale, a.evidence_ids = (
                 "확인 불가",
@@ -853,7 +861,11 @@ def finalize_node(node, data, mode, state, model):
                 if t.technology == name:
                     t.level, t.evidence_ids, t.rationale = None, [], "등급과 불일치"
     if dropped or state.get("errors") or state.get("fatal"):
-        result.summary = "검증을 통과하지 못한 내용이 있어 수정이 필요합니다."
+        # 검증 경고로 요약을 덮어쓰지 않는다. summary 는 그 노드가 무엇을 알아냈는지
+        # 쓰는 자리이고 보고서의 초록으로 그대로 올라가는데, 여기서 상태 메시지로
+        # 갈아 끼우면 문서가 자기 결론 대신 파이프라인 사정을 머리에 달게 된다.
+        # 검증 상태는 limitations 로 보내 6장에서 읽히게 한다.
+        result.limitations.append("검증을 통과하지 못한 내용이 있어 사람의 확인이 필요합니다.")
     errors.extend(state.get("plan_errors", []))
     errors.extend(
         f"{r.question_id} attempt {r.attempt}: {r.error}" for r in state["searches"] if r.error

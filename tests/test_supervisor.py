@@ -1030,3 +1030,108 @@ def test_synthesis_judgements_survive_when_their_premises_are_verified():
     ]
     judgement = out.result.assessments[0]
     assert judgement.judgment == "일치", "검증된 전제가 있는데 확인 불가로 내려가면 안 된다"
+
+
+def test_synthesis_keeps_a_judgement_backed_by_some_verified_premise():
+    """종합 판정은 여러 관점의 근거를 폭넓게 인용한다.
+
+    인용 전부가 종합 자신의 검증된 주장에 들어 있어야 한다고 요구하면 판정이 늘 보류되고,
+    보고서 5장이 빈다. 검증되지 않은 인용만 떼고 판정은 남긴다.
+    """
+    from graph.node_graph import finalize_node
+    from runtime.runner import load_input
+    from schemas.contracts import Assessment, Claim, ClaimCheck, NodeResult
+
+    def ev(eid):
+        return Evidence(
+            id=eid,
+            text="원문",
+            title="T",
+            url=f"https://example.com/{eid}",
+            technology="KIVI",
+            source_type="web",
+            scope="target",
+        )
+
+    draft = NodeResult(
+        node="synthesis",
+        summary="s",
+        claims=[
+            Claim(
+                id="c1",
+                technology="KIVI",
+                criterion="adoption",
+                text="원문",
+                kind="fact",
+                evidence_ids=["e1"],
+                conditions=[],
+            )
+        ],
+        assessments=[
+            Assessment(
+                technology="KIVI",
+                criterion="consistency",
+                judgment="일치",
+                rationale="관점 간 일치",
+                evidence_ids=["e1", "e2"],  # e2 는 검증된 주장이 인용하지 않았다
+            )
+        ],
+        unverified=[],
+        limitations=[],
+    )
+    state = {
+        "draft": draft,
+        "judge": JudgeResult(
+            checks=[ClaimCheck(claim_id="c1", label="supported", evidence_ids=["e1"], reason="r")]
+        ),
+        "search_results": [ev("e1"), ev("e2")],
+        "searches": [],
+        "prompt_hash": "h",
+        "verdict": "통과",
+        "fix_count": 0,
+        "errors": [],
+    }
+    out = finalize_node("synthesis", load_input("synthesis", "acceptance"), "mock", state, "m")[
+        "output"
+    ]
+    kept = out.result.assessments[0]
+    assert kept.judgment == "일치"
+    assert kept.evidence_ids == ["e1"], "검증되지 않은 인용만 떨어져야 한다"
+
+
+def test_a_synthesis_judgement_with_no_verified_premise_still_falls_back():
+    """느슨해진 것은 '전부'에서 '하나라도'까지다. 근거가 아예 없으면 여전히 보류한다."""
+    from graph.node_graph import finalize_node
+    from runtime.runner import load_input
+    from schemas.contracts import Assessment, NodeResult
+
+    draft = NodeResult(
+        node="synthesis",
+        summary="s",
+        claims=[],
+        assessments=[
+            Assessment(
+                technology="KIVI",
+                criterion="consistency",
+                judgment="일치",
+                rationale="근거 없이 단정",
+                evidence_ids=["e9"],
+            )
+        ],
+        unverified=[],
+        limitations=[],
+    )
+    state = {
+        "draft": draft,
+        "judge": JudgeResult(checks=[]),
+        "search_results": [],
+        "searches": [],
+        "prompt_hash": "h",
+        "verdict": "통과",
+        "fix_count": 0,
+        "errors": [],
+    }
+    out = finalize_node("synthesis", load_input("synthesis", "acceptance"), "mock", state, "m")[
+        "output"
+    ]
+    assert out.result.assessments[0].judgment == "확인 불가"

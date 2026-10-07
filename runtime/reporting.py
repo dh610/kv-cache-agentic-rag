@@ -284,7 +284,7 @@ COMPACT_BULLETS = 1
 # 한 문장·한 칸이 본문에 드러내는 REFERENCE 번호의 수. 판정 하나가 근거를 열 건 넘게
 # 달고 있어서, 이 제한이 없으면 REFERENCE 가 본문보다 길어진다 (live 실측: 본문 7.3쪽에
 # REFERENCE 11.7쪽, 177건). 가린 인용은 산출물 JSON 의 evidence_ids 에 그대로 있다.
-COMPACT_CITATIONS = 3
+COMPACT_CITATIONS = 2
 
 
 def citation_numbers(sources) -> dict[str, tuple[int, int | None]]:
@@ -355,13 +355,18 @@ def _unique_claim_lines(claims, shown, *, per_technology=False):
             continue
         count[key] = count.get(key, 0) + 1
         lines.append(_claim_line(c))
-    for key, number in hidden.items():
-        label = f"{key}: " if key else ""
-        lines.append(f"- {label}같은 절의 근거 문장 {number}건은 산출물 JSON 에 남겼다")
+    if not _COMPACT:
+        for key, number in hidden.items():
+            label = f"{key}: " if key else ""
+            lines.append(f"- {label}같은 절의 근거 문장 {number}건은 산출물 JSON 에 남겼다")
     return lines
 
 
 def _claim_line(c):
+    if _COMPACT:
+        # 제출본은 문장을 그대로 싣는다. "- KIVI:" 접두사와 "조건:" 꼬리는 노트의
+        # 표기이지 보고서의 문장이 아니다. 적용 조건은 비교표의 각 칸이 따로 적는다.
+        return _cell(f"{c.text}{_ids(c.evidence_ids)}")
     line = f"- {c.technology}: {c.text}{_ids(c.evidence_ids)}"
     if c.conditions:
         line += " 조건: " + "; ".join(c.conditions)
@@ -569,7 +574,8 @@ def _render_report(state, result_keys, mode, sources):
             _unique_claim_lines([c for c in tech_run.result.claims if c.technology == tech], shown)
         )
     # Design E.1: the two-technology comparison table closes the section.
-    lines.append(f"기술 조사 노드 요약: {_cell(tech_run.result.summary)}")
+    tech_summary = _cell(tech_run.result.summary)
+    lines.append(tech_summary if _COMPACT else f"기술 조사 노드 요약: {tech_summary}")
     lines.append("표 3-1 기술 조사 결과 비교")
     lines.extend(_assessment_table(tech_run, techs))
 
@@ -620,12 +626,14 @@ def _render_report(state, result_keys, mode, sources):
         run = state[result_keys[role]]
         lines.append(f"## 4.{number} {heading}")
         shown = set()
-        # 판정부터 싣는다. 절 구성 상태(보고서 노드의 메타 판정)는 그 뒤로 간다.
+        # 판정 → 그 관점의 서술 → 근거 문장 → 비교표 순서로 읽히게 한다.
         for tech in techs:
             lines.append(findings_line(run, tech))
+        # 제출본에서는 "시장성 노드 요약:" 같은 파이프라인 말투를 빼고 문단만 싣는다.
+        summary = _cell(run.result.summary)
+        lines.append(summary if _COMPACT else f"{ROLE_LABELS[role]} 노드 요약: {summary}")
         for tech in techs:
             lines.extend(_narrative(report, role, tech, shown))
-        lines.append(f"{ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)}")
         lines.extend(_unique_claim_lines(run.result.claims, shown, per_technology=True))
         lines.append(f"표 4-{number} {heading} 비교")
         lines.extend(_assessment_table(run, techs))
@@ -635,7 +643,8 @@ def _render_report(state, result_keys, mode, sources):
     for tech in techs:
         lines.extend(_narrative(report, "implications", tech, shown))
     lines.append("## 5.1 관점 간 상충 지점")
-    lines.append(f"평가 종합 노드 요약: {_cell(synthesis.result.summary)}")
+    synth_summary = _cell(synthesis.result.summary)
+    lines.append(synth_summary if _COMPACT else f"평가 종합 노드 요약: {synth_summary}")
     for a in synthesis.result.assessments:
         if a.criterion == "consistency":
             lines.append(
