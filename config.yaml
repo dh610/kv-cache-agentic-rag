@@ -36,6 +36,7 @@ retrieval:
   chunk_size: 1200  # characters, matching the shared starter's baseline
   chunk_overlap: 200
   top_k: 5
+  web_top_k: 10  # KIVI처럼 인용이 많은 논문은 상위 5개가 arxiv 미러로 다 채워진다
   rerank: false  # opt-in, no unverified benchmark claim
   reranker: BAAI/bge-reranker-v2-m3
   candidates: 20
