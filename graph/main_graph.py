@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, TypedDict
 
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.config import ContextThreadPoolExecutor
 from langgraph.graph import END, START, StateGraph
 
 from graph.node_graph import build_node_graph, contract_errors
@@ -207,7 +208,8 @@ def build_main_graph(
     def supplement(state, config: RunnableConfig):
         """보완 재실행 (표 12·13): gaps 의 담당 역할만 1라운드 재실행하고 결과 키를 교체한다.
 
-        기술 조사 결과가 바뀌면 그것을 참고한 세 평가도 다시 돈다. 결과 수집을 거치지 않고 synthesis 로 복귀한다.
+        기술 조사가 먼저 돌고, 그 결과가 바뀌면 그것을 참고한 세 평가도 다시 돈다. 세 평가는 첫 실행과
+        같이 병렬로 재실행한다. 결과 수집을 거치지 않고 synthesis 로 복귀한다.
         출처는 누적 리듀서에 더해지고, gaps 는 재실행 결과로 다시 계산한다.
         """
         roles = {g.role for g in state["gaps"] if g.role in NODES[:4]}
@@ -217,56 +219,70 @@ def build_main_graph(
         log = ProgressLog(config.get("configurable", {}).get("output_dir"))
         log.emit("supplement_start", round=updates["supplement_round"], roles=sorted(roles))
         changed_techs = set()
-        for name in NODES[:4]:
-            if name not in roles:
-                continue
+
+        def rerun(name):
             # 재실행 입력은 첫 실행과 같은 상위 결과만 본다: 기술은 없음, 평가는 기술 결과만.
             allowed = () if name == "tech" else ("tech_result",)
             view = {
                 k: v for k, v in working.items() if k not in RESULT_KEYS.values() or k in allowed
             }
-            previous = working[RESULT_KEYS[name]]
-            delta = runners[name](
+            return runners[name](
                 view,
                 config,
-                previous=previous,
+                previous=working[RESULT_KEYS[name]],
                 refresh_technologies=changed_techs,
             )
-            if name == "tech":
-                current = delta[RESULT_KEYS[name]]
-                if (
-                    previous.status != current.status
-                    or previous.result.unverified != current.result.unverified
-                ):
-                    changed_techs = set(settings.target_techs.values())
-                else:
-                    for tech in settings.target_techs.values():
 
-                        def relevant(run):
-                            items = [
-                                item
-                                for group in (
-                                    run.result.claims,
-                                    run.result.assessments,
-                                    run.result.trl_estimates,
-                                )
-                                for item in group
-                                if item.technology == tech
-                            ]
-                            ids = {eid for item in items for eid in item.evidence_ids}
-                            return (
-                                [item.model_dump() for item in items],
-                                [e.model_dump() for e in run.evidence if e.id in ids],
-                                run.result.limitations,
-                            )
-
-                        if relevant(previous) != relevant(current):
-                            changed_techs.add(tech)
-                if changed_techs:
-                    roles |= {"market", "stakeholder", "domain"}
+        def apply(name, delta):
             working[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             updates[RESULT_KEYS[name]] = delta[RESULT_KEYS[name]]
             new_sources.extend(delta["sources"])
+
+        # 기술 조사는 먼저 혼자 돈다. 그 결과가 바뀌면 세 평가의 입력과 재실행 대상이 달라진다.
+        if "tech" in roles:
+            previous = working["tech_result"]
+            delta = rerun("tech")
+            current = delta["tech_result"]
+            if (
+                previous.status != current.status
+                or previous.result.unverified != current.result.unverified
+            ):
+                changed_techs = set(settings.target_techs.values())
+            else:
+                for tech in settings.target_techs.values():
+
+                    def relevant(run):
+                        items = [
+                            item
+                            for group in (
+                                run.result.claims,
+                                run.result.assessments,
+                                run.result.trl_estimates,
+                            )
+                            for item in group
+                            if item.technology == tech
+                        ]
+                        ids = {eid for item in items for eid in item.evidence_ids}
+                        return (
+                            [item.model_dump() for item in items],
+                            [e.model_dump() for e in run.evidence if e.id in ids],
+                            run.result.limitations,
+                        )
+
+                    if relevant(previous) != relevant(current):
+                        changed_techs.add(tech)
+            if changed_techs:
+                roles |= {"market", "stakeholder", "domain"}
+            apply("tech", delta)
+        # 세 평가는 첫 실행과 같이 병렬로 돈다. 서로의 결과를 입력으로 받지 않으므로 순서 의존이
+        # 없고, 결과 반영은 NODES 순서로 고정해 sources 누적 순서를 재현 가능하게 유지한다.
+        # (live 실측: 순차 290초 → 가장 느린 도메인 한 노드 시간으로 단축)
+        dependents = [name for name in NODES[1:4] if name in roles]
+        if dependents:
+            with ContextThreadPoolExecutor(max_workers=len(dependents)) as pool:
+                deltas = list(pool.map(rerun, dependents))
+            for name, delta in zip(dependents, deltas):
+                apply(name, delta)
         runs = {role: working[RESULT_KEYS[role]] for role in NODES[:4]}
         updates["gaps"] = collect_gaps(runs, settings)
         updates["sources"] = new_sources

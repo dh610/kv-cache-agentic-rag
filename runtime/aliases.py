@@ -125,3 +125,27 @@ def restore_coverage(items: list[Coverage], back: dict[str, str]) -> list[Covera
 
 def restore_checks(checks: list[ClaimCheck], back: dict[str, str]) -> list[ClaimCheck]:
     return [c.model_copy(update={"evidence_ids": _ids(c.evidence_ids, back)}) for c in checks]
+
+
+_SENTENCE_END = re.compile(r"(?<=[.!?。])\s+|(?<=다\.)\s*|\n+")
+
+
+def trim_summary(text: str, limit: int) -> str:
+    """문장 경계에서 잘라 limit 자 이내로 줄인다. 설계서 E.1: SUMMARY 는 1/2 페이지(600자).
+
+    보고서를 기술별 패킷으로 나눠 생성하면 요약이 두 개 이어 붙어 한도를 넘긴다(live 점검 1,249자).
+    프롬프트 지시만으로는 지켜지지 않아 코드가 보장한다. 자른 사실은 끝에 표시한다.
+    """
+    text = clean_text(text)
+    if len(text) <= limit:
+        return text
+    marker = " …(이하 생략)"
+    budget = limit - len(marker)
+    kept, total = [], 0
+    for sentence in (s.strip() for s in _SENTENCE_END.split(text) if s and s.strip()):
+        if total + len(sentence) + (1 if kept else 0) > budget:
+            break
+        kept.append(sentence)
+        total += len(sentence) + (1 if len(kept) > 1 else 0)
+    body = " ".join(kept) if kept else text[:budget].rstrip()
+    return body + marker
