@@ -243,6 +243,9 @@ INTERNAL = re.compile(
     r"\s*[\(\[]\s*E\d+(\s*[,;·]\s*E\d+)*\s*[\)\]]"  # (E1, E3) 같은 임시 근거 번호
     r"|\b(tech|market|stakeholder|domain|synthesis|report)/[A-Za-z]+/[a-z_]+"
     r"(\s*[·,]\s*[a-z_]+)*\s*:?\s*"  # 내부 키 경로(나열 포함)
+    # rubric 이 "market/기술/기준: 등급" 형식을 지시하는데, 모델이 그 형식 설명을
+    # 그대로 베껴 적는 경우가 있다. 값이 아니라 틀이므로 독자에게는 의미가 없다.
+    r"|\brole/technology/criterion\s*:?\s*"
 )
 
 
