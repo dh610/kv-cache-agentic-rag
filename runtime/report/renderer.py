@@ -427,10 +427,14 @@ def write_report(
             main = desc[: found.start()] if found else desc
             parsed = {}
             for part in main.rstrip(". ").split(", "):
-                label = next((lb for lb in labels if part.startswith(lb + " ")), None)
+                # 판정 값이 항목명을 품는 루브릭("조건부 시사점")은 항목명만 온다.
+                label = next((lb for lb in labels if part == lb or part.startswith(lb + " ")), None)
                 if label is None:
                     return False
-                parsed[label] = part[len(label) + 1 :]
+                verdict = part[len(label) + 1 :] if part != label else part
+                # 같은 항목이 되풀이되면(생성기가 같은 판정을 여러 번 낸 경우) 첫 실제 판정을 쓴다.
+                if label not in parsed or parsed[label] == "확인 불가":
+                    parsed[label] = verdict
             names.append(name)
             verdicts.append(parsed)
         order = list(dict.fromkeys(label for v in verdicts for label in v))
@@ -484,7 +488,13 @@ def write_report(
 
     def flush_findings():
         if pending_findings and not findings_table(list(pending_findings)):
-            findings_row(list(pending_findings))
+            # 표로 못 만들면 상자로 그린다. "갈리는 지점" 줄은 그때도 상자가 아니라 한 줄이다.
+            cards = [item for item in pending_findings if not item.startswith("갈리는 ")]
+            if cards:
+                findings_row(cards)
+            for item in pending_findings:
+                if item.startswith("갈리는 "):
+                    story.append(Paragraph(pdf_text(item), status))
         pending_findings.clear()
 
     def flush_summary():
