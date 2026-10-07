@@ -415,6 +415,34 @@ def findings_line(run, tech, only: str | None = None) -> str:
     return "> " + _cell(head)
 
 
+def divergence_line(run, techs, only: str | None = None) -> str:
+    """두 기술의 판정이 갈리는 항목을 짚는다.
+
+    대조는 LLM 에게 맡길 수 없다 — Claim 은 technology 를 하나만 갖는 구조라, 주장 한
+    문장은 언제나 한 기술에 대한 것이다. 그래서 "A는 …인 반면 B는 …" 을 쓰라고 시켜도
+    모델이 쓸 수 있는 형태가 아니다. 갈린 지점은 판정에서 코드가 읽어 낸다.
+    """
+    if len(techs) != 2:
+        return ""
+    left, right = techs
+    verdicts = {
+        (a.technology, a.criterion): a.judgment
+        for a in run.result.assessments
+        if only is None or a.criterion == only
+    }
+    criteria = list(dict.fromkeys(c for _, c in verdicts))
+    split = [
+        f"{LABELS.get(c, c)} — {left} {verdicts[left, c]} / {right} {verdicts[right, c]}"
+        for c in criteria
+        if (left, c) in verdicts
+        and (right, c) in verdicts
+        and verdicts[left, c] != verdicts[right, c]
+    ]
+    if not split:
+        return "> 갈리는 항목 없음 — 두 기술이 같은 판정을 받았다."
+    return "> 갈리는 지점: " + _cell(" · ".join(split))
+
+
 def _narrative(report_run, criterion, tech, shown=None):
     """Report-node sentences for one section/technology plus its coverage judgment.
 
@@ -540,17 +568,19 @@ def _render_report(state, result_keys, mode, sources):
         sections.selection(sw=sw, hw=hw),
         "# 3. 기술 개요",
     ]
+    for tech in techs:
+        lines.append(findings_line(tech_run, tech))
+    lines.append(divergence_line(tech_run, techs))
     for number, tech in enumerate(techs, 1):
         lines.append(f"## 3.{number} {tech}")
         shown: set[str] = set()
-        lines.append(findings_line(tech_run, tech))
         lines.extend(_narrative(report, "overview", tech, shown))
         lines.extend(
             _unique_claim_lines([c for c in tech_run.result.claims if c.technology == tech], shown)
         )
     # Design E.1: the two-technology comparison table closes the section.
-    tech_summary = _cell(tech_run.result.summary)
-    lines.append(tech_summary if _COMPACT else f"기술 조사 노드 요약: {tech_summary}")
+    if not _COMPACT:
+        lines.append(f"기술 조사 노드 요약: {_cell(tech_run.result.summary)}")
     lines.append("표 3-1 기술 조사 결과 비교")
     lines.extend(_assessment_table(tech_run, techs))
 
@@ -604,9 +634,12 @@ def _render_report(state, result_keys, mode, sources):
         # 판정 → 그 관점의 서술 → 근거 문장 → 비교표 순서로 읽히게 한다.
         for tech in techs:
             lines.append(findings_line(run, tech))
-        # 제출본에서는 "시장성 노드 요약:" 같은 파이프라인 말투를 빼고 문단만 싣는다.
-        summary = _cell(run.result.summary)
-        lines.append(summary if _COMPACT else f"{ROLE_LABELS[role]} 노드 요약: {summary}")
+        lines.append(divergence_line(run, techs))
+        # 제출본에서는 관점 요약 문단을 싣지 않는다. 바로 위의 판정 띠와 갈리는 지점,
+        # 아래의 비교표가 같은 내용을 더 조밀하게 말한다. 분량 한도가 걸린 문서에서
+        # 같은 말을 세 번 하는 자리를 근거 문장과 표에 넘긴다.
+        if not _COMPACT:
+            lines.append(f"{ROLE_LABELS[role]} 노드 요약: {_cell(run.result.summary)}")
         for tech in techs:
             lines.extend(_narrative(report, role, tech, shown))
         lines.extend(_unique_claim_lines(run.result.claims, shown, per_technology=True))
@@ -619,9 +652,10 @@ def _render_report(state, result_keys, mode, sources):
     # 장 머리에 한 번만 두고 두 항목을 함께 싣는다.
     for tech in techs:
         lines.append(findings_line(synthesis, tech))
+    lines.append(divergence_line(synthesis, techs))
     lines.append("## 5.1 관점 간 상충 지점")
-    synth_summary = _cell(synthesis.result.summary)
-    lines.append(synth_summary if _COMPACT else f"평가 종합 노드 요약: {synth_summary}")
+    if not _COMPACT:
+        lines.append(f"평가 종합 노드 요약: {_cell(synthesis.result.summary)}")
     for a in synthesis.result.assessments:
         if a.criterion == "consistency":
             lines.append(_judgement_line(a, LABELS["consistency"]))

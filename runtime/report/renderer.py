@@ -88,10 +88,15 @@ def write_report(
         base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
         return ParagraphStyle(name, **{**base, **kw})
 
-    dense = 0.67 if compact else 1.0
-    normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
-    cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
-    cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)
+    # 제출본은 글자를 조금 줄이고 줄간격 **비율**은 지킨다. 줄간격만 조이면 글자 크기와
+    # 거의 같아져(9.5pt 에 9.9pt) 읽기 어려워진다.
+    dense = 0.75 if compact else 1.0
+    base = 9.0 if compact else 9.5
+    normal = style("body", fontSize=base, leading=16 * dense, spaceAfter=8 * dense)
+    cellst = style("cell", fontSize=base - 0.8, leading=13 * dense, spaceAfter=0)
+    cellhd = style(
+        "cellhead", fontSize=base - 0.8, leading=13 * dense, spaceAfter=0, textColor=accent
+    )
     chapter = style(
         "chapter",
         fontSize=16,
@@ -113,7 +118,7 @@ def write_report(
     )
 
     # 절 머리의 판정 줄. 본문에서 가장 먼저 읽어야 할 내용이라 따로 꾸민다.
-    finding = style("finding", fontSize=9.5, leading=15, spaceAfter=2)
+    finding = style("finding", fontSize=base, leading=15 * dense, spaceAfter=2)
     story = []
     if meta and compact:
         # 제출본은 표지에 한 쪽을 쓰지 않는다. 같은 정보를 머리말로 올리고 본문이
