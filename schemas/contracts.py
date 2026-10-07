@@ -151,6 +151,9 @@ class CriterionVerdict(Contract):
     reason: str
     # 코드 규칙(rule)·LLM Judge(judge) 중 어느 층의 판정인지. Hybrid 결합의 근거.
     source: Literal["rule", "judge", "both"] = "rule"
+    # 이 미달을 고칠 수 있는 역할. 판정한 쪽이 지목한다 — 같은 항목이라도 원인에 따라
+    # 고칠 사람이 다르다(근거가 없는 것과, 근거 없이 등급을 쓴 것은 다른 문제다).
+    owners: list[str] = Field(default_factory=list)
 
 
 class QualityReview(Contract):

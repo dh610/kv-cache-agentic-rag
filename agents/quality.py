@@ -38,6 +38,13 @@ PERSPECTIVES = {
     "도메인 적용": ("domain", "domain"),
 }
 # 규칙으로 잡는 우열·추천 표현. 보고서 조립기의 금지 표현에 비교 표현을 더한다.
+# 근거를 더 모아야 고쳐지는 미달의 책임 역할.
+RESEARCH_OWNERS = ("market", "stakeholder", "domain")
+# 2층 Judge 에게 묻지 않는 항목. 관점 커버리지는 "네 관점을 다뤘는가"라는 **구성**의
+# 문제라 코드가 끝까지 판정할 수 있다. 내용까지 물으면 Judge 가 확인 불가가 많다는
+# 이유로 미달을 내는데(live 실행에서 실제로 그랬다), 확인 불가는 이 설계에서 정상
+# 산출이지 결함이 아니다. 내용 수준의 품질은 groundedness·편향 통제가 본다.
+RULE_ONLY = ("coverage",)
 COMPARATIVE_PHRASES = RECOMMENDATION_PHRASES + (
     "우수하다",
     "유리하다고 판단",
@@ -77,7 +84,13 @@ def check_groundedness(state, settings, sources) -> CriterionVerdict:
     reason = f"주장 {len(traced)}/{len(cited)}건이 출처 ID 로 추적됨 (기준 {threshold})"
     if ungrounded:
         reason += f"; 근거 없는 등급: {', '.join(ungrounded[:6])}"
-    return CriterionVerdict(criterion="groundedness", passed=passed, reason=reason, source="rule")
+    # 원인에 따라 고칠 사람이 다르다. 인용이 출처 목록에 없으면 근거를 더 모아야 하지만,
+    # 근거 없이 등급을 쓴 것은 보고서 노드가 확인 불가로 내렸어야 할 일이다. 조사
+    # 에이전트를 다시 돌려도 고쳐지지 않는다 (live 실행에서 그렇게 한 라운드를 버렸다).
+    owners = ["report"] if ungrounded else list(RESEARCH_OWNERS)
+    return CriterionVerdict(
+        criterion="groundedness", passed=passed, reason=reason, source="rule", owners=owners
+    )
 
 
 def check_neutrality(state, text) -> CriterionVerdict:
@@ -90,6 +103,7 @@ def check_neutrality(state, text) -> CriterionVerdict:
         passed=not hits,
         reason="추천·우열 표현 없음" if not hits else f"검출된 표현: {', '.join(hits)}",
         source="rule",
+        owners=["report"],
     )
 
 
@@ -128,6 +142,7 @@ def check_bias_control(state, settings, sources) -> CriterionVerdict:
         passed=not problems,
         reason=("단일 출처·편중 없음" if not problems else "; ".join(problems[:6])) + note,
         source="rule",
+        owners=list(RESEARCH_OWNERS),
     )
 
 
@@ -166,25 +181,23 @@ def check_coverage(state, text) -> CriterionVerdict:
         passed=not missing,
         reason="4개 관점 모두 구성됨" if not missing else f"미구성: {', '.join(missing)}",
         source="rule",
+        # 비어 있는 관점의 담당자. 전부 차 있는데도 미달이면 보고서 구성 문제다.
+        owners=sorted({role for label, (role, _) in PERSPECTIVES.items() if label in str(missing)})
+        or ["report"],
     )
 
 
 def _remediation(verdict: QualityVerdict) -> list[str]:
     """미달 항목을 '누구에게 되돌릴지'로 번역한다.
 
-    근거 자체가 부족한 항목(groundedness·편향 통제)은 조사 에이전트에게,
-    서술의 문제(중립성)는 보고서 에이전트에게 돌린다. 관점 커버리지는 비어 있는
-    관점의 담당 에이전트에게 돌리고, 그 관점이 멀쩡하면 보고서 구성 문제다.
+    판정한 쪽이 ``owners`` 로 지목한 역할을 그대로 쓴다. 같은 항목이라도 원인에 따라
+    고칠 사람이 다르기 때문이다 — 인용이 출처에 없으면 근거를 더 모아야 하지만,
+    근거 없이 등급을 쓴 것은 보고서 노드가 확인 불가로 내렸어야 할 일이다.
     """
-    failed = set(verdict.failed_criteria())
-    roles: list[str] = []
-    if "bias_control" in failed or "groundedness" in failed:
-        roles += ["market", "stakeholder", "domain"]
-    if "coverage" in failed:
-        roles += [role for role, _ in PERSPECTIVES.values()]
-    if "neutrality" in failed or not roles:
-        roles.append("report")
-    return sorted(dict.fromkeys(roles))
+    roles = [owner for check in verdict.checks if not check.passed for owner in check.owners]
+    # 지목이 없으면 보고서 작성자에게 돌린다. 책임을 못 정한 미달을 조사 에이전트에게
+    # 보내면 고칠 수 없는 일을 시키는 셈이다.
+    return sorted(dict.fromkeys(roles)) or ["report"]
 
 
 def make_quality_node(settings, backend, mode: str):
@@ -206,7 +219,7 @@ def make_quality_node(settings, backend, mode: str):
         # 2층: 1층을 통과한 항목만 내용 판정을 받는다.
         judge_available = settings.supervisor.quality.judge and hasattr(backend, "quality_review")
         if judge_available:
-            askable = [c.criterion for c in checks if c.passed]
+            askable = [c.criterion for c in checks if c.passed and c.criterion not in RULE_ONLY]
             review = backend.quality_review(text, askable, used_sources=sources)
             by_criterion = {item.criterion: item for item in review}
             checks = [
@@ -244,7 +257,11 @@ def make_quality_node(settings, backend, mode: str):
 
 
 def _combine(rule: CriterionVerdict, judge: CriterionVerdict) -> CriterionVerdict:
-    """AND 결합. 규칙이 통과시켜도 Judge 가 떨어뜨리면 불합격이다."""
+    """AND 결합. 규칙이 통과시켜도 Judge 가 떨어뜨리면 불합격이다.
+
+    책임 소재는 규칙 쪽 판정을 따른다. Judge 는 내용을 읽고 불합격을 낼 수는 있어도
+    조직 안에서 누가 그것을 고치는지는 모른다.
+    """
     if judge.passed:
         return rule.model_copy(update={"source": "both"})
     return CriterionVerdict(
@@ -252,4 +269,5 @@ def _combine(rule: CriterionVerdict, judge: CriterionVerdict) -> CriterionVerdic
         passed=False,
         reason=f"규칙 통과 / Judge 불합격: {judge.reason}",
         source="judge",
+        owners=rule.owners,
     )

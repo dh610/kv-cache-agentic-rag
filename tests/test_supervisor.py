@@ -14,7 +14,7 @@ from copy import deepcopy
 import pytest
 
 from agents.quality import (
-    PERSPECTIVES,
+    RESEARCH_OWNERS,
     _remediation,
     check_bias_control,
     check_coverage,
@@ -374,18 +374,92 @@ def test_quality_failure_is_not_reported_as_completed(tmp_path):
         assert any("품질 미달" in p for p in final["report_check"]["problems"])
 
 
-def test_remediation_maps_each_criterion_to_an_owner():
-    coverage_only = QualityVerdict(
-        passed=False,
-        checks=[{"criterion": "coverage", "passed": False, "reason": "x", "source": "rule"}],
-    )
-    assert set(_remediation(coverage_only)) == {role for role, _ in PERSPECTIVES.values()}
+def test_remediation_follows_whoever_can_actually_fix_it():
+    """같은 항목이라도 원인에 따라 고칠 사람이 다르다."""
 
-    neutrality_only = QualityVerdict(
-        passed=False,
-        checks=[{"criterion": "neutrality", "passed": False, "reason": "x", "source": "rule"}],
+    def verdict(criterion, owners):
+        return QualityVerdict(
+            passed=False,
+            checks=[
+                {
+                    "criterion": criterion,
+                    "passed": False,
+                    "reason": "x",
+                    "source": "rule",
+                    "owners": owners,
+                }
+            ],
+        )
+
+    # 근거 없이 등급을 쓴 것은 보고서 노드가 고칠 일이다.
+    assert _remediation(verdict("groundedness", ["report"])) == ["report"]
+    # 인용할 근거 자체가 모자란 것은 조사 에이전트가 고칠 일이다.
+    assert _remediation(verdict("bias_control", list(RESEARCH_OWNERS))) == sorted(RESEARCH_OWNERS)
+    # 아무도 지목되지 않으면 고칠 수 없는 곳으로 보내지 않는다.
+    assert _remediation(verdict("neutrality", [])) == ["report"]
+
+
+def test_ungrounded_judgements_are_sent_to_the_report_agent_not_the_researchers():
+    """live 실행에서 이 오배정으로 재작업 한 라운드를 통째로 버렸다."""
+    from schemas.contracts import Assessment, Claim, NodeResult, NodeRun
+
+    run = NodeRun(
+        node="report",
+        mode="mock",
+        status="completed",
+        result=NodeResult(
+            node="report",
+            summary="s",
+            claims=[
+                Claim(
+                    id="c1",
+                    technology="KIVI",
+                    criterion="implications",
+                    text="t",
+                    kind="fact",
+                    evidence_ids=["e1"],
+                    conditions=[],
+                )
+            ],
+            # 근거 없이 등급만 적었다 — 확인 불가로 내렸어야 할 자리.
+            assessments=[
+                Assessment(
+                    technology="KIVI",
+                    criterion="implications",
+                    judgment="구성 충족",
+                    rationale="r",
+                    evidence_ids=[],
+                )
+            ],
+            unverified=[],
+            limitations=[],
+        ),
+        evidence=[],
+        checks=[],
+        validation_errors=[],
+        searches=[],
+        prompt_hash="h",
+        model="m",
     )
-    assert _remediation(neutrality_only) == ["report"]
+    source = Evidence(
+        id="e1",
+        text="t",
+        title="T",
+        url="https://example.com/e1",
+        technology="KIVI",
+        source_type="web",
+        scope="target",
+    )
+    check = check_groundedness({"results": {"report": run}}, settings(), [source])
+    assert check.passed is False
+    assert check.owners == ["report"], "조사 에이전트를 다시 돌려도 고쳐지지 않는다"
+
+
+def test_coverage_is_not_second_guessed_by_the_judge():
+    """확인 불가는 이 설계의 정상 산출이다. Judge 가 그걸로 커버리지를 깎으면 안 된다."""
+    from agents.quality import RULE_ONLY
+
+    assert "coverage" in RULE_ONLY
 
 
 def test_neutrality_rule_catches_a_ranking_sentence():
