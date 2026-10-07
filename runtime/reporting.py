@@ -270,6 +270,19 @@ def _cell(text):
     return strip_internal(text.replace("|", "/").replace("\n", " "))
 
 
+def _summary_paragraphs(summary, label=None):
+    """노드 요약을 문단 단위로 싣는다.
+
+    기술별 패킷 생성이 요약을 줄바꿈으로 이어 붙이는데, _cell 로 한 줄로 접으면
+    두 기술의 결론이 한 덩어리 문단이 되어 읽는 사람이 경계를 찾지 못한다.
+    줄바꿈을 문단 경계로 유지하고, 파이프라인 말투 라벨은 첫 문단에만 단다.
+    """
+    parts = [_cell(part) for part in summary.splitlines() if part.strip()]
+    if label and parts and not _COMPACT:
+        parts[0] = f"{label}: {parts[0]}"
+    return parts
+
+
 # 본문 인용을 REFERENCE 번호로 바꾸기 위한 현재 보고서의 지도. assemble_report 가 채운다.
 _CITATIONS: dict[str, str] = {}
 # 압축 조판 여부. 과제 규칙의 10장 한도를 코드로 지키기 위한 것이며, assemble_report 가 채운다.
@@ -422,6 +435,7 @@ def findings_line(run, tech) -> str:
     if not items:
         return f"> {tech}: 이 관점의 평가 결과가 없다."
     decided = [a for a in items if a.judgment != "확인 불가"]
+
     def entry(a):
         label = LABELS.get(a.criterion, a.criterion)
         # 일부 루브릭은 판정 값 자체가 항목명을 품는다("원리" / "원리 확인"). 둘을 그대로
@@ -574,8 +588,7 @@ def _render_report(state, result_keys, mode, sources):
             _unique_claim_lines([c for c in tech_run.result.claims if c.technology == tech], shown)
         )
     # Design E.1: the two-technology comparison table closes the section.
-    tech_summary = _cell(tech_run.result.summary)
-    lines.append(tech_summary if _COMPACT else f"기술 조사 노드 요약: {tech_summary}")
+    lines.extend(_summary_paragraphs(tech_run.result.summary, "기술 조사 노드 요약"))
     lines.append("표 3-1 기술 조사 결과 비교")
     lines.extend(_assessment_table(tech_run, techs))
 
@@ -626,15 +639,18 @@ def _render_report(state, result_keys, mode, sources):
         run = state[result_keys[role]]
         lines.append(f"## 4.{number} {heading}")
         shown = set()
-        # 판정 → 그 관점의 서술 → 근거 문장 → 비교표 순서로 읽히게 한다.
+        # 판정 → 그 관점의 서술 → 기술별 소절(서술·근거 문장) → 비교표 순서로 읽히게 한다.
         for tech in techs:
             lines.append(findings_line(run, tech))
         # 제출본에서는 "시장성 노드 요약:" 같은 파이프라인 말투를 빼고 문단만 싣는다.
-        summary = _cell(run.result.summary)
-        lines.append(summary if _COMPACT else f"{ROLE_LABELS[role]} 노드 요약: {summary}")
+        lines.extend(_summary_paragraphs(run.result.summary, f"{ROLE_LABELS[role]} 노드 요약"))
+        # 두 기술의 문장이 한 흐름에 섞이면 경계가 사라진다. 기술별 소제목으로 구획한다.
         for tech in techs:
+            lines.append(f"### {tech}")
             lines.extend(_narrative(report, role, tech, shown))
-        lines.extend(_unique_claim_lines(run.result.claims, shown, per_technology=True))
+            lines.extend(
+                _unique_claim_lines([c for c in run.result.claims if c.technology == tech], shown)
+            )
         lines.append(f"표 4-{number} {heading} 비교")
         lines.extend(_assessment_table(run, techs))
 
@@ -643,8 +659,7 @@ def _render_report(state, result_keys, mode, sources):
     for tech in techs:
         lines.extend(_narrative(report, "implications", tech, shown))
     lines.append("## 5.1 관점 간 상충 지점")
-    synth_summary = _cell(synthesis.result.summary)
-    lines.append(synth_summary if _COMPACT else f"평가 종합 노드 요약: {synth_summary}")
+    lines.extend(_summary_paragraphs(synthesis.result.summary, "평가 종합 노드 요약"))
     for a in synthesis.result.assessments:
         if a.criterion == "consistency":
             lines.append(
@@ -915,6 +930,25 @@ def write_report(
     section = style(
         "section", fontSize=11.5, leading=17 * dense, spaceBefore=15 * dense, spaceAfter=5 * dense
     )
+    # 4장 각 절 안의 기술별 소절 머리(### KIVI). 목차에는 올리지 않는다.
+    subsection = style(
+        "subsection",
+        fontSize=10,
+        leading=15 * dense,
+        spaceBefore=10 * dense,
+        spaceAfter=3 * dense,
+        textColor=accent,
+    )
+    # "- " 목록 줄. 대시를 글자로 찍는 대신 들여쓰기와 글머리표로 조판한다.
+    bullet = style(
+        "bullet",
+        fontSize=9.5,
+        leading=15 * dense,
+        spaceAfter=4 * dense,
+        leftIndent=14,
+        bulletIndent=3,
+        bulletFontName=font,
+    )
     caption = style(
         "caption",
         fontSize=8.5,
@@ -1081,6 +1115,10 @@ def write_report(
             rows.append([Paragraph(pdf_text(c), cellhd if first_row else cellst) for c in cells])
             continue
         flush()
+        if line.startswith("### "):
+            # 기술별 소절 머리. 목차·꼬리말 챕터명에는 올리지 않는다.
+            story.append(Paragraph(pdf_text(line[4:].strip()), subsection))
+            continue
         if line.startswith("#"):
             if in_summary and pending_summary:
                 summary_box(pending_summary)
@@ -1096,6 +1134,9 @@ def write_report(
             continue
         if in_summary:
             pending_summary.append(line)
+            continue
+        if line.startswith("- "):
+            story.append(Paragraph(pdf_text(line[2:].strip()), bullet, bulletText="•"))
             continue
         style_for = caption if line.startswith("표 ") else normal
         story.append(Paragraph(pdf_text(line), style_for))
