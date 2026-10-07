@@ -32,7 +32,14 @@ from agents.state import (
     merge_sources,
 )
 from agents.sufficiency import assess, rework_feedback
-from agents.supervisor import PIPELINE_ROLES, ROUTES, decide, initial_control, route
+from agents.supervisor import (
+    PIPELINE_ROLES,
+    ROUTES,
+    decide,
+    initial_control,
+    make_supervisor,
+    route,
+)
 from graph.supervisor_graph import WORKER_ROLES, build_supervisor_graph
 from runtime.models import MockBackend
 from runtime.runner import load_input
@@ -524,3 +531,33 @@ def test_quality_rules_run_against_a_real_mock_report(tmp_path):
     # 고정 발췌는 기술당 한 건뿐이라 편향 통제는 통과하지 못한다 — 그 사실이 드러나야 한다.
     bias = check_bias_control(final, settings(), sources)
     assert bias.passed is False and "출처" in bias.reason
+
+
+def test_a_wording_only_fix_does_not_re_run_synthesis():
+    """중립성 미달은 보고서 서술 문제다. 입력이 같은 평가 종합을 다시 돌릴 이유가 없다."""
+    control = all_research_done()
+    control["synthesis"] = done("synthesis")
+    control["report"] = done("report")
+    verdict = QualityVerdict(
+        passed=False,
+        checks=[
+            {"criterion": "neutrality", "passed": False, "reason": "우열 표현", "source": "rule"}
+        ],
+        remediation_roles=["report"],
+    )
+    supervise = make_supervisor(settings())
+    delta = supervise(base_state(control=control, quality=verdict), {})
+    assert delta["route"] == ["report"]
+    assert delta["control"]["report"].status == "pending"
+    assert "synthesis" not in delta["control"], "평가 종합은 그대로 두어야 한다"
+
+
+def test_changed_research_does_re_run_synthesis_and_report():
+    """반대로 조사 결과가 바뀌면 그것을 종합한 결과와 보고서는 반드시 다시 만든다."""
+    control = all_research_done(sufficient=False)
+    control["synthesis"] = done("synthesis")
+    control["report"] = done("report")
+    supervise = make_supervisor(settings())
+    delta = supervise(base_state(control=control), {})
+    assert delta["control"]["synthesis"].status == "pending"
+    assert delta["control"]["report"].status == "pending"

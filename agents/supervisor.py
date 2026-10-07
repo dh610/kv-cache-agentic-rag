@@ -202,8 +202,12 @@ def make_supervisor(settings):
                 if role in control
             }
             # 상위 결과가 다시 만들어지면 그에 기대던 하위 단계도 다시 돈다.
+            # 다시 돌 **이유가 있는 것만** 되돌린다. 중립성 미달처럼 보고서의 서술만
+            # 고치면 되는 경우까지 평가 종합을 다시 돌리면, 입력이 같으니 같은 결과를
+            # 한 번 더 비싸게 만들 뿐이다.
             downstream = list(NEEDS_TECH) if "tech" in targets else []
-            downstream += ["synthesis", "report"]
+            if research:
+                downstream += ["synthesis", "report"]
             bonus = state.get("quality_round", 0) + (1 if state.get("quality") is not None else 0)
             updates.update(_invalidate({**control, **updates}, downstream, policy, bonus))
             delta["control"] = updates
