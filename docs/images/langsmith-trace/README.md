@@ -6,10 +6,10 @@ progress 로그나 파일 시각으로 로컬에서 재구성한 추정치가 �
 | 항목 | 값 |
 |---|---|
 | LangSmith 프로젝트 | `kv-rag-wonn2k-dev` |
-| trace_id | `e0a13f0c-b160-4d56-b0a2-64599cf97506` |
-| 실행 브랜치 | `feat/report-typeset-structure` (supervisor 계열, 083abcd + 조판 수정) |
-| 모드 / 총 시간 | live / 25m 00s |
-| 추적된 호출 수 | 1,332건 (노드·단계·LLM·검색 호출 전부) |
+| trace_id | `6ba766b2-510a-4f3a-9945-c7da781ed6a9` |
+| 실행 리비전 | `2a7e52c` — feat/supervisor-multi-agent 최신(#41·#42 포함) + 조판 수정 병합 |
+| 모드 / 총 시간 | live / 14m 26s |
+| 추적된 호출 수 | 1,241건 (노드·단계·LLM·검색 호출 전부) |
 | 원본 UI | 실행 산출물 `run.json`의 `trace_url` (LangSmith 웹에서 같은 trace_id 확인 가능) |
 
 ## 만든 방법
@@ -18,7 +18,7 @@ progress 로그나 파일 시각으로 로컬에서 재구성한 추정치가 �
    `LANGSMITH_TRACING=true LANGSMITH_PROJECT=kv-rag-wonn2k-dev ./run-report.sh` 를 실행했다.
    runner가 추적을 감지하면 종료 시 `run.json`에 `trace_url`을 기록한다.
 2. **트레이스 수집**: `langsmith` SDK(`Client.list_runs`)로 루트 실행의 `trace_id`에 속한
-   전체 run tree 1,332건을 받았다. 각 run의 이름·부모·시작/종료 시각·오류 여부를 쓴다.
+   전체 run tree 1,241건을 받았다. 각 run의 이름·부모·시작/종료 시각·오류 여부를 쓴다.
 3. **렌더링**: matplotlib + 저장소의 NanumGothic(`assets/fonts/`)으로 수평 막대 워터폴을 그렸다.
    - 깊이 3(단계 레벨: plan / search / check_sufficiency / write_draft / verify / fix /
      rewrite_query / return_result)까지만 표시하고, 그 아래 개별 LLM·검색 호출(1,100여 건)은
@@ -40,23 +40,23 @@ progress 로그나 파일 시각으로 로컬에서 재구성한 추정치가 �
 
 | 구간 | 소요 | 비고 |
 |---|---|---|
-| tech | 1m 37s | 단독 선행 |
-| domain / market / stakeholder | 4m 25s / 3m 22s / 2m 14s | tech 종료 직후 **병렬** 실행 |
-| synthesis (1차) | 1m 47s | |
-| **supplement** | **11m 35s** | **전체 25분의 46%** |
-| synthesis (2차) | 2m 36s | 보완 뒤 재종합 |
-| report + check_report | 2m 59s + 0.3s | |
+| tech | 1m 38s | 단독 선행 |
+| domain / market / stakeholder | 1m 58s / 1m 14s / 2m 40s | tech 종료 직후 **병렬** 실행 |
+| synthesis (1차) | 1m 23s | |
+| supplement | 5m 19s | 전체 14.4분의 37% |
+| synthesis (2차) | 56s | 보완 뒤 재종합 |
+| report + check_report | 2m 30s + 0.4s | |
 
-가장 큰 사실은 **supplement가 실행 시간의 절반 가까이 차지한다**는 것이다. 이 브랜치
-(supervisor 계열)는 보완 라운드가 역할을 하나씩 순차 재실행한다 — main에 머지된
-병렬 재실행(#38)이 아직 반영되지 않았다. 첫 실행에서 세 평가 노드가 병렬로 겹쳐 도는
-모습(개요의 겹친 막대)과 대비된다.
+이전 리비전(`4b8f42a`, 083abcd 기반)의 트레이스에서는 supplement가 11m 35s로 전체의
+46%였다. 코디네이션 레이어 수정(94e41a8·d2594d9)이 반영된 이번 리비전에서 5m 19s로
+줄었다. 실행마다 검색·재시도 횟수가 달라 1회 실측끼리의 비교이므로 단정은 하지 않지만,
+여전히 supplement가 단일 구간으로는 가장 길다.
 
-**상세(2~5장)** — 단계 레벨 135건의 워터폴.
-`trace-02`: 첫 패스. tech의 verify→fix→verify 재시도, 세 평가 노드의 plan→search→
+**상세(2~5장)** — 단계 레벨 136건의 워터폴.
+`trace-02`: 첫 패스. tech의 verify→fix 재시도, 세 평가 노드의 plan→search→
 check_sufficiency→(rewrite_query→search 반복)→write_draft→verify 루프가 시간축 위에
-그대로 찍혀 있다. `trace-03~04`: supplement 구간의 순차 재실행. `trace-05`: 2차
-synthesis와 report 생성.
+그대로 찍혀 있다. `trace-03~04`: supplement 구간의 재실행. `trace-05`: 2차 synthesis와
+report 생성.
 
 ## 주의
 
