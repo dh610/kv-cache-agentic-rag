@@ -364,9 +364,13 @@ def _unique_claim_lines(claims, shown, *, per_technology=False):
 
 def _claim_line(c):
     if _COMPACT:
-        # 제출본은 문장을 그대로 싣는다. "- KIVI:" 접두사와 "조건:" 꼬리는 노트의
-        # 표기이지 보고서의 문장이 아니다. 적용 조건은 비교표의 각 칸이 따로 적는다.
-        return _cell(f"{c.text}{_ids(c.evidence_ids)}")
+        # 제출본은 "- KIVI:" 접두사를 떼고 문장만 싣는다. 적용 조건은 **버리지 않는다** —
+        # 어떤 실험 환경에서 성립하는 수치인지가 기술 평가의 내용 자체이고, 비교표의
+        # 각 칸은 판정 기준과 직접 근거 유무만 적지 실험 조건을 적지 않는다.
+        line = f"{c.text}{_ids(c.evidence_ids)}"
+        if c.conditions:
+            line += " (조건: " + "; ".join(c.conditions) + ")"
+        return _cell(line)
     line = f"- {c.technology}: {c.text}{_ids(c.evidence_ids)}"
     if c.conditions:
         line += " 조건: " + "; ".join(c.conditions)
@@ -434,6 +438,7 @@ def findings_line(run, tech, only: str | None = None) -> str:
     if not items:
         return f"> {tech}: 이 관점의 평가 결과가 없다."
     decided = [a for a in items if a.judgment != "확인 불가"]
+
     def entry(a):
         label = LABELS.get(a.criterion, a.criterion)
         # 일부 루브릭은 판정 값 자체가 항목명을 품는다("원리" / "원리 확인"). 둘을 그대로
@@ -912,7 +917,7 @@ def write_report(
         base = dict(fontName=font, textColor=ink, wordWrap="CJK", alignment=TA_LEFT)
         return ParagraphStyle(name, **{**base, **kw})
 
-    dense = 0.70 if compact else 1.0
+    dense = 0.67 if compact else 1.0
     normal = style("body", fontSize=9.5, leading=16 * dense, spaceAfter=8 * dense)
     cellst = style("cell", fontSize=8.5, leading=13 * dense, spaceAfter=0)
     cellhd = style("cellhead", fontSize=8.5, leading=13 * dense, spaceAfter=0, textColor=accent)

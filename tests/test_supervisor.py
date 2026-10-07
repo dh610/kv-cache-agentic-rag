@@ -491,9 +491,42 @@ def test_routing_reads_only_control_fields():
     assert roles(items) == ["tech"]
 
 
+def sample_run(node="market", tech="KIVI", judgment="보통", summary="요약", criterion="adoption"):
+    from schemas.contracts import Assessment, NodeResult, NodeRun
+
+    return NodeRun(
+        node=node,
+        mode="mock",
+        status="completed",
+        result=NodeResult(
+            node=node,
+            summary=summary,
+            claims=[],
+            assessments=[
+                Assessment(
+                    technology=tech,
+                    criterion=criterion,
+                    judgment=judgment,
+                    rationale="r",
+                    evidence_ids=[],
+                )
+            ],
+            unverified=[],
+            limitations=[],
+        ),
+        evidence=[],
+        checks=[],
+        validation_errors=[],
+        searches=[],
+        prompt_hash="h",
+        model="m",
+    )
+
+
 def test_reducers_merge_concurrent_writes():
     # 병렬 하위 에이전트가 같은 필드에 동시에 쓴다.
-    assert merge_results({"tech": 1}, {"market": 2}) == {"tech": 1, "market": 2}
+    merged = merge_results({"tech": sample_run("tech")}, {"market": sample_run("market")})
+    assert set(merged) == {"tech", "market"}
     assert set(merge_control({"tech": 1}, {"market": 2})) == {"tech", "market"}
 
     def ev(eid, tech):
@@ -1135,3 +1168,66 @@ def test_a_synthesis_judgement_with_no_verified_premise_still_falls_back():
         "output"
     ]
     assert out.result.assessments[0].judgment == "확인 불가"
+
+
+def test_rework_does_not_carry_the_old_summary_forward():
+    """재작업 전 문장이 요약에 남으면 고칠 수 없는 미달이 된다.
+
+    중립성 미달로 "KIVI가 더 우수하다" 를 고쳐 쓰게 해도, 옛 요약이 이어 붙으면 품질
+    검사가 같은 표현을 계속 잡아내고 라운드만 돈다.
+    """
+    from agents.merge import merge_runs
+
+    first = merge_runs(None, sample_run(tech="KIVI", summary="KIVI가 더 우수하다"))
+    assert "KIVI" in first.result.summary
+
+    fixed = merge_runs(first, sample_run(tech="KIVI", summary="두 기술은 적용 조건이 다르다"))
+    assert "더 우수하다" not in fixed.result.summary, "고친 뒤에도 옛 문장이 남으면 안 된다"
+    assert "적용 조건이 다르다" in fixed.result.summary
+
+
+def test_merging_another_technology_keeps_both_summaries():
+    """다른 기술의 조각이 들어온 것은 재작업이 아니다. 둘 다 남아야 한다."""
+    from agents.merge import merge_runs
+
+    merged = merge_runs(
+        merge_runs(None, sample_run(tech="KIVI", summary="KIVI 는 양자화로 메모리를 줄인다")),
+        sample_run(tech="ITME", summary="ITME 는 메모리 계층을 넓힌다"),
+    )
+    assert "양자화로 메모리를 줄인다" in merged.result.summary
+    assert "메모리 계층을 넓힌다" in merged.result.summary
+
+
+def test_quality_feedback_reaches_the_agent_that_must_fix_it():
+    """'다시 하라'만 전하고 사유를 빼면 같은 글이 한 번 더 온다."""
+    control = all_research_done()
+    control["synthesis"] = done("synthesis")
+    control["report"] = done("report")
+    verdict = QualityVerdict(
+        passed=False,
+        checks=[
+            {
+                "criterion": "neutrality",
+                "passed": False,
+                "reason": "검출된 표현: 더 우수",
+                "source": "rule",
+                "owners": ["report"],
+            }
+        ],
+        remediation_roles=["report"],
+    )
+    _, items, _ = decide(base_state(control=control, quality=verdict), settings().supervisor)
+    assert items and items[0].role == "report"
+    assert any("더 우수" in note for note in items[0].feedback), "미달 사유가 배정에 실려야 한다"
+
+    # 그 사유가 실제로 하위 에이전트 입력에 들어가는지.
+    from agents.workers import _node_input
+
+    data = _node_input(
+        "report",
+        base_state(control=control, results={}),
+        node_inputs(),
+        "mock",
+        items[0],
+    )
+    assert "더 우수" in data.description

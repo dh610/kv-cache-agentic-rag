@@ -75,6 +75,13 @@ def _node_input(role: str, state, inputs: dict[str, NodeInput], mode: str, item)
     control = state.get("control", {}).get(role)
     if control is not None and control.attempts:
         data.description += rework_feedback(control, item)
+    if item is not None and item.feedback:
+        # 품질 평가가 적어 준 미달 사유. 어느 문장이 왜 걸렸는지가 여기 들어와야
+        # 고쳐 쓸 수 있다. 사유 없이 "다시 하라"만 보내면 같은 글이 한 번 더 온다.
+        data.description += (
+            "\n보고서 품질 평가 미달 사유입니다. 아래를 고쳐 다시 작성하세요: "
+            + " / ".join(item.feedback[:6])
+        )
     return data
 
 

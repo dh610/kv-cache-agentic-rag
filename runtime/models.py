@@ -30,6 +30,11 @@ from schemas.contracts import (
 # 주장 판정의 동시 실행 수. 주장끼리 독립이고, 속도 제한을 고려해 보수적으로 잡는다.
 # JUDGE_WORKERS=1 로 두면 병렬화 이전의 직렬 동작이 되어 효과를 직접 비교할 수 있다.
 JUDGE_WORKERS = max(1, int(os.getenv("JUDGE_WORKERS", "4")))
+# 보고서 품질 심사자에게 넘기는 출처 원문의 양. live 실행은 인용 출처가 100건을 넘기므로
+# 전부 원문째 넘기면 한 번의 호출이 제한 시간을 넘긴다. 발췌이고 일부라는 사실은
+# payload 에 함께 적어, 심사자가 "발췌에 없다"를 "출처에 없다"로 읽지 않게 한다.
+QUALITY_SOURCES = 40
+QUALITY_EXCERPT_CHARS = 700
 
 
 class ModelBackend(Protocol):
@@ -269,9 +274,18 @@ class OpenAIBackend:
                         "scope": e.scope,
                         "affiliation": e.affiliation,
                         "stance": e.stance,
+                        # 원문 발췌. 이것이 없으면 심사자는 제목과 주소만 보고 판정하게 되어,
+                        # 보고서의 수치나 실험 조건이 실제로 그 출처에 있는지 대조할 수 없다.
+                        # 근거 추적을 보는 항목인데 근거를 주지 않은 셈이었다.
+                        "excerpt": e.text[:QUALITY_EXCERPT_CHARS],
                     }
-                    for e in used_sources
+                    for e in used_sources[:QUALITY_SOURCES]
                 ],
+                "sources_note": (
+                    f"출처 원문은 각 {QUALITY_EXCERPT_CHARS}자까지의 발췌이며, "
+                    f"인용된 {len(used_sources)}건 중 앞 {QUALITY_SOURCES}건만 싣는다. "
+                    "발췌에서 확인되지 않는다는 이유만으로 불합격을 내지 마라."
+                ),
             },
             ensure_ascii=False,
         )

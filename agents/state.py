@@ -109,6 +109,9 @@ class WorkItem(BaseModel):
     criteria: list[str] = Field(default_factory=list)
     reason: str = ""
     attempt: int = 1
+    # 품질 평가가 적어 준 미달 사유. 배정과 함께 하위 에이전트의 입력으로 들어간다 —
+    # "다시 하라"만 전하고 무엇이 왜 문제인지 빼면 같은 결과가 한 번 더 나온다.
+    feedback: list[str] = Field(default_factory=list)
 
     def label(self) -> str:
         scope = "+".join(self.technologies) if self.technologies else "전체"

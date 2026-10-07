@@ -241,8 +241,12 @@ def decide(state, policy, now: float | None = None) -> tuple[str, list[WorkItem]
                 f"품질 미달이나 재작업 예산 없음 — 미달 항목을 남기고 종료: {failed}",
             )
         reason = f"품질 미달 ({failed}) — {', '.join(targets)} 재작업"
+        # 미달 사유를 배정에 실어 보낸다. 판정한 쪽이 지목한 역할에게만 간다.
+        notes = [
+            f"{check.criterion}: {check.reason}" for check in verdict.checks if not check.passed
+        ]
         items = [
-            item
+            item.model_copy(update={"feedback": notes})
             for role in targets
             for item in plan_items(role, control[role], technologies, reason, first=False)
         ]
