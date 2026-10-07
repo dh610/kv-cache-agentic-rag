@@ -24,8 +24,10 @@ from agents.quality import (
 from agents.state import (
     DECISION_WINDOW,
     Decision,
+    OpenItem,
     RoleControl,
     SupervisorState,
+    WorkItem,
     append_decisions,
     merge_control,
     merge_results,
@@ -38,6 +40,7 @@ from agents.supervisor import (
     decide,
     initial_control,
     make_supervisor,
+    plan_items,
     route,
 )
 from graph.supervisor_graph import WORKER_ROLES, build_supervisor_graph
@@ -51,9 +54,16 @@ def settings():
     return load_settings()
 
 
+def roles(items):
+    """배정 목록에서 역할만 뽑는다 (순서 무관 비교용)."""
+    return sorted({item.role for item in items})
+
+
 def base_state(**overrides):
     """모든 역할이 아직 돌지 않은 초기 제어 상태."""
     state = {
+        "target_techs": {"sw": "KIVI", "hw": "ITME"},
+        "domain": "데이터센터·클라우드 LLM 서빙",
         "control": initial_control(),
         "step": 0,
         "max_steps": 24,
@@ -90,9 +100,12 @@ def all_research_done(**kw):
 # ── 통신 제약: 하위 에이전트끼리 잇는 간선이 없다 ───────────────────────────────
 
 
+def node_inputs():
+    return {node: load_input(node, "acceptance") for node in NODES}
+
+
 def build(mode="mock", **kwargs):
-    inputs = {node: load_input(node, "acceptance") for node in NODES}
-    return build_supervisor_graph(inputs, mode, settings(), MockBackend(), **kwargs)
+    return build_supervisor_graph(node_inputs(), mode, settings(), MockBackend(), **kwargs)
 
 
 def test_sub_agents_only_talk_to_the_supervisor():
@@ -117,35 +130,59 @@ def test_routing_depends_on_state_not_on_a_fixed_order():
     policy = settings().supervisor
     seen = set()
     # 1) 아무것도 없을 때 → 기술 조사
-    action, targets, _ = decide(base_state(), policy)
-    seen.add((action, tuple(targets)))
-    assert targets == ["tech"]
+    action, items, _ = decide(base_state(), policy)
+    seen.add((action, tuple(roles(items))))
+    assert roles(items) == ["tech"]
+    # 기술마다 배정이 하나씩 나간다 — fan-out 개수가 코드에 고정돼 있지 않다.
+    assert sorted(i.technologies[0] for i in items) == ["ITME", "KIVI"]
 
     # 2) 기술 조사가 충분하면 → 세 관점을 한 번에 (병렬)
     control = initial_control()
     control["tech"] = done("tech")
-    action, targets, _ = decide(base_state(control=control), policy)
-    seen.add((action, tuple(targets)))
-    assert set(targets) == {"market", "stakeholder", "domain"}
+    action, items, _ = decide(base_state(control=control), policy)
+    seen.add((action, tuple(roles(items))))
+    assert set(roles(items)) == {"market", "stakeholder", "domain"}
+    assert len(items) == 6, "세 관점 × 두 기술이 한 스텝에 함께 나간다"
 
     # 3) 네 관점이 모두 충분하면 → 종합
-    action, targets, _ = decide(base_state(control=all_research_done()), policy)
-    seen.add((action, tuple(targets)))
-    assert targets == ["synthesis"]
+    action, items, _ = decide(base_state(control=all_research_done()), policy)
+    seen.add((action, tuple(roles(items))))
+    assert roles(items) == ["synthesis"]
 
     # 같은 decide() 가 State 에 따라 세 가지 다른 분기를 냈다.
     assert len(seen) == 3
 
 
-def test_router_returns_a_list_so_independent_agents_run_in_parallel():
-    assert route({"route": ["market", "stakeholder", "domain"]}) == [
-        "market",
-        "stakeholder",
-        "domain",
+def test_router_sends_one_assignment_per_work_item():
+    """Send 하나가 배정 하나를 들고 간다. 개수는 Supervisor 가 실행 중에 정한다."""
+    from langgraph.types import Send
+
+    items = [
+        WorkItem(role="market", technologies=["KIVI"]),
+        WorkItem(role="market", technologies=["ITME"]),
+        WorkItem(role="domain", technologies=["KIVI"]),
     ]
-    # 알 수 없는 대상은 버리고 반드시 유효한 노드로 간다.
-    assert route({"route": ["nonexistent"]}) == ["finalize"]
-    assert route({}) == ["finalize"]
+    sends = route({**base_state(), "route": items})
+    assert all(isinstance(s, Send) for s in sends)
+    assert [s.node for s in sends] == ["market", "market", "domain"]
+    # 배정 내용이 분기 자체에 실려 간다 — 워커가 공유 State 를 뒤지지 않는다.
+    assert [s.arg["assignment"].technologies for s in sends] == [["KIVI"], ["ITME"], ["KIVI"]]
+    assert route({**base_state(), "route": []}) == ["finalize"]
+    assert route({**base_state(), "route": [WorkItem(role="finalize")]}) == ["finalize"]
+
+
+def test_fan_out_width_is_decided_at_runtime_not_in_code():
+    """같은 역할이라도 부족한 항목 수에 따라 배정 개수가 달라진다."""
+    control = done("market", sufficient=False)
+    wide = plan_items("market", control, ["KIVI", "ITME"], "r", first=True)
+    assert len(wide) == 2
+
+    narrow_control = control.model_copy(
+        update={"open_items": [OpenItem(technology="ITME", criterion="adoption")]}
+    )
+    narrow = plan_items("market", narrow_control, ["KIVI", "ITME"], "r", first=False)
+    assert len(narrow) == 1, "부족한 기술만 다시 본다"
+    assert narrow[0].technologies == ["ITME"] and narrow[0].criteria == ["adoption"]
 
 
 # ── 근거 충분성: 부족하면 그 에이전트에게만 재작업 ──────────────────────────────
@@ -155,9 +192,9 @@ def test_insufficient_evidence_reworks_only_the_owning_agent():
     policy = settings().supervisor
     control = all_research_done()
     control["market"] = done("market", sufficient=False)
-    action, targets, reason = decide(base_state(control=control), policy)
+    action, items, reason = decide(base_state(control=control), policy)
     assert action == "rework"
-    assert targets == ["market"], "근거가 부족한 역할만 재작업해야 한다"
+    assert roles(items) == ["market"], "근거가 부족한 역할만 재작업해야 한다"
     assert "근거 부족" in reason
 
 
@@ -167,11 +204,11 @@ def test_report_waits_for_the_sufficiency_verdict():
     control = initial_control()
     control["tech"] = done("tech")
     for _ in range(10):
-        action, targets, _ = decide(base_state(control=control), policy)
-        assert targets != ["report"]
-        if targets == ["synthesis"]:
+        action, items, _ = decide(base_state(control=control), policy)
+        assert roles(items) != ["report"]
+        if roles(items) == ["synthesis"]:
             break
-        for role in targets:
+        for role in roles(items):
             if role in control:
                 control[role] = done(role)
     assert control["synthesis"].status == "pending"
@@ -190,15 +227,15 @@ def test_rework_feedback_names_the_missing_items():
 
 def test_step_ceiling_forces_finalize():
     policy = settings().supervisor
-    action, targets, reason = decide(base_state(step=24, max_steps=24), policy)
-    assert (action, targets) == ("finalize", ["finalize"])
+    action, items, reason = decide(base_state(step=24, max_steps=24), policy)
+    assert (action, roles(items)) == ("finalize", ["finalize"])
     assert "스텝 상한" in reason
 
 
 def test_exhausted_attempts_stop_the_rework_loop():
     policy = settings().supervisor
     control = all_research_done(sufficient=False, attempts=policy.max_attempts)
-    action, targets, _ = decide(base_state(control=control), policy)
+    action, _, _ = decide(base_state(control=control), policy)
     assert action == "synthesize", "예산을 소진하면 미해결을 남긴 채 다음 단계로 간다"
 
 
@@ -215,7 +252,7 @@ def test_no_new_evidence_stops_further_rework():
     policy = settings().supervisor
     control = all_research_done()
     control["domain"] = done("domain", sufficient=False, attempts=1, stalled=True)
-    action, targets, _ = decide(base_state(control=control), policy)
+    action, _, _ = decide(base_state(control=control), policy)
     assert action == "synthesize", "헛도는 재작업은 하지 않는다"
     assert "근거 증가 없음" in decide(base_state(control=control), policy)[2]
 
@@ -227,7 +264,7 @@ def test_time_budget_stops_rework_but_still_produces_a_report():
     # 예산 안: 재작업한다.
     assert decide(state, policy, now=999.0)[0] == "rework"
     # 예산 밖: 재작업을 멈추고 산출물 경로로 간다.
-    action, targets, reason = decide(state, policy, now=1001.0)
+    action, _, reason = decide(state, policy, now=1001.0)
     assert action == "synthesize"
     assert "시간 예산 소진" in reason
 
@@ -273,9 +310,9 @@ def test_quality_failure_routes_back_to_the_responsible_agents():
         ],
         remediation_roles=["report"],
     )
-    action, targets, reason = decide(base_state(control=control, quality=verdict), policy)
+    action, items, reason = decide(base_state(control=control, quality=verdict), policy)
     assert action == "rework"
-    assert targets == ["report"], "서술 문제는 보고서 에이전트에게 돌린다"
+    assert roles(items) == ["report"], "서술 문제는 보고서 에이전트에게 돌린다"
     assert "품질 미달" in reason
 
 
@@ -285,8 +322,8 @@ def test_quality_pass_finalizes():
     control["synthesis"] = done("synthesis")
     control["report"] = done("report")
     verdict = QualityVerdict(passed=True, checks=[])
-    action, targets, _ = decide(base_state(control=control, quality=verdict), policy)
-    assert (action, targets) == ("finalize", ["finalize"])
+    action, items, _ = decide(base_state(control=control, quality=verdict), policy)
+    assert (action, roles(items)) == ("finalize", ["finalize"])
 
 
 def test_quality_round_ceiling_ends_the_loop():
@@ -376,8 +413,8 @@ def test_routing_reads_only_control_fields():
     """라우터는 페이로드(NodeRun 본문) 없이도 분기할 수 있어야 한다."""
     policy = settings().supervisor
     state = base_state()  # results/sources 가 아예 없다
-    action, targets, _ = decide(state, policy)
-    assert targets == ["tech"]
+    action, items, _ = decide(state, policy)
+    assert roles(items) == ["tech"]
 
 
 def test_reducers_merge_concurrent_writes():
@@ -462,7 +499,7 @@ def test_large_payloads_live_on_disk_not_in_the_decision_log(tmp_path):
         {},
         config={"recursion_limit": 120, "configurable": {"output_dir": str(tmp_path)}},
     )
-    assert (tmp_path / "nodes" / "tech.json").exists()
+    assert list((tmp_path / "nodes").glob("tech.*.json")), "조사 조각이 디스크에 남아야 한다"
     log = (tmp_path / "decisions.jsonl").read_text(encoding="utf-8")
     # 결정 로그에는 사유·대상만 있고 근거 원문이 들어가면 안 된다.
     for excerpt in load_input("tech", "acceptance").evidence:
@@ -545,9 +582,9 @@ def test_a_wording_only_fix_does_not_re_run_synthesis():
         ],
         remediation_roles=["report"],
     )
-    supervise = make_supervisor(settings())
+    supervise = make_supervisor(settings(), node_inputs())
     delta = supervise(base_state(control=control, quality=verdict), {})
-    assert delta["route"] == ["report"]
+    assert roles(delta["route"]) == ["report"]
     assert delta["control"]["report"].status == "pending"
     assert "synthesis" not in delta["control"], "평가 종합은 그대로 두어야 한다"
 
@@ -557,7 +594,7 @@ def test_changed_research_does_re_run_synthesis_and_report():
     control = all_research_done(sufficient=False)
     control["synthesis"] = done("synthesis")
     control["report"] = done("report")
-    supervise = make_supervisor(settings())
+    supervise = make_supervisor(settings(), node_inputs())
     delta = supervise(base_state(control=control), {})
     assert delta["control"]["synthesis"].status == "pending"
     assert delta["control"]["report"].status == "pending"
@@ -668,3 +705,156 @@ def test_a_run_never_overwrites_the_submission_copy_outside_its_output_dir(tmp_p
     write_report("# SUMMARY\n\n본문\n\n# REFERENCE\n\n없음\n", tmp_path, meta, "fixture")
     assert (tmp_path / meta.submission).exists(), "제출본은 지정된 출력 경로 아래로 간다"
     assert (ROOT / "outputs" / meta.submission).exists() == before
+
+
+# ── Send 기반 동적 fan-out과 조각 병합 ─────────────────────────────────────
+
+
+def test_merging_partial_results_replaces_only_what_was_redone():
+    """재작업이 ITME 만 돌렸다면 KIVI 판정과 근거는 그대로 남아야 한다."""
+    from agents.merge import merge_runs
+    from schemas.contracts import Assessment, Claim, NodeResult, NodeRun
+
+    def run(tech, judgment, claim_id, evidence_id):
+        return NodeRun(
+            node="market",
+            mode="mock",
+            status="completed",
+            result=NodeResult(
+                node="market",
+                summary=f"{tech} 요약",
+                claims=[
+                    Claim(
+                        id=claim_id,
+                        technology=tech,
+                        criterion="adoption",
+                        text=f"{tech} 주장",
+                        kind="fact",
+                        evidence_ids=[evidence_id],
+                        conditions=[],
+                    )
+                ],
+                assessments=[
+                    Assessment(
+                        technology=tech,
+                        criterion="adoption",
+                        judgment=judgment,
+                        rationale="r",
+                        evidence_ids=[evidence_id],
+                    )
+                ],
+                unverified=[f"{tech}/adoption: 확인 불가"],
+                limitations=[],
+            ),
+            evidence=[
+                Evidence(
+                    id=evidence_id,
+                    text="t",
+                    title="T",
+                    url=f"https://example.com/{evidence_id}",
+                    technology=tech,
+                    source_type="web",
+                    scope="target",
+                )
+            ],
+            checks=[],
+            validation_errors=[],
+            searches=[],
+            prompt_hash="h",
+            model="m",
+        )
+
+    merged = merge_runs(run("KIVI", "보통", "c1", "e-kivi"), run("ITME", "낮음", "c2", "e-itme"))
+    assert {(a.technology, a.judgment) for a in merged.result.assessments} == {
+        ("KIVI", "보통"),
+        ("ITME", "낮음"),
+    }
+    assert {e.id for e in merged.evidence} == {"e-kivi", "e-itme"}
+
+    # ITME 만 다시 돌린다: KIVI 는 보존되고 ITME 만 새 판정으로 바뀐다.
+    reworked = merge_runs(merged, run("ITME", "높음", "c3", "e-itme2"))
+    judgments = {a.technology: a.judgment for a in reworked.result.assessments}
+    assert judgments == {"KIVI": "보통", "ITME": "높음"}
+    assert len(reworked.result.assessments) == 2, "같은 항목이 두 번 남으면 안 된다"
+    assert {e.id for e in reworked.evidence} == {"e-kivi", "e-itme", "e-itme2"}
+    # 해결된 항목의 옛 미확인 기록은 따라가지 않는다.
+    assert reworked.result.unverified.count("ITME/adoption: 확인 불가") == 1
+
+
+def test_merging_renames_colliding_claim_ids_and_follows_the_checks():
+    """조각마다 ID 를 따로 만들므로 겹칠 수 있다. 겹치면 검증 연결이 끊기면 안 된다."""
+    from agents.merge import merge_runs
+    from schemas.contracts import Assessment, Claim, ClaimCheck, NodeResult, NodeRun
+
+    def run(tech, criterion):
+        return NodeRun(
+            node="market",
+            mode="mock",
+            status="completed",
+            result=NodeResult(
+                node="market",
+                summary="s",
+                claims=[
+                    Claim(
+                        id="c1",  # 두 조각이 같은 ID 를 만들었다
+                        technology=tech,
+                        criterion=criterion,
+                        text=f"{tech} 주장",
+                        kind="fact",
+                        evidence_ids=["e1"],
+                        conditions=[],
+                    )
+                ],
+                assessments=[
+                    Assessment(
+                        technology=tech,
+                        criterion=criterion,
+                        judgment="보통",
+                        rationale="r",
+                        evidence_ids=["e1"],
+                    )
+                ],
+                unverified=[],
+                limitations=[],
+            ),
+            evidence=[
+                Evidence(
+                    id="e1",
+                    text="t",
+                    title="T",
+                    url="https://example.com/e1",
+                    technology="other",
+                    source_type="web",
+                    scope="target",
+                )
+            ],
+            checks=[ClaimCheck(claim_id="c1", label="supported", evidence_ids=["e1"], reason="r")],
+            validation_errors=[],
+            searches=[],
+            prompt_hash="h",
+            model="m",
+        )
+
+    merged = merge_runs(run("KIVI", "adoption"), run("ITME", "growth"))
+    ids = [c.id for c in merged.result.claims]
+    assert len(ids) == len(set(ids)) == 2, "ID 가 겹친 채 남으면 인용이 어긋난다"
+    assert {c.claim_id for c in merged.checks} == set(ids), "판정이 주장을 계속 가리켜야 한다"
+
+
+def test_each_assignment_runs_only_its_own_questions(tmp_path):
+    """배정 범위 밖의 질문은 그 조각이 건드리지 않는다."""
+    final = build().invoke(
+        {},
+        config={"recursion_limit": 160, "configurable": {"output_dir": str(tmp_path)}},
+    )
+    import json
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    scoped = [r for r in rows if r.get("questions") and r["node"] in ("market", "domain")]
+    assert scoped, "조사 조각의 질문 목록이 기록되어야 한다"
+    assert any(len(r["questions"]) < 6 for r in scoped), "배정이 질문을 실제로 좁혀야 한다"
+    # 역할 전체 결과는 조각이 합쳐져 완성된다.
+    assert len(final["results"]["market"].result.assessments) == 6

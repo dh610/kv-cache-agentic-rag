@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from agents.state import RoleControl
+from agents.state import OpenItem, RoleControl
 from schemas.contracts import NodeInput, NodeRun
 
 
@@ -80,7 +80,8 @@ def assess(role: str, run: NodeRun, data: NodeInput, settings) -> RoleControl:
     diversity, diversity_gaps = _diversity(run, technologies, policy.min_sources_per_tech)
     balance, balance_gaps = _both_sided(run)
 
-    gaps = [f"{tech}/{criterion}" for tech, criterion in sorted(expected - resolved)]
+    missing = sorted(expected - resolved)
+    gaps = [f"{tech}/{criterion}" for tech, criterion in missing]
     gaps += diversity_gaps + balance_gaps
 
     # 핵심 항목(config 의 gap_policy.critical_criteria)이 비면 점수와 무관하게 부족이다.
@@ -98,17 +99,27 @@ def assess(role: str, run: NodeRun, data: NodeInput, settings) -> RoleControl:
         sufficiency=round(score, 3),
         sufficient=sufficient,
         open_gaps=sorted(dict.fromkeys(gaps)),
+        # 재작업 배정의 단위. 출처 다양성·양면 검색 부족은 특정 항목에 묶이지 않으므로
+        # 그 기술의 모든 미해결 항목으로 대신한다 (없으면 그 기술 전체를 다시 본다).
+        open_items=[OpenItem(technology=tech, criterion=criterion) for tech, criterion in missing],
         last_error=(run.validation_errors[0] if run.validation_errors else None),
     )
 
 
-def rework_feedback(control: RoleControl) -> str:
-    """재작업 지시문. 하위 에이전트 입력의 description 에 덧붙인다."""
-    if not control.open_gaps:
+def rework_feedback(control: RoleControl, item=None) -> str:
+    """재작업 지시문. 하위 에이전트 입력의 description 에 덧붙인다.
+
+    배정(``item``)이 있으면 그 범위의 부족 항목만 적는다. 다른 기술·항목까지 적으면
+    이번에 맡지도 않은 일을 보강하라는 지시가 된다.
+    """
+    gaps = control.open_gaps
+    if item is not None and item.technologies:
+        scope = set(item.technologies)
+        gaps = [g for g in gaps if g.split("/")[0] in scope]
+    if not gaps:
         return ""
     return (
         "\nSupervisor 재작업 지시: 아래 항목의 근거가 부족하다고 판단했습니다. "
         f"(충분도 {control.sufficiency}) 해당 항목의 근거를 우선 보강하고, "
-        "근거를 찾지 못하면 추측하지 말고 확인 불가로 남기세요. 부족 항목: "
-        + ", ".join(control.open_gaps[:12])
+        "근거를 찾지 못하면 추측하지 말고 확인 불가로 남기세요. 부족 항목: " + ", ".join(gaps[:12])
     )

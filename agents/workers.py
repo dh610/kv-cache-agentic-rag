@@ -22,7 +22,7 @@ from langchain_core.runnables import RunnableConfig
 
 from agents.observability import log_from_config
 from agents.state import RoleControl
-from agents.sufficiency import assess, rework_feedback
+from agents.sufficiency import rework_feedback
 from graph.node_graph import build_node_graph, contract_errors
 from rag.evidence import merge_evidence
 from rag.interface import CombinedSource, EvidenceSource, FixedEvidence
@@ -35,22 +35,38 @@ RESEARCH_ROLES = ("tech", "market", "stakeholder", "domain")
 NEEDS_TECH = ("market", "stakeholder", "domain")
 
 
-def _save_artifact(config: RunnableConfig, role: str, run: NodeRun) -> str | None:
+def _save_artifact(config: RunnableConfig, role: str, run: NodeRun, item=None) -> str | None:
+    """조각을 그대로 남긴다. 같은 역할의 조각이 서로 덮어쓰지 않게 배정을 파일명에 쓴다."""
     folder = (config or {}).get("configurable", {}).get("output_dir")
     if not folder:
         return None
     path = Path(folder) / "nodes"
     path.mkdir(parents=True, exist_ok=True)
-    target = path / f"{role}.json"
+    scope = "-".join(item.technologies) if item is not None and item.technologies else "all"
+    attempt = item.attempt if item is not None else 1
+    target = path / f"{role}.{scope}.{attempt}.json"
     target.write_text(run.model_dump_json(indent=2), encoding="utf-8")
     return str(target)
 
 
-def _node_input(role: str, state, inputs: dict[str, NodeInput], mode: str) -> NodeInput:
-    """역할 입력 조립. Supervisor 가 올려 둔 상위 결과와 재작업 지시만 덧붙인다."""
+def _node_input(role: str, state, inputs: dict[str, NodeInput], mode: str, item) -> NodeInput:
+    """배정 하나의 입력을 조립한다.
+
+    배정에 기술·항목 범위가 적혀 있으면 질문을 그만큼으로 좁힌다. 좁힌 결과는 그 범위의
+    조각이고, 역할 전체 결과는 ``agents/merge.py`` 가 (기술, 항목) 단위로 합쳐 만든다.
+    """
     data = inputs[role].model_copy(deep=True)
     if mode == "live":
         data.evidence = []  # 데모 고정 발췌를 실제 검색 근거와 섞지 않는다.
+    if item is not None and (item.technologies or item.criteria):
+        scoped = [
+            q
+            for q in data.questions
+            if (not item.technologies or q.technology in item.technologies)
+            and (not item.criteria or q.criterion in item.criteria)
+        ]
+        # 범위에 맞는 질문이 하나도 없으면 좁히지 않는다. 노드는 질문 없이 돌 수 없다.
+        data.questions = scoped or data.questions
     results = state.get("results", {})
     if role in NEEDS_TECH and "tech" in results:
         data.prior_results = {"tech": results["tech"].result}
@@ -58,7 +74,7 @@ def _node_input(role: str, state, inputs: dict[str, NodeInput], mode: str) -> No
         data.prior_results = {name: run.result for name, run in results.items()}
     control = state.get("control", {}).get(role)
     if control is not None and control.attempts:
-        data.description += rework_feedback(control)
+        data.description += rework_feedback(control, item)
     return data
 
 
@@ -89,8 +105,9 @@ def make_worker(
         log = log_from_config(state, config)
         step = state.get("step", 0)
         control = state.get("control", {}).get(role) or RoleControl(role=role)
-        attempt = control.attempts + 1
-        data = _node_input(role, state, inputs, mode)
+        item = state.get("assignment")
+        attempt = item.attempt if item is not None else control.attempts + 1
+        data = _node_input(role, state, inputs, mode, item)
         data.evidence = merge_evidence(data.evidence, *_inherited_evidence(role, state))
 
         previous = state.get("results", {}).get(role) if attempt > 1 else None
@@ -143,43 +160,34 @@ def make_worker(
                 "last_error": failure,
             }
 
-        artifact = _save_artifact(config, role, out)
+        artifact = _save_artifact(config, role, out, item)
         cited = used_ids(out)
-        # 수확 체감 측정: 재작업이 실제로 새 근거를 가져왔는가.
-        # 근거가 한 건도 늘지 않았다면 "덜 찾은 것"이 아니라 "없는 것"에 가깝고,
-        # 같은 질의로 한 번 더 도는 것은 시간과 호출만 쓴다.
-        found = len(out.evidence)
-        stalled = attempt > 1 and found <= control.evidence_count
-        summary = assess(role, out, data, settings).model_copy(
-            update={
-                "attempts": attempt,
-                "artifact": artifact,
-                "evidence_count": found,
-                "stalled": stalled,
-            }
-        )
+        # 충분성은 여기서 재지 않는다. 이 결과는 역할의 **조각**이라 혼자서는 그 역할이
+        # 충분한지 판정할 수 없다. 조각들이 합쳐진 뒤 Supervisor 가 판정한다.
         log.record(
             step=step,
             node=role,
             action="rework" if attempt > 1 else "dispatch",
-            targets=[role],
+            targets=[item.label() if item is not None else role],
             reason=(
-                f"{role} 완료 — status={out.status}, 충분도={summary.sufficiency}, "
-                f"근거 {found}건, 미해결 {len(summary.open_gaps)}건"
-                + (" (재작업했으나 근거 증가 없음)" if stalled else "")
+                f"{item.label() if item is not None else role} 완료 — status={out.status}, "
+                f"질문 {len(data.questions)}건, 근거 {len(out.evidence)}건"
             ),
             extra={
                 "attempt": attempt,
                 "outcome": out.status,
-                "open_gaps": summary.open_gaps[:12],
-                "evidence_count": found,
-                "stalled": stalled,
+                "questions": [q.id for q in data.questions],
+                "evidence_count": len(out.evidence),
             },
         )
         delta = {
             "results": {role: out},
             "sources": [e for e in out.evidence if e.id in cited],
-            "control": {role: summary},
+            "control": {
+                role: control.model_copy(
+                    update={"status": out.status, "attempts": attempt, "artifact": artifact}
+                )
+            },
         }
         if role == "synthesis":
             delta["trl_result"] = _trl_from_synthesis(out, settings)

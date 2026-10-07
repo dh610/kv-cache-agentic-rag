@@ -87,6 +87,7 @@ def build_supervisor_graph(
             "max_steps": policy.max_steps,
             "control": initial_control(),
             "route": [],
+            "assignment": None,
             "decisions": [],
             "revision_round": 0,
             "max_revisions": policy.max_revisions,
@@ -166,7 +167,7 @@ def build_supervisor_graph(
         }
 
     builder.add_node("initialize", initialize)
-    builder.add_node("supervisor", make_supervisor(settings))
+    builder.add_node("supervisor", make_supervisor(settings, inputs))
     for role in WORKER_ROLES:
         builder.add_node(
             role,
