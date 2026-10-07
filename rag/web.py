@@ -23,7 +23,7 @@ class WebSource:
     def __init__(self, settings: Settings):
         self.key = require_key("TAVILY_API_KEY")
         self.timeout = settings.models.timeout_seconds
-        self.k = min(settings.retrieval.top_k, 5)
+        self.k = settings.retrieval.web_top_k
         self.context_terms = list(settings.retrieval.web_context_terms)
         self.excerpt_chars = settings.retrieval.web_excerpt_chars
         self.metadata_fetch = settings.retrieval.web_metadata_fetch
